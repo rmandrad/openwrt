@@ -166,8 +166,7 @@ define Device/netgear_ath79_nand
   IMAGES := sysupgrade.bin factory.img
   IMAGE/factory.img := append-kernel | append-ubi | netgear-dni | \
 	check-size
-  IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata | \
-	check-size
+  IMAGE/sysupgrade.bin := sysupgrade-tar | check-size | append-metadata
   UBINIZE_OPTS := -E 5
 endef
 
@@ -256,5 +255,6 @@ define Device/zyxel_nbg6716
   IMAGE/factory.bin := append-kernel | pad-to $$$$(KERNEL_SIZE) | append-ubi | \
 	zyxel-factory
   UBINIZE_OPTS := -E 5
+  DEFAULT := n
 endef
 TARGET_DEVICES += zyxel_nbg6716
