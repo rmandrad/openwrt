@@ -37,6 +37,7 @@ ALLWIFIBOARDS:= \
 	linksys_ea8300 \
 	p2w_r619ac \
 	pakedge_wr-1 \
+	qnap_301w \
 	qxwlan_e2600ac-c1 \
 	qxwlan_e2600ac-c2 \
 	redmi_ax6 \
@@ -128,6 +129,7 @@ $(eval $(call generate-ipq-wifi-package,glinet_gl-s1300,GL.iNet GL-S1300))
 $(eval $(call generate-ipq-wifi-package,linksys_ea8300,Linksys EA8300))
 $(eval $(call generate-ipq-wifi-package,p2w_r619ac,P&W R619AC))
 $(eval $(call generate-ipq-wifi-package,pakedge_wr-1,Pakedge WR-1))
+$(eval $(call generate-ipq-wifi-package,qnap_301w,QNAP 301w))
 $(eval $(call generate-ipq-wifi-package,qxwlan_e2600ac-c1,Qxwlan E2600AC C1))
 $(eval $(call generate-ipq-wifi-package,qxwlan_e2600ac-c2,Qxwlan E2600AC C2))
 $(eval $(call generate-ipq-wifi-package,redmi_ax6,Redmi AX6))
