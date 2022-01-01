@@ -33,6 +33,7 @@ platform_check_image() {
 
 platform_pre_upgrade() {
 	case "$(board_name)" in
+	redmi,ax6|\
 	xiaomi,ax3600)
 		xiaomi_initramfs_prepare
 		;;
@@ -41,6 +42,7 @@ platform_pre_upgrade() {
 
 platform_do_upgrade() {
 	case "$(board_name)" in
+	redmi,ax6|\
 	xiaomi,ax3600)
 		# Enforce single partition.
 		fw_setenv flag_boot_rootfs 0
