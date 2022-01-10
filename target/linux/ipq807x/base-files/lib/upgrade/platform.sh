@@ -19,7 +19,8 @@ platform_do_upgrade() {
 		mmc_do_upgrade "$1"
 		;;
 	redmi,ax6|\
-	xiaomi,ax3600)
+	xiaomi,ax3600|\
+	xiaomi,ax9000)
 		# Enforce single partition.
 		fw_setenv flag_boot_rootfs 0
 		fw_setenv flag_last_success 0
