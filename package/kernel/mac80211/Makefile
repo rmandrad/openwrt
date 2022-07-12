@@ -12,11 +12,12 @@ PKG_NAME:=mac80211
 
 PKG_VERSION:=5.15.33-1
 PKG_RELEASE:=1
-PKG_SOURCE_URL:=@KERNEL/linux/kernel/projects/backports/stable/v5.15.33/
-PKG_HASH:=1b6b3bded4c81814ebebe2d194c2f8966d2399005b85ebb0557285b6e73f5422
+PKG_SOURCE_URL:=https://github.com/robimarko/wireless-backport-releases.git
+PKG_SOURCE_PROTO:=git
+PKG_SOURCE_DATE:=2022-05-21
+PKG_SOURCE_VERSION:=7aa1df4f57570a0c148165f5aa869b289bfcd72f
+PKG_MIRROR_HASH:=e8b3462d26b4ec02e618a52e7d02a2b9a8d33e54e3d7719ba29defb1cf9d1c61
 
-PKG_SOURCE:=backports-$(PKG_VERSION).tar.xz
-PKG_BUILD_DIR:=$(KERNEL_BUILD_DIR)/backports-$(PKG_VERSION)
 PKG_BUILD_PARALLEL:=1
 
 PKG_MAINTAINER:=Felix Fietkau <nbd@nbd.name>
