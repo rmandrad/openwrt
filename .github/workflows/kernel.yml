@@ -67,8 +67,8 @@ jobs:
     uses: ./.github/workflows/build.yml
     with:
       target: ${{ matrix.target }}
+      build_kernel: true
       build_all_kmods: true
-      include_feeds: true
 
   check-kernel-patches:
     name: Check Kernel patches
