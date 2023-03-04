@@ -1,4 +1,4 @@
-From 76893579a74e7e5c79f0c717d95d13f4cbbb5f4d Mon Sep 17 00:00:00 2001
+From 7df5cc0c053dfd823c992f0c6d3c935d2d4842cf Mon Sep 17 00:00:00 2001
 From: Robert Marko <robimarko@gmail.com>
 Date: Sat, 24 Dec 2022 17:11:16 +0100
 Subject: [PATCH] PCI: qcom: Add support for IPQ8074 Gen3 port
