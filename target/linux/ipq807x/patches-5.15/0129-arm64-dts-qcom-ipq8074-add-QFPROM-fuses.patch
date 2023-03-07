@@ -1,4 +1,4 @@
-From 04d2fc6a551bbd972a6428059b45ce79cb9de9d7 Mon Sep 17 00:00:00 2001
+From d85fa367cc3f02a15dd43e1245e264a966565255 Mon Sep 17 00:00:00 2001
 From: Robert Marko <robimarko@gmail.com>
 Date: Fri, 6 May 2022 22:38:24 +0200
 Subject: [PATCH] arm64: dts: qcom: ipq8074: add QFPROM fuses
@@ -7,20 +7,15 @@ Add the QFPROM node and CPR fuses.
 
 Signed-off-by: Robert Marko <robimarko@gmail.com>
 ---
- arch/arm64/boot/dts/qcom/ipq8074.dtsi | 107 ++++++++++++++++++++++++++
- 1 file changed, 107 insertions(+)
+ arch/arm64/boot/dts/qcom/ipq8074.dtsi | 100 ++++++++++++++++++++++++++
+ 1 file changed, 100 insertions(+)
 
 --- a/arch/arm64/boot/dts/qcom/ipq8074.dtsi
 +++ b/arch/arm64/boot/dts/qcom/ipq8074.dtsi
-@@ -340,6 +340,113 @@
- 			status = "disabled";
- 		};
- 
-+		qfprom: efuse@a4000 {
-+			compatible = "qcom,ipq8074-qfprom", "qcom,qfprom";
-+			reg = <0x000a4000 0x1000>;
-+			#address-cells = <1>;
-+			#size-cells = <1>;
+@@ -345,6 +345,106 @@
+ 			reg = <0x000a4000 0x2000>;
+ 			#address-cells = <1>;
+ 			#size-cells = <1>;
 +
 +			cpr_efuse_speedbin: speedbin@125 {
 +				reg = <0x125 0x1>;
@@ -121,8 +116,6 @@ Signed-off-by: Robert Marko <robimarko@gmail.com>
 +				reg = <0x23c 0x1>;
 +				bits = <0 7>;
 +			};
-+		};
-+
+ 		};
+ 
  		prng: rng@e3000 {
- 			compatible = "qcom,prng-ee";
- 			reg = <0x000e3000 0x1000>;
