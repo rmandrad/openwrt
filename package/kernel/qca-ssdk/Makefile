@@ -29,6 +29,11 @@ define KernelPackage/qca-ssdk/Description
   Driver for Qualcomm Atheros switches.
 endef
 
+define KernelPackage/qca-ssdk/install
+	$(INSTALL_DIR) $(1)/etc/init.d
+	$(INSTALL_BIN) ./files/qca-ssdk $(1)/etc/init.d/qca-ssdk
+endef
+
 GCC_VERSION=$(shell echo "$(CONFIG_GCC_VERSION)" | sed 's/[^0-9.]*\([0-9.]*\).*/\1/')
 
 ifdef CONFIG_TOOLCHAIN_BIN_PATH
