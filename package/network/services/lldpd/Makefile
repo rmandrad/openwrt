@@ -78,7 +78,8 @@ ifneq ($(CONFIG_LLDPD_WITH_EDP),y)
 	sed -i -e '/edp/d' $(1)/etc/config/lldpd
 endif
 ifneq ($(CONFIG_LLDPD_WITH_SONMP),y)
-	sed -i -e '/sonmp/d' $(1)/etc/init.d/lldpd $(1)/etc/config/lldpd
+	sed -i -e 's/CONFIG_LLDPD_WITH_SONMP=y/CONFIG_LLDPD_WITH_SONMP=n/g' $(1)/etc/init.d/lldpd
+	sed -i -e '/sonmp/d' $(1)/etc/config/lldpd
 endif
 ifneq ($(CONFIG_LLDPD_WITH_SNMP),y)
 	sed -i -e 's/CONFIG_LLDPD_WITH_SNMP=y/CONFIG_LLDPD_WITH_SNMP=n/g' $(1)/etc/init.d/lldpd
