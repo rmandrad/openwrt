@@ -47,6 +47,7 @@ MAKE_FLAGS+= \
 	PTP_FEATURE=disable SWCONFIG_FEATURE=disable \
 	ISISC_ENABLE=disable IN_QCA803X_PHY=FALSE \
 	EXTRA_CFLAGS='-fno-PIC -fno-stack-protector -I$(STAGING_DIR)/usr/include' \
+	IN_QCA808X_PHY=FALSE \
 	$(LNX_CONFIG_OPTS)
 
 ifeq ($(CONFIG_TARGET_SUBTARGET), "ipq807x")
