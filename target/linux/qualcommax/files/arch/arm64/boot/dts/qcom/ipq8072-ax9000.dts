@@ -130,12 +130,21 @@
      pinctrl-0 = <&i2c_0_pins>;
      pinctrl-names = "default";
 
-//     lm63@4C {
-//             compatible = "ti,lm63";
-//             reg = <0x4c>;
-//             #address-cells = <0x01>;
-//             #size-cells = <0x00>;
-//     };
+     fanctrl: emc2301@2f {
+             compatible = "smsc,emc2301", "emc2301", "microchip,emc2301";
+             reg = <0x2f>;
+             #size-cells = <0>;
+             #address-cells = <1>;
+             #cooling-cells = <2>;
+
+             case_fan: fan@0 {
+                     reg = <0>;
+                     min-rpm = /bits/ 16 <3000>;
+                     max-rpm = /bits/ 16 <5500>;
+                     #cooling-cells = <2>;
+             };
+    };
+
 };
 
 
@@ -151,12 +160,6 @@
                 #address-cells = <0x01>;
                 #size-cells = <0x00>;
         };  */
-
-        fanctrl: emc2301@2f {
-                compatible = "smsc,emc2301", "emc2301", "microchip,emc2301";
-                reg = <0x2f>;
-		#cooling-cells = <2>;
-        }; 
 
 };
 
