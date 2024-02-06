@@ -1,0 +1,18 @@
+--- a/drivers/hwmon/emc2305.c	2024-02-04 04:21:03.361080138 +0000
++++ b/drivers/hwmon/emc2305.c	2024-02-04 04:21:03.361080138 +0000
+@@ -396,6 +396,7 @@
+ 	for (i = 0; i < data->pwm_num; i++) {
+ 		ret = emc2305_set_single_tz(dev, i + 1);
+ 		if (ret)
++		        dev_err(dev, "failed to register cooling device: 0x%d\n", ret);
+ 			goto thermal_cooling_device_register_fail;
+ 	}
+ 	return 0;
+@@ -585,6 +586,7 @@
+ 		break;
+ 	case EMC2301:
+ 		data->pwm_num = 1;
++		dev_err(dev, "emc2301 registered: 0x%x\n", data->pwm_num);
+ 		break;
+ 	default:
+ 		return -ENODEV;
