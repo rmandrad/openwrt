@@ -1,3 +1,5 @@
+#include <dt-bindings/leds/common.h>
+
 #include "mt7628an_vocore_vocore2.dtsi"
 
 / {

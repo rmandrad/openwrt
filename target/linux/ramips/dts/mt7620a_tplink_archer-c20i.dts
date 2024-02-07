@@ -1,3 +1,5 @@
+#include <dt-bindings/leds/common.h>
+
 #include "mt7620a_tplink_archer.dtsi"
 
 / {
