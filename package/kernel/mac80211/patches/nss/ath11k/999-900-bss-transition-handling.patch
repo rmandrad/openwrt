@@ -1,6 +1,5 @@
-diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/core.c backports-6.9.9/drivers/net/wireless/ath/ath11k/core.c
---- backports-6.9.9/drivers/net/wireless/ath/ath11k/core.c	2024-08-06 13:31:39.196715685 +0700
-+++ backports-6.9.9/drivers/net/wireless/ath/ath11k/core.c	2024-08-06 13:39:13.929119769 +0700
+--- a/drivers/net/wireless/ath/ath11k/core.c
++++ b/drivers/net/wireless/ath/ath11k/core.c
 @@ -2041,10 +2041,10 @@ void ath11k_core_pre_reconfigure_recover
  		ar->monitor_vdev_id = -1;
  		clear_bit(ATH11K_FLAG_MONITOR_STARTED, &ar->monitor_flags);
@@ -13,15 +12,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/core.c backports-6.9.
  
  	reinit_completion(&ab->driver_recovery);
  }
-@@ -2178,7 +2178,6 @@ static void ath11k_core_reset(struct wor
- 
- 	ath11k_hif_irq_disable(ab);
- 	ath11k_hif_ce_irq_disable(ab);
--
- 	ath11k_hif_power_down(ab);
- 	ath11k_hif_power_up(ab);
- 
-@@ -2320,7 +2319,6 @@ struct ath11k_base *ath11k_core_alloc(st
+@@ -2320,7 +2320,6 @@ struct ath11k_base *ath11k_core_alloc(st
  		goto err_free_wq;
  
  	mutex_init(&ab->core_lock);
@@ -29,7 +20,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/core.c backports-6.9.
  	mutex_init(&ab->base_ast_lock);
  	spin_lock_init(&ab->base_lock);
  	mutex_init(&ab->vdev_id_11d_lock);
-@@ -2328,8 +2326,6 @@ struct ath11k_base *ath11k_core_alloc(st
+@@ -2328,8 +2327,6 @@ struct ath11k_base *ath11k_core_alloc(st
  	init_completion(&ab->reconfigure_complete);
  	init_completion(&ab->recovery_start);
  
@@ -38,10 +29,9 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/core.c backports-6.9.
  	init_waitqueue_head(&ab->wmi_ab.tx_credits_wq);
  	init_waitqueue_head(&ab->qmi.cold_boot_waitq);
  	INIT_WORK(&ab->restart_work, ath11k_core_restart);
-diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/core.h backports-6.9.9/drivers/net/wireless/ath/ath11k/core.h
---- backports-6.9.9/drivers/net/wireless/ath/ath11k/core.h	2024-08-06 13:31:39.240049247 +0700
-+++ backports-6.9.9/drivers/net/wireless/ath/ath11k/core.h	2024-08-06 13:41:05.609709961 +0700
-@@ -737,9 +737,22 @@ struct ath11k {
+--- a/drivers/net/wireless/ath/ath11k/core.h
++++ b/drivers/net/wireless/ath/ath11k/core.h
+@@ -739,9 +739,22 @@ struct ath11k {
  			iftype[NUM_NL80211_BANDS][NUM_NL80211_IFTYPES];
  	} mac;
  
@@ -64,7 +54,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/core.h backports-6.9.
  	u32 min_tx_power;
  	u32 max_tx_power;
  	u32 txpower_limit_2g;
-@@ -817,6 +830,9 @@ struct ath11k {
+@@ -819,6 +832,9 @@ struct ath11k {
  	struct work_struct wmi_mgmt_tx_work;
  	struct sk_buff_head wmi_mgmt_tx_queue;
  
@@ -74,7 +64,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/core.h backports-6.9.
  	struct ath11k_wow wow;
  	struct completion target_suspend;
  	bool target_suspend_ack;
-@@ -1020,19 +1036,7 @@ struct ath11k_base {
+@@ -1022,19 +1038,7 @@ struct ath11k_base {
  	struct ath11k_hal_reg_capabilities_ext hal_reg_cap[MAX_RADIOS];
  	unsigned long long free_vdev_map;
  
@@ -94,7 +84,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/core.h backports-6.9.
  	u8 mac_addr[ETH_ALEN];
  	int userpd_id;
  	int irq_num[ATH11K_IRQ_NUM_MAX];
-@@ -1409,4 +1413,36 @@ static inline const char *ath11k_bus_str
+@@ -1411,4 +1415,36 @@ static inline const char *ath11k_bus_str
  	return "unknown";
  }
  
@@ -131,9 +121,8 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/core.h backports-6.9.
 +}
 +
  #endif /* _CORE_H_ */
-diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/debugfs_htt_stats.c backports-6.9.9/drivers/net/wireless/ath/ath11k/debugfs_htt_stats.c
---- backports-6.9.9/drivers/net/wireless/ath/ath11k/debugfs_htt_stats.c	2024-07-12 21:33:56.000000000 +0700
-+++ backports-6.9.9/drivers/net/wireless/ath/ath11k/debugfs_htt_stats.c	2024-08-06 13:42:19.933436070 +0700
+--- a/drivers/net/wireless/ath/ath11k/debugfs_htt_stats.c
++++ b/drivers/net/wireless/ath/ath11k/debugfs_htt_stats.c
 @@ -4161,7 +4161,7 @@ void htt_print_peer_ctrl_path_txrx_stats
  	stats_req->buf_len = len;
  }
@@ -152,9 +141,8 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/debugfs_htt_stats.c b
  				     ath11k_dbg_htt_ext_stats_parse,
  				     stats_req);
  	if (ret)
-diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp.c backports-6.9.9/drivers/net/wireless/ath/ath11k/dp.c
---- backports-6.9.9/drivers/net/wireless/ath/ath11k/dp.c	2024-08-06 13:31:39.240049247 +0700
-+++ backports-6.9.9/drivers/net/wireless/ath/ath11k/dp.c	2024-08-06 14:22:32.072853909 +0700
+--- a/drivers/net/wireless/ath/ath11k/dp.c
++++ b/drivers/net/wireless/ath/ath11k/dp.c
 @@ -27,7 +27,7 @@ void ath11k_dp_peer_cleanup(struct ath11
  	/* TODO: Any other peer specific DP cleanup */
  
@@ -173,9 +161,8 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp.c backports-6.9.9/
  	if (!peer) {
  		ath11k_warn(ab, "failed to find the peer to del rx tid\n");
  		spin_unlock_bh(&ab->base_lock);
-diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.c backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.c
---- backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.c	2024-08-06 13:31:39.243382598 +0700
-+++ backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.c	2024-08-06 13:45:09.814333828 +0700
+--- a/drivers/net/wireless/ath/ath11k/dp_rx.c
++++ b/drivers/net/wireless/ath/ath11k/dp_rx.c
 @@ -564,7 +564,7 @@ static int ath11k_dp_rxdma_pdev_buf_setu
  	int i;
  
@@ -432,7 +419,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.c backports-6.9
  		if (!peer) {
  			spin_unlock_bh(&ab->base_lock);
  			continue;
-@@ -1988,11 +1987,12 @@ static int ath11k_htt_pull_ppdu_stats(st
+@@ -1988,7 +1987,7 @@ static int ath11k_htt_pull_ppdu_stats(st
  	ppdu_id = msg->ppdu_id;
  
  	if (pdev_id == 0) {
@@ -441,12 +428,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.c backports-6.9
  					     ath11k_htt_tlv_ppdu_soc_stats_parse,
  					     NULL);
  		if (ret)
- 			ath11k_warn(ab, "failed to parse tlv %d\n", ret);
-+
- 		return ret;
- 	}
- 
-@@ -2014,7 +2014,7 @@ static int ath11k_htt_pull_ppdu_stats(st
+@@ -2014,7 +2013,7 @@ static int ath11k_htt_pull_ppdu_stats(st
  	}
  
  	ppdu_info->ppdu_id = ppdu_id;
@@ -455,7 +437,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.c backports-6.9
  				     ath11k_htt_tlv_ppdu_stats_parse,
  				     (void *)ppdu_info);
  	if (ret) {
-@@ -2030,7 +2030,7 @@ static int ath11k_htt_pull_ppdu_stats(st
+@@ -2030,7 +2029,7 @@ static int ath11k_htt_pull_ppdu_stats(st
  		for (i = 0; i < ppdu_info->ppdu_stats.common.num_users; i++) {
  			peer_id = ppdu_info->ppdu_stats.user_stats[i].peer_id;
  			spin_lock_bh(&ab->base_lock);
@@ -464,7 +446,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.c backports-6.9
  			if (!peer) {
  				spin_unlock_bh(&ab->base_lock);
  				continue;
-@@ -2050,7 +2050,7 @@ static int ath11k_htt_pull_ppdu_stats(st
+@@ -2050,7 +2049,7 @@ static int ath11k_htt_pull_ppdu_stats(st
  		for (i = 0; i < ppdu_info->bar_num_users; i++) {
  			peer_id = ppdu_info->ppdu_stats.user_stats[i].peer_id;
  			spin_lock_bh(&ab->base_lock);
@@ -473,7 +455,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.c backports-6.9
  			if (!peer) {
  				spin_unlock_bh(&ab->base_lock);
  				continue;
-@@ -2155,6 +2155,7 @@ void ath11k_dp_htt_htc_t2h_msg_handler(s
+@@ -2155,6 +2154,7 @@ void ath11k_dp_htt_htc_t2h_msg_handler(s
  				       struct sk_buff *skb)
  {
  	struct ath11k_dp *dp = &ab->dp;
@@ -481,7 +463,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.c backports-6.9
  	struct htt_resp_msg *resp = (struct htt_resp_msg *)skb->data;
  	enum htt_t2h_msg_type type = FIELD_GET(HTT_T2H_MSG_TYPE, *(u32 *)resp);
  	u16 peer_id;
-@@ -2185,7 +2186,10 @@ void ath11k_dp_htt_htc_t2h_msg_handler(s
+@@ -2185,7 +2185,10 @@ void ath11k_dp_htt_htc_t2h_msg_handler(s
  					 resp->peer_map_ev.info1);
  		ath11k_dp_get_mac_addr(resp->peer_map_ev.mac_addr_l32,
  				       peer_mac_h16, mac_addr);
@@ -493,7 +475,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.c backports-6.9
  		break;
  	case HTT_T2H_MSG_TYPE_PEER_MAP2:
  		vdev_id = FIELD_GET(HTT_T2H_PEER_MAP_INFO_VDEV_ID,
-@@ -2202,17 +2206,27 @@ void ath11k_dp_htt_htc_t2h_msg_handler(s
+@@ -2202,17 +2205,27 @@ void ath11k_dp_htt_htc_t2h_msg_handler(s
  				       resp->peer_map_ev.info1);
  		is_wds = FIELD_GET(HTT_T2H_PEER_MAP_INFO2_NEXT_HOP_M,
  				   resp->peer_map_ev.info2);
@@ -523,7 +505,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.c backports-6.9
  		peer_mac_h16 = FIELD_GET(HTT_T2H_PEER_UNMAP_INFO1_MAC_ADDR_H16,
  					 resp->peer_unmap_ev.info1);
  		ath11k_dp_get_mac_addr(resp->peer_map_ev.mac_addr_l32,
-@@ -2221,7 +2235,10 @@ void ath11k_dp_htt_htc_t2h_msg_handler(s
+@@ -2221,7 +2234,10 @@ void ath11k_dp_htt_htc_t2h_msg_handler(s
  				   resp->peer_unmap_ev.info1);
  		free_wds_count = FIELD_GET(HTT_T2H_PEER_UNMAP_INFO3_WDS_FREE_COUNT,
  					   resp->peer_unmap_ev.info3);
@@ -535,7 +517,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.c backports-6.9
  		break;
  	case HTT_T2H_MSG_TYPE_PPDU_STATS_IND:
  		ath11k_htt_pull_ppdu_stats(ab, skb);
-@@ -2877,25 +2894,25 @@ static void ath11k_dp_rx_h_undecap(struc
+@@ -2877,25 +2893,25 @@ static void ath11k_dp_rx_h_undecap(struc
  }
  
  static struct ath11k_peer *
@@ -567,7 +549,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.c backports-6.9
  	return peer;
  }
  
-@@ -2939,7 +2956,7 @@ static bool ath11k_dp_rx_check_fast_rx(s
+@@ -2939,7 +2955,7 @@ static bool ath11k_dp_rx_check_fast_rx(s
  		return false;
  
  	/* check if the msdu needs to be bridged to our connected peer */
@@ -576,7 +558,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.c backports-6.9
  
  	if (f_peer && f_peer != peer)
  		return false;
-@@ -2978,7 +2995,7 @@ static void ath11k_dp_rx_h_mpdu(struct a
+@@ -2978,7 +2994,7 @@ static void ath11k_dp_rx_h_mpdu(struct a
  	}
  
  	spin_lock_bh(&ar->ab->base_lock);
@@ -585,7 +567,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.c backports-6.9
  	if (peer) {
  		/* If the pkt is a valid IP packet and peer supports
  		 * fast rx, deliver directly to net, also note that
-@@ -3206,7 +3223,7 @@ static void ath11k_dp_rx_deliver_msdu(st
+@@ -3206,7 +3222,7 @@ static void ath11k_dp_rx_deliver_msdu(st
  		decap = ath11k_dp_rx_h_msdu_start_decap_type(ar->ab, rxcb->rx_desc);
  
  	spin_lock_bh(&ar->ab->base_lock);
@@ -594,7 +576,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.c backports-6.9
  	if (peer && peer->sta)
  		pubsta = peer->sta;
  	spin_unlock_bh(&ar->ab->base_lock);
-@@ -3505,7 +3522,7 @@ try_again:
+@@ -3505,7 +3521,7 @@ try_again:
  		if (unlikely(push_reason !=
  			     HAL_REO_DEST_RING_PUSH_REASON_ROUTING_INSTRUCTION)) {
  			dev_kfree_skb_any(msdu);
@@ -603,7 +585,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.c backports-6.9
  			continue;
  		}
  
-@@ -3737,11 +3754,10 @@ static void ath11k_dp_rx_update_user_sta
+@@ -3737,11 +3753,10 @@ static void ath11k_dp_rx_update_user_sta
  	if (user_stats->ast_index == 0 || user_stats->ast_index == 0xFFFF)
  		return;
  
@@ -617,7 +599,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.c backports-6.9
  			    user_stats->ast_index);
  		return;
  	}
-@@ -4212,7 +4228,7 @@ int ath11k_peer_rx_frag_setup(struct ath
+@@ -4212,7 +4227,7 @@ int ath11k_peer_rx_frag_setup(struct ath
  
  	spin_lock_bh(&ab->base_lock);
  
@@ -626,7 +608,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.c backports-6.9
  	if (!peer) {
  		ath11k_warn(ab, "failed to find the peer to set up fragment info\n");
  		spin_unlock_bh(&ab->base_lock);
-@@ -4668,7 +4684,7 @@ static int ath11k_dp_rx_frag_h_mpdu(stru
+@@ -4668,7 +4683,7 @@ static int ath11k_dp_rx_frag_h_mpdu(stru
  		return -EINVAL;
  
  	spin_lock_bh(&ab->base_lock);
@@ -635,7 +617,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.c backports-6.9
  	if (!peer) {
  		ath11k_warn(ab, "failed to find the peer to de-fragment received fragment peer_id %d\n",
  			    peer_id);
-@@ -4730,7 +4746,7 @@ static int ath11k_dp_rx_frag_h_mpdu(stru
+@@ -4730,7 +4745,7 @@ static int ath11k_dp_rx_frag_h_mpdu(stru
  	del_timer_sync(&rx_tid->frag_timer);
  	spin_lock_bh(&ab->base_lock);
  
@@ -644,33 +626,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.c backports-6.9
  	if (!peer)
  		goto err_frags_cleanup;
  
-@@ -5446,7 +5462,6 @@ static int ath11k_dp_rxdma_ring_sel_conf
- 	u32 ring_id;
- 	int ret;
- 	u32 hal_rx_desc_sz = ar->ab->hw_params.hal_desc_sz;
--
- 	ring_id = dp->rx_refill_buf_ring.refill_buf_ring.ring_id;
- 
- 	tlv_filter.rx_filter = HTT_RX_RXDMA_FILTER_TLV_FLAGS_BUF_RING;
-@@ -5486,7 +5501,6 @@ int ath11k_dp_rx_pdev_alloc(struct ath11
- 	u32 ring_id;
- 	int i;
- 	int ret;
--
- 	ret = ath11k_dp_rx_pdev_srng_alloc(ar);
- 	if (ret) {
- 		ath11k_warn(ab, "failed to setup rx srngs\n");
-@@ -6365,9 +6379,7 @@ int ath11k_dp_rx_process_mon_status(stru
- 	struct ath11k_mon_data *pmon = (struct ath11k_mon_data *)&ar->dp.mon_data;
- 	struct ath11k_pdev_mon_stats *rx_mon_stats = &pmon->rx_mon_stats;
- 	struct hal_rx_mon_ppdu_info *ppdu_info = &pmon->mon_ppdu_info;
--
- 	__skb_queue_head_init(&skb_list);
--
- 	num_buffs_reaped = ath11k_dp_rx_reap_mon_status_ring(ab, mac_id, &budget,
- 							     &skb_list);
- 	if (!num_buffs_reaped)
-@@ -6394,7 +6406,7 @@ int ath11k_dp_rx_process_mon_status(stru
+@@ -6394,7 +6409,7 @@ int ath11k_dp_rx_process_mon_status(stru
  			trace_ath11k_htt_rxdesc(ar, skb->data, log_type, rx_buf_sz);
  
  		ppdu_info->peer_id = HAL_INVALID_PEERID;
@@ -679,7 +635,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.c backports-6.9
  
  		if (test_bit(ATH11K_FLAG_MONITOR_STARTED, &ar->monitor_flags) &&
  		    pmon->mon_ppdu_status == DP_PPDU_STATUS_START &&
-@@ -6425,7 +6437,7 @@ int ath11k_dp_rx_process_mon_status(stru
+@@ -6425,7 +6440,7 @@ int ath11k_dp_rx_process_mon_status(stru
  		}
  		rcu_read_lock();
  		spin_lock_bh(&ab->base_lock);
@@ -688,10 +644,9 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.c backports-6.9
  
  		if (!peer || !peer->sta) {
  			ath11k_dbg(ab, ATH11K_DBG_DATA,
-diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.h backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.h
---- backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.h	2024-08-06 13:31:39.240049247 +0700
-+++ backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.h	2024-08-06 13:45:21.874397562 +0700
-@@ -129,8 +130,8 @@ int ath11k_dp_rxbufs_replenish(struct at
+--- a/drivers/net/wireless/ath/ath11k/dp_rx.h
++++ b/drivers/net/wireless/ath/ath11k/dp_rx.h
+@@ -129,8 +129,8 @@ int ath11k_dp_rxbufs_replenish(struct at
  			       int req_entries,
   			       enum hal_rx_buf_return_buf_manager mgr,
  			       u32 *buf_id);
@@ -702,9 +657,8 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_rx.h backports-6.9
  				       const void *ptr, void *data),
  			   void *data);
  int ath11k_dp_rx_process_mon_rings(struct ath11k_base *ab, int mac_id,
-diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_tx.c backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_tx.c
---- backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_tx.c	2024-08-06 13:31:39.230049194 +0700
-+++ backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_tx.c	2024-08-06 13:46:39.738142377 +0700
+--- a/drivers/net/wireless/ath/ath11k/dp_tx.c
++++ b/drivers/net/wireless/ath/ath11k/dp_tx.c
 @@ -478,7 +478,7 @@ ath11k_dp_tx_htt_tx_complete_buf(struct
  	}
  
@@ -732,10 +686,17 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/dp_tx.c backports-6.9
  	if (unlikely(!peer || !peer->sta)) {
  		ath11k_dbg(ab, ATH11K_DBG_DATA,
  			   "dp_tx: failed to find the peer with peer_id %d\n",
-diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/hal_rx.c backports-6.9.9/drivers/net/wireless/ath/ath11k/hal_rx.c
---- backports-6.9.9/drivers/net/wireless/ath/ath11k/hal_rx.c	2024-08-06 13:31:39.103381858 +0700
-+++ backports-6.9.9/drivers/net/wireless/ath/ath11k/hal_rx.c	2024-08-06 13:47:47.385166535 +0700
-@@ -875,14 +875,13 @@ static u16 ath11k_hal_rx_mpduinfo_get_pe
+--- a/drivers/net/wireless/ath/ath11k/hal_rx.c
++++ b/drivers/net/wireless/ath/ath11k/hal_rx.c
+@@ -9,7 +9,6 @@
+ #include "hal_tx.h"
+ #include "hal_rx.h"
+ #include "hal_desc.h"
+-#include "hif.h"
+ 
+ static void ath11k_hal_reo_set_desc_hdr(struct hal_desc_header *hdr,
+ 					u8 owner, u8 buffer_type, u32 magic)
+@@ -875,7 +874,7 @@ static u16 ath11k_hal_rx_mpduinfo_get_pe
  }
  
  static enum hal_rx_mon_status
@@ -744,13 +705,6 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/hal_rx.c backports-6.
  				   struct hal_rx_mon_ppdu_info *ppdu_info,
  				   u32 tlv_tag, u8 *tlv_data, u32 userid)
  {
- 	u32 info0, info1, value;
- 	u8 he_dcm = 0, he_stbc = 0;
- 	u16 he_gi = 0, he_ltf = 0;
--
- 	switch (tlv_tag) {
- 	case HAL_RX_PPDU_START: {
- 		struct hal_rx_ppdu_start *ppdu_start =
 @@ -1498,7 +1497,7 @@ ath11k_hal_rx_parse_mon_status_tlv(struc
  	case HAL_PHYRX_RSSI_LEGACY: {
  		int i;
@@ -792,9 +746,8 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/hal_rx.c backports-6.
  								tlv_tag, ptr, tlv_userid);
  		ptr += tlv_len;
  		ptr = PTR_ALIGN(ptr, HAL_TLV_ALIGN);
-diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/hal_rx.h backports-6.9.9/drivers/net/wireless/ath/ath11k/hal_rx.h
---- backports-6.9.9/drivers/net/wireless/ath/ath11k/hal_rx.h	2024-08-06 13:31:39.216715790 +0700
-+++ backports-6.9.9/drivers/net/wireless/ath/ath11k/hal_rx.h	2024-08-06 13:48:02.148577887 +0700
+--- a/drivers/net/wireless/ath/ath11k/hal_rx.h
++++ b/drivers/net/wireless/ath/ath11k/hal_rx.h
 @@ -559,7 +559,7 @@ void
  ath11k_hal_rx_sw_mon_ring_buf_paddr_get(void *rx_desc,
  					struct hal_sw_mon_ring_entries *sw_mon_ent);
@@ -804,9 +757,8 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/hal_rx.h backports-6.
  			       struct hal_rx_mon_ppdu_info *ppdu_info,
  			       struct sk_buff *skb);
  
-diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/mac.c backports-6.9.9/drivers/net/wireless/ath/ath11k/mac.c
---- backports-6.9.9/drivers/net/wireless/ath/ath11k/mac.c	2024-08-06 13:31:39.243382598 +0700
-+++ backports-6.9.9/drivers/net/wireless/ath/ath11k/mac.c	2024-08-06 14:27:36.804464517 +0700
+--- a/drivers/net/wireless/ath/ath11k/mac.c
++++ b/drivers/net/wireless/ath/ath11k/mac.c
 @@ -343,7 +343,7 @@ enum nl80211_he_gi ath11k_mac_he_gi_to_n
  	return ret;
  }
@@ -837,7 +789,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/mac.c backports-6.9.9
  
  	ar->num_peers = 0;
  	ar->num_stations = 0;
-@@ -3100,7 +3100,7 @@ static void ath11k_bss_assoc(struct ieee
+@@ -3109,7 +3109,7 @@ static void ath11k_bss_assoc(struct ieee
  
  	spin_lock_bh(&ar->ab->base_lock);
  
@@ -846,7 +798,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/mac.c backports-6.9.9
  	if (peer && peer->is_authorized)
  		is_auth = true;
  
-@@ -4260,7 +4260,7 @@ static int ath11k_clear_peer_keys(struct
+@@ -4269,7 +4269,7 @@ static int ath11k_clear_peer_keys(struct
  	lockdep_assert_held(&ar->conf_mutex);
  
  	spin_lock_bh(&ab->base_lock);
@@ -855,7 +807,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/mac.c backports-6.9.9
  	if (!peer) {
  		spin_unlock_bh(&ab->base_lock);
  		return -ENOENT;
-@@ -4376,7 +4376,7 @@ static int ath11k_mac_op_set_key(struct
+@@ -4385,7 +4385,7 @@ static int ath11k_mac_op_set_key(struct
  	 * we already hold conf_mutex. we just make sure its there now.
  	 */
  	spin_lock_bh(&ab->base_lock);
@@ -864,7 +816,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/mac.c backports-6.9.9
  
  	/* flush the fragments cache during key (re)install to
  	 * ensure all frags in the new frag list belong to the same key.
-@@ -4485,7 +4485,7 @@ static int ath11k_mac_op_set_key(struct
+@@ -4494,7 +4494,7 @@ static int ath11k_mac_op_set_key(struct
  	}
  
  	spin_lock_bh(&ab->base_lock);
@@ -873,7 +825,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/mac.c backports-6.9.9
  
  	/* TODO: Check if vdev specific security cfg is mandatory */
  	ret = ath11k_nss_vdev_set_cmd(arvif, ATH11K_NSS_WIFI_VDEV_SECURITY_TYPE_CMD, key->cipher);
-@@ -4516,7 +4516,7 @@ static int ath11k_mac_op_set_key(struct
+@@ -4525,7 +4525,7 @@ static int ath11k_mac_op_set_key(struct
  		list_for_each_entry_safe(dyn_vlan_cfg, tmp, &ap_vlan_arvif->dyn_vlan_cfg, cfg_list) {
  			struct ieee80211_sta *vlan_sta = dyn_vlan_cfg->sta;
  
@@ -882,7 +834,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/mac.c backports-6.9.9
  			if (ret)
  				ath11k_warn(ar->ab, "failed to cfg dyn vlan for peer %pM: %d\n",
  					    vlan_sta->addr, ret);
-@@ -5126,7 +5126,7 @@ static void ath11k_sta_set_4addr_wk(stru
+@@ -5135,7 +5135,7 @@ static void ath11k_sta_set_4addr_wk(stru
  	vif = ap_vlan_arvif->vif;
  
  	spin_lock_bh(&ab->base_lock);
@@ -891,7 +843,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/mac.c backports-6.9.9
  	if (!wds_peer) {
  		spin_unlock_bh(&ab->base_lock);
  		ath11k_warn(ab, "mac sta use 4addr failed to find peer %pM\n",
-@@ -5349,7 +5349,7 @@ static void ath11k_mac_op_sta_rc_update(
+@@ -5358,7 +5358,7 @@ static void ath11k_mac_op_sta_rc_update(
  
  	spin_lock_bh(&ar->ab->base_lock);
  
@@ -900,7 +852,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/mac.c backports-6.9.9
  	if (!peer) {
  		spin_unlock_bh(&ar->ab->base_lock);
  		ath11k_warn(ar->ab, "mac sta rc update failed to find peer %pM on vdev %i\n",
-@@ -8427,7 +8427,7 @@ ath11k_mac_op_assign_vif_chanctx(struct
+@@ -8464,7 +8464,7 @@ ath11k_mac_op_assign_vif_chanctx(struct
  	if (ab->hw_params.vdev_start_delay &&
  	    arvif->vdev_type != WMI_VDEV_TYPE_AP &&
  	    arvif->vdev_type != WMI_VDEV_TYPE_MONITOR &&
@@ -909,7 +861,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/mac.c backports-6.9.9
  		memcpy(&arvif->chanctx, ctx, sizeof(*ctx));
  		ret = 0;
  		goto out;
-@@ -8503,7 +8503,7 @@ ath11k_mac_op_unassign_vif_chanctx(struc
+@@ -8540,7 +8540,7 @@ ath11k_mac_op_unassign_vif_chanctx(struc
  	if (ab->hw_params.vdev_start_delay &&
  	    arvif->vdev_type == WMI_VDEV_TYPE_MONITOR) {
  		spin_lock_bh(&ab->base_lock);
@@ -918,7 +870,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/mac.c backports-6.9.9
  		spin_unlock_bh(&ab->base_lock);
  		if (peer)
  			ath11k_peer_delete(ar, arvif->vdev_id, ar->mac_addr);
-@@ -9077,7 +9077,7 @@ ath11k_mac_validate_vht_he_fixed_rate_se
+@@ -9114,7 +9114,7 @@ ath11k_mac_validate_vht_he_fixed_rate_se
  
  	rcu_read_lock();
  	spin_lock_bh(&ar->ab->base_lock);
@@ -927,7 +879,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/mac.c backports-6.9.9
  		if (peer->sta) {
  			deflink = &peer->sta->deflink;
  
-@@ -10029,26 +10029,26 @@ static int ath11k_mac_station_remove(str
+@@ -10066,26 +10066,26 @@ static int ath11k_mac_station_remove(str
  	return ret;
  }
  
@@ -961,7 +913,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/mac.c backports-6.9.9
  			    sta->addr, ret);
  		return ret;
  	}
-@@ -10098,20 +10098,20 @@ static int ath11k_mac_op_sta_state(struc
+@@ -10135,20 +10135,20 @@ static int ath11k_mac_op_sta_state(struc
  			ath11k_warn(ar->ab, "Failed to remove station: %pM for VDEV: %d\n",
  				    sta->addr, arvif->vdev_id);
  
@@ -986,7 +938,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/mac.c backports-6.9.9
  	} else if (old_state == IEEE80211_STA_AUTH &&
  		   new_state == IEEE80211_STA_ASSOC &&
  		   (vif->type == NL80211_IFTYPE_AP ||
-@@ -10142,7 +10142,7 @@ static int ath11k_mac_op_sta_state(struc
+@@ -10179,7 +10179,7 @@ static int ath11k_mac_op_sta_state(struc
  		   new_state == IEEE80211_STA_AUTHORIZED) {
  		spin_lock_bh(&ar->ab->base_lock);
  
@@ -995,7 +947,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/mac.c backports-6.9.9
  		if (peer)
  			peer->is_authorized = true;
  
-@@ -10179,7 +10179,7 @@ static int ath11k_mac_op_sta_state(struc
+@@ -10216,7 +10216,7 @@ static int ath11k_mac_op_sta_state(struc
  					list_add_tail(&ar_dyn_vlan_cfg->cfg_list, &arvif->dyn_vlan_cfg);
  				}
  			} else {
@@ -1004,7 +956,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/mac.c backports-6.9.9
  				if (ret)
  					ath11k_warn(ar->ab, "failed to cfg dyn vlan for peer %pM: %d\n",
  						    sta->addr, ret);
-@@ -10212,7 +10212,7 @@ static int ath11k_mac_op_sta_state(struc
+@@ -10249,7 +10249,7 @@ static int ath11k_mac_op_sta_state(struc
  		   new_state == IEEE80211_STA_ASSOC) {
  
  		spin_lock_bh(&ar->ab->base_lock);
@@ -1013,7 +965,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/mac.c backports-6.9.9
  		if (peer)
  			peer->is_authorized = false;
  		spin_unlock_bh(&ar->ab->base_lock);
-@@ -10220,7 +10220,7 @@ static int ath11k_mac_op_sta_state(struc
+@@ -10257,7 +10257,7 @@ static int ath11k_mac_op_sta_state(struc
  		   new_state == IEEE80211_STA_ASSOC) {
  		spin_lock_bh(&ar->ab->base_lock);
  
@@ -1022,7 +974,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/mac.c backports-6.9.9
  		if (peer)
  			peer->is_authorized = false;
  
-@@ -10625,9 +10625,9 @@ void ath11k_mac_unregister(struct ath11k
+@@ -10662,9 +10662,9 @@ void ath11k_mac_unregister(struct ath11k
  			continue;
  
  		__ath11k_mac_unregister(ar);
@@ -1033,7 +985,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/mac.c backports-6.9.9
  }
  
  static int __ath11k_mac_register(struct ath11k *ar)
-@@ -10914,15 +10914,15 @@ int ath11k_mac_register(struct ath11k_ba
+@@ -10951,15 +10951,15 @@ int ath11k_mac_register(struct ath11k_ba
  	ab->cc_freq_hz = IPQ8074_CC_FREQ_HERTZ;
  	ab->free_vdev_map = (1LL << (ab->num_radios * TARGET_NUM_VDEVS(ab))) - 1;
  
@@ -1052,7 +1004,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/mac.c backports-6.9.9
  		if (ab->pdevs_macaddr_valid) {
  			ether_addr_copy(ar->mac_addr, pdev->mac_addr);
  		} else {
-@@ -10950,9 +10950,9 @@ err_cleanup:
+@@ -10987,9 +10987,9 @@ err_cleanup:
  		pdev = &ab->pdevs[i];
  		ar = pdev->ar;
  		__ath11k_mac_unregister(ar);
@@ -1063,7 +1015,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/mac.c backports-6.9.9
  
  	return ret;
  }
-@@ -10996,9 +10996,12 @@ int ath11k_mac_allocate(struct ath11k_ba
+@@ -11033,9 +11033,12 @@ int ath11k_mac_allocate(struct ath11k_ba
  		ar->num_rx_chains = get_num_chains(pdev->cap.rx_chain_mask);
  
  		pdev->ar = ar;
@@ -1076,9 +1028,8 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/mac.c backports-6.9.9
  		mutex_init(&ar->conf_mutex);
  		init_completion(&ar->vdev_setup_done);
  		init_completion(&ar->vdev_delete_done);
-diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/nss.c backports-6.9.9/drivers/net/wireless/ath/ath11k/nss.c
---- backports-6.9.9/drivers/net/wireless/ath/ath11k/nss.c	2024-08-06 13:31:39.236715896 +0700
-+++ backports-6.9.9/drivers/net/wireless/ath/ath11k/nss.c	2024-08-06 14:28:07.677960843 +0700
+--- a/drivers/net/wireless/ath/ath11k/nss.c
++++ b/drivers/net/wireless/ath/ath11k/nss.c
 @@ -143,7 +143,7 @@ static void ath11k_nss_get_peer_stats(st
  {
  	struct ath11k_peer *peer;
@@ -1120,9 +1071,6 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/nss.c backports-6.9.9
 -            peer_id);
 -		return;
 -	}
--
--	dma_unmap_single(ab->dev, peer->nss.paddr,
--			 WIFILI_NSS_PEER_BYTE_SIZE, DMA_FROM_DEVICE);
 +	for (i = 0; i < ab->num_radios; i++) {
 +		struct ath11k_pdev *pdev = &ab->pdevs[i];
 +		ar = pdev->ar;
@@ -1130,13 +1078,15 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/nss.c backports-6.9.9
 +		if (!peer)
 +			continue;
  
+-	dma_unmap_single(ab->dev, peer->nss.paddr,
+-			 WIFILI_NSS_PEER_BYTE_SIZE, DMA_FROM_DEVICE);
++		dma_unmap_single(ab->dev, peer->nss.paddr,
++				 WIFILI_NSS_PEER_BYTE_SIZE, DMA_FROM_DEVICE);
+ 
 -	kfree(peer->nss.vaddr);
 -	if (peer->nss.nss_stats) {
 -		kfree(peer->nss.nss_stats);
 -		peer->nss.nss_stats = NULL;
-+		dma_unmap_single(ab->dev, peer->nss.paddr,
-+				 WIFILI_NSS_PEER_BYTE_SIZE, DMA_FROM_DEVICE);
-+	
 +		kfree(peer->nss.vaddr);
 +		if (peer->nss.nss_stats) {
 +			kfree(peer->nss.nss_stats);
@@ -1220,10 +1170,9 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/nss.c backports-6.9.9
  	struct ath11k_base *ab = ar->ab;
  	struct ath11k_ast_entry *ast_entry = NULL;
  	struct ath11k_peer *ta_peer = NULL;
--
 +	struct wireless_dev *wdev = NULL;
 +	struct ieee80211_vif *vif = NULL;
-+	
+ 
  	spin_lock_bh(&ab->base_lock);
 -	ta_peer = ath11k_peer_find_by_id(ab, peer_id);
 +
@@ -1236,7 +1185,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/nss.c backports-6.9.9
 +	if (!vif) {
 +		return;
 +	}
-+	
++
 +	ta_peer = ath11k_peer_find_by_id(ar, peer_id);
  
  	if (!ta_peer) {
@@ -1248,11 +1197,11 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/nss.c backports-6.9.9
 -		ast_entry = ath11k_peer_ast_find_by_addr(ab, src_mac);
 +		ast_entry = ath11k_peer_ast_find_by_addr(ar, src_mac);
 +
-+                /*
-+                 * If WDS update is coming back on same peer it indicates that it is not roamed
-+                 * This situation can happen if a MEC packet reached in Rx direction even before the
-+                 * ast entry installation in happend in HW
-+                 */
++		/*
++		 * If WDS update is coming back on same peer it indicates that it is not roamed
++		 * This situation can happen if a MEC packet reached in Rx direction even before the
++		 * ast entry installation in happend in HW
++		 */
 +		if (ast_entry) {
 +			if (ast_entry->peer && (ast_entry->peer->peer_id == ta_peer->peer_id) && (vif->type == NL80211_IFTYPE_STATION)) {
 +				spin_unlock_bh(&ab->base_lock);
@@ -1275,15 +1224,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/nss.c backports-6.9.9
  		if (!is_sa_valid) {
  			ath11k_peer_add_ast(ar, ta_peer, src_mac,
  					    ATH11K_AST_TYPE_WDS);
-@@ -686,6 +757,7 @@ static void ath11k_nss_wds_type_rx(struc
- 
- 	}
- 
-+
- 	spin_unlock_bh(&ab->base_lock);
- }
- 
-@@ -749,7 +821,7 @@ static void ath11k_nss_vdev_spl_receive_
+@@ -749,7 +820,7 @@ static void ath11k_nss_vdev_spl_receive_
  
  	switch (wds_type) {
  		case NSS_WIFI_VDEV_WDS_TYPE_RX:
@@ -1292,7 +1233,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/nss.c backports-6.9.9
  					       addr4_valid, peer_id);
  			break;
  		case NSS_WIFI_VDEV_WDS_TYPE_MEC:
-@@ -774,7 +846,7 @@ static bool ath11k_nss_vdev_data_receive
+@@ -774,7 +845,7 @@ static bool ath11k_nss_vdev_data_receive
  		   src_mac);
  
  	spin_lock_bh(&ab->base_lock);
@@ -1301,26 +1242,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/nss.c backports-6.9.9
  
  	if (ast_entry && ast_entry->type == ATH11K_AST_TYPE_MEC) {
  		spin_unlock_bh(&ab->base_lock);
-@@ -818,11 +890,9 @@ ath11k_nss_vdev_special_data_receive(str
- 	bool eth_decap = false;
- 	int data_offs = 0;
- 	int ret = 0;
--	struct ath11k_skb_rxcb *rxcb;
--#ifndef CONFIG_NSS_FIRMWARE_VERSION_11_4
- 	struct nss_wifi_vdev_addr4_data_metadata *addr4_metadata = NULL;
-+	struct ath11k_skb_rxcb *rxcb;
- 	struct ath11k_peer *ta_peer = NULL;
--#endif
- 
- 	arvif = ath11k_nss_get_arvif_from_dev(dev);
- 	if (!arvif) {
-@@ -874,13 +944,12 @@ ath11k_nss_vdev_special_data_receive(str
- 		rxcb->is_mcbc = true;
- 		ath11k_dp_rx_from_nss(arvif->ar, skb, napi);
- 	break;
--#ifndef CONFIG_NSS_FIRMWARE_VERSION_11_4
- 	case NSS_WIFI_VDEV_EXT_DATA_PKT_TYPE_4ADDR:
- 		if (eth_decap) {
+@@ -880,7 +951,7 @@ ath11k_nss_vdev_special_data_receive(str
  			addr4_metadata = &wifi_metadata->metadata.addr4_metadata;
  
  			spin_lock_bh(&ab->base_lock);
@@ -1329,55 +1251,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/nss.c backports-6.9.9
  			if (!ta_peer) {
  				spin_unlock_bh(&ab->base_lock);
  				dev_kfree_skb_any(skb);
-@@ -894,7 +963,6 @@ ath11k_nss_vdev_special_data_receive(str
- 			spin_unlock_bh(&ab->base_lock);
- 		}
- 		dev_kfree_skb_any(skb);
--#endif
- 	break;
- 	default:
- 		ath11k_warn(ab, "unsupported pkt_type %d from nss\n", wifi_metadata->pkt_type);
-@@ -974,12 +1042,31 @@ static void
- ath11k_nss_ext_vdev_data_receive(struct net_device *dev, struct sk_buff *skb,
- 				 __attribute__((unused)) struct napi_struct *napi)
- {
-+	struct wireless_dev *wdev;
-+	struct ieee80211_vif *vif;
- 	struct ath11k_vif *arvif;
- 	struct ath11k_base *ab;
- 	bool eth_decap = false;
- 	int data_offs = 0;
- 	int ret;
- 
-+	if (!dev) {
-+		dev_kfree_skb_any(skb);
-+		return;
-+	}
-+
-+	wdev = dev->ieee80211_ptr;
-+	if (!wdev) {
-+		dev_kfree_skb_any(skb);
-+		return;
-+	}
-+
-+	vif = wdev_to_ieee80211_vif(wdev);
-+	if (!vif) {
-+		dev_kfree_skb_any(skb);
-+		return;
-+	}
-+
- 	arvif = ath11k_nss_get_arvif_from_dev(dev);
- 	if (!arvif) {
- 		dev_kfree_skb_any(skb);
-@@ -2639,7 +2726,6 @@ static int ath11k_nss_mesh_vdev_alloc(st
- 	}
- 
- 	arvif->nss.if_num = if_num;
--
- 	INIT_LIST_HEAD(&arvif->nss.list);
- 	list_add_tail(&arvif->nss.list, &mesh_vaps);
- 
-@@ -3485,7 +3571,7 @@ void ath11k_nss_update_sta_stats(struct
+@@ -3485,7 +3556,7 @@ void ath11k_nss_update_sta_stats(struct
  		return;
  
  	spin_lock_bh(&ab->base_lock);
@@ -1386,7 +1260,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/nss.c backports-6.9.9
  	if (!peer) {
  		ath11k_dbg(ab, ATH11K_DBG_NSS, "sta stats: unable to find peer %pM\n",
  					sta->addr);
-@@ -3642,7 +3728,7 @@ void ath11k_nss_update_sta_rxrate(struct
+@@ -3642,7 +3713,7 @@ void ath11k_nss_update_sta_rxrate(struct
  	peer->nss.nss_stats->rxrate.bw = ath11k_mac_bw_to_mac80211_bw(ppdu_info->bw);
  }
  
@@ -1395,7 +1269,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/nss.c backports-6.9.9
  {
  	struct nss_wifili_peer_msg *peer_msg;
  	struct nss_wifili_msg *wlmsg = NULL;
-@@ -3651,29 +3737,29 @@ int ath11k_nss_peer_delete(struct ath11k
+@@ -3651,29 +3722,29 @@ int ath11k_nss_peer_delete(struct ath11k
  	nss_tx_status_t status;
  	int ret;
  
@@ -1433,7 +1307,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/nss.c backports-6.9.9
  		ret = -ENOMEM;
  		goto free_peer;
  	}
-@@ -3685,27 +3771,27 @@ int ath11k_nss_peer_delete(struct ath11k
+@@ -3685,27 +3756,27 @@ int ath11k_nss_peer_delete(struct ath11k
  
  	msg_cb = (nss_wifili_msg_callback_t)ath11k_nss_wifili_event_receive;
  
@@ -1466,7 +1340,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/nss.c backports-6.9.9
  
  	kfree(wlmsg);
  
-@@ -3715,20 +3801,20 @@ int ath11k_nss_peer_delete(struct ath11k
+@@ -3715,20 +3786,20 @@ int ath11k_nss_peer_delete(struct ath11k
  	 */
  	ret = wait_for_completion_timeout(&peer->nss.complete,
  					  msecs_to_jiffies(ATH11K_NSS_MSG_TIMEOUT_MS));
@@ -1491,25 +1365,21 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/nss.c backports-6.9.9
  	return ret;
  }
  
-@@ -4467,7 +4553,7 @@ static int ath11k_nss_init(struct ath11k
+@@ -4467,10 +4538,11 @@ static int ath11k_nss_init(struct ath11k
  		ath11k_warn(ab, "timeout while waiting for nss init msg response\n");
  		goto unregister;
  	}
 -
-+	ath11k_info(ab, "response is %d\n", ab->nss.response);
  	/* Check if the response is success from the callback */
- 	if (ab->nss.response != ATH11K_NSS_MSG_ACK)
+-	if (ab->nss.response != ATH11K_NSS_MSG_ACK)
++	if (ab->nss.response != ATH11K_NSS_MSG_ACK) {
++	  ath11k_warn(ab, "non ack response from nss received (%d)\n", ab->nss.response);
  		goto unregister;
-@@ -4485,7 +4571,7 @@ static int ath11k_nss_init(struct ath11k
- 		ath11k_err(ab, "Mesh offload is not enabled %d\n", ret);
- #endif
++	}
  
--	ath11k_dbg(ab, ATH11K_DBG_NSS, "NSS Init Message TX Success %p %d\n",
-+	ath11k_info(ab, "NSS Init Message TX Success %p %d\n",
- 		   ab->nss.ctx, ab->nss.if_num);
- 	return 0;
+ 	kfree(wlmsg);
  
-@@ -4580,6 +4666,7 @@ int ath11k_nss_pdev_init(struct ath11k_b
+@@ -4580,6 +4652,7 @@ int ath11k_nss_pdev_init(struct ath11k_b
  	 * for messages related to vdev/radio
  	 */
  	ar->nss.if_num = radio_if_num;
@@ -1517,9 +1387,8 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/nss.c backports-6.9.9
  
  	/* No callbacks are registered for radio specific events/data */
  	ar->nss.ctx = nss_register_wifili_radio_if((u32)radio_if_num, NULL,
-diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/nss.h backports-6.9.9/drivers/net/wireless/ath/ath11k/nss.h
---- backports-6.9.9/drivers/net/wireless/ath/ath11k/nss.h	2024-08-06 13:31:39.233382546 +0700
-+++ backports-6.9.9/drivers/net/wireless/ath/ath11k/nss.h	2024-08-06 13:57:14.831499277 +0700
+--- a/drivers/net/wireless/ath/ath11k/nss.h
++++ b/drivers/net/wireless/ath/ath11k/nss.h
 @@ -283,7 +283,7 @@ int ath11k_nss_vdev_create(struct ath11k
  void ath11k_nss_vdev_delete(struct ath11k_vif *arvif);
  int ath11k_nss_vdev_up(struct ath11k_vif *arvif);
@@ -1538,9 +1407,8 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/nss.h backports-6.9.9
                                           const u8 *addr)
  {
  	return 0;
-diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/peer.c backports-6.9.9/drivers/net/wireless/ath/ath11k/peer.c
---- backports-6.9.9/drivers/net/wireless/ath/ath11k/peer.c	2024-08-06 13:31:39.203382387 +0700
-+++ backports-6.9.9/drivers/net/wireless/ath/ath11k/peer.c	2024-08-06 14:25:03.090318987 +0700
+--- a/drivers/net/wireless/ath/ath11k/peer.c
++++ b/drivers/net/wireless/ath/ath11k/peer.c
 @@ -9,14 +9,14 @@
  #include "debug.h"
  #include "nss.h"
@@ -2190,7 +2058,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/peer.c backports-6.9.
 +		/* if found, remove it from the hash list, so it wont be handled by datapath anymore, since we expect a disassoc soon */
 +		peer->delete_in_progress = true;
 +		ath11k_peer_rhash_delete(ar, peer);
-+	} 
++	}
 +	spin_unlock_bh(&ab->base_lock);
 +	mutex_unlock(&ar->tbl_mtx_lock);
  
@@ -2492,9 +2360,8 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/peer.c backports-6.9.
 -	mutex_unlock(&ab->tbl_mtx_lock);
 +	mutex_unlock(&ar->tbl_mtx_lock);
  }
-diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/peer.h backports-6.9.9/drivers/net/wireless/ath/ath11k/peer.h
---- backports-6.9.9/drivers/net/wireless/ath/ath11k/peer.h	2024-08-06 13:31:39.200049036 +0700
-+++ backports-6.9.9/drivers/net/wireless/ath/ath11k/peer.h	2024-08-06 13:36:54.321715328 +0700
+--- a/drivers/net/wireless/ath/ath11k/peer.h
++++ b/drivers/net/wireless/ath/ath11k/peer.h
 @@ -99,34 +99,32 @@ struct ath11k_peer {
  	bool delete_in_progress;
  };
@@ -2565,10 +2432,9 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/peer.h backports-6.9.
  								    struct ath11k_peer *peer,
  								    u8* addr)
  {
-diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/wmi.c backports-6.9.9/drivers/net/wireless/ath/ath11k/wmi.c
---- backports-6.9.9/drivers/net/wireless/ath/ath11k/wmi.c	2024-08-06 13:31:39.243382598 +0700
-+++ backports-6.9.9/drivers/net/wireless/ath/ath11k/wmi.c	2024-08-06 14:14:56.903781014 +0700
-@@ -7578,10 +7578,12 @@ static void ath11k_wmi_event_peer_sta_ps
+--- a/drivers/net/wireless/ath/ath11k/wmi.c
++++ b/drivers/net/wireless/ath/ath11k/wmi.c
+@@ -7579,10 +7579,12 @@ static void ath11k_wmi_event_peer_sta_ps
  	struct ieee80211_sta *sta;
  	struct ath11k_peer *peer;
  	struct ath11k *ar;
@@ -2581,7 +2447,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/wmi.c backports-6.9.9
  
  	tb = ath11k_wmi_tlv_parse_alloc(ab, skb, GFP_ATOMIC);
  	if (IS_ERR(tb)) {
-@@ -7605,64 +7607,60 @@ static void ath11k_wmi_event_peer_sta_ps
+@@ -7606,64 +7608,60 @@ static void ath11k_wmi_event_peer_sta_ps
  
  	rcu_read_lock();
  
@@ -2688,7 +2554,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/wmi.c backports-6.9.9
  	}
  
  out:
-@@ -7782,9 +7780,9 @@ static void ath11k_mgmt_rx_event(struct
+@@ -7783,9 +7781,9 @@ static void ath11k_mgmt_rx_event(struct
  
  	spin_lock_bh(&ab->base_lock);
  
@@ -2700,7 +2566,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/wmi.c backports-6.9.9
  	if (!peer) {
  		spin_unlock_bh(&ab->base_lock);
  		goto skip_mgmt_stats;
-@@ -8012,9 +8010,8 @@ static void ath11k_peer_sta_kickout_even
+@@ -8013,9 +8011,8 @@ static void ath11k_peer_sta_kickout_even
  {
  	struct wmi_peer_sta_kickout_arg arg = {};
  	struct ieee80211_sta *sta;
@@ -2711,7 +2577,7 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/wmi.c backports-6.9.9
  
  	if (ath11k_pull_peer_sta_kickout_ev(ab, skb, &arg) != 0) {
  		ath11k_warn(ab, "failed to extract peer sta kickout event");
-@@ -8023,42 +8020,22 @@ static void ath11k_peer_sta_kickout_even
+@@ -8024,42 +8021,22 @@ static void ath11k_peer_sta_kickout_even
  
  	rcu_read_lock();
  
@@ -2753,8 +2619,8 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/wmi.c backports-6.9.9
 -		goto exit;
 +		ieee80211_report_low_ack(sta, 10);
  	}
-+	if (!sta) 
-+		ath11k_warn(ab, "Spurious quick kickout for STA %pM\n", arg.mac_addr);
++	if (!sta)
++		ath11k_dbg(ab, ATH11K_DBG_WMI, "Spurious quick kickout for STA %pM\n", arg.mac_addr);
  
 -	ath11k_dbg(ab, ATH11K_DBG_WMI, "event peer sta kickout %pM",
 -		   arg.mac_addr);
@@ -2764,4 +2630,3 @@ diff -urpN backports-6.9.9/drivers/net/wireless/ath/ath11k/wmi.c backports-6.9.9
 -exit:
  	rcu_read_unlock();
  }
- 
