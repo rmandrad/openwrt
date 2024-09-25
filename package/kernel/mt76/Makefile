@@ -42,6 +42,8 @@ define KernelPackage/mt76-default
   DEPENDS:= \
 	+kmod-mac80211 \
 	+@DRIVER_11AC_SUPPORT \
+	+@DRIVER_11AX_SUPPORT \
+	+@DRIVER_11BE_SUPPORT \
 	+@KERNEL_PAGE_POOL
 endef
 
