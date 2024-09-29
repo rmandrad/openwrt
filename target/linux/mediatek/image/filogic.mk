@@ -40,13 +40,13 @@ define Build/mt798x-gpt
 			-t 0x83	-N ubootenv	-r	-p 512k@4M \
 			-t 0x83	-N factory	-r	-p 2M@4608k \
 			-t 0xef	-N fip		-r	-p 4M@6656k \
-				-N recovery	-r	-p 32M@12M \
+				-N recovery	-r	-p 49M@11M \
 		$(if $(findstring sdmmc,$1), \
-				-N install	-r	-p 20M@44M \
-			-t 0x2e -N production		-p $(CONFIG_TARGET_ROOTFS_PARTSIZE)M@64M \
+				-N install	-r	-p 58M@60M \
+			-t 0x2e -N production		-p $(CONFIG_TARGET_ROOTFS_PARTSIZE)M@118M \
 		) \
 		$(if $(findstring emmc,$1), \
-			-t 0x2e -N production		-p $(CONFIG_TARGET_ROOTFS_PARTSIZE)M@64M \
+			-t 0x2e -N production		-p $(CONFIG_TARGET_ROOTFS_PARTSIZE)M@118M \
 		)
 	cat $@.tmp >> $@
 	rm $@.tmp
@@ -390,15 +390,15 @@ define Device/bananapi_bpi-r4-common
 				   pad-to 17k | mt7988-bl2 sdmmc-comb |\
 				   pad-to 6656k | mt7988-bl31-uboot $$(DEVICE_NAME)-sdmmc |\
 				$(if $(CONFIG_TARGET_ROOTFS_INITRAMFS),\
-				   pad-to 12M | append-image-stage initramfs-recovery.itb | check-size 44m |\
+				   pad-to 11M | append-image-stage initramfs-recovery.itb | check-size 512m |\
 				) \
-				   pad-to 44M | mt7988-bl2 spim-nand-ubi-comb |\
-				   pad-to 45M | mt7988-bl31-uboot $$(DEVICE_NAME)-snand |\
-				   pad-to 51M | mt7988-bl2 emmc-comb |\
-				   pad-to 52M | mt7988-bl31-uboot $$(DEVICE_NAME)-emmc |\
-				   pad-to 56M | mt798x-gpt emmc |\
+				   pad-to 60M | mt7988-bl2 spim-nand-ubi-comb |\
+				   pad-to 61M | mt7988-bl31-uboot $$(DEVICE_NAME)-snand |\
+				   pad-to 67M | mt7988-bl2 emmc-comb |\
+				   pad-to 68M | mt7988-bl31-uboot $$(DEVICE_NAME)-emmc |\
+				   pad-to 72M | mt798x-gpt emmc |\
 				$(if $(CONFIG_TARGET_ROOTFS_SQUASHFS),\
-				   pad-to 64M | append-image squashfs-sysupgrade.itb | check-size |\
+				   pad-to 118M | append-image squashfs-sysupgrade.itb | check-size |\
 				) \
 				  gzip
   IMAGE_SIZE := $$(shell expr 64 + $$(CONFIG_TARGET_ROOTFS_PARTSIZE))m
