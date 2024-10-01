@@ -158,7 +158,7 @@ jobs:
        fail-fast: False
        matrix:
          include: ${{fromJson(needs.determine_targets.outputs.targets_subtargets)}}
-    uses: ./.github/workflows/reusable/reusable_build.yml
+    uses: ./.github/workflows/reusable_build.yml
     with:
       container_name: toolchain
       target: ${{ matrix.target }}
