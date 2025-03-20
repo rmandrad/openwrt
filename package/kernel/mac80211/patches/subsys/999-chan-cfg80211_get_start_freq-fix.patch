@@ -1,0 +1,19 @@
+--- a/net/wireless/chan.c	2025-03-20 10:43:18.442751884 +0000
+--- b/net/wireless/chan.c	2025-03-20 10:43:18.442751884 +0000
+@@ -1004,9 +1004,14 @@
+ {
+ 	struct ieee80211_channel *c;
+ 	u32 freq, start_freq, end_freq;
++	struct cfg80211_chan_def chandef;
+ 
+-	start_freq = cfg80211_get_start_freq(center_freq, bandwidth);
+-	end_freq = cfg80211_get_end_freq(center_freq, bandwidth);
++	// Initialize chandef with center_freq and bandwidth
++	chandef.center_freq1 = center_freq;
++	chandef.width = bandwidth;
++
++	start_freq = cfg80211_get_start_freq(&chandef, 1);
++	end_freq = cfg80211_get_end_freq(&chandef, 1);
+ 
+ 	/*
+ 	 * Check entire range of channels for the bandwidth.

@@ -1,0 +1,11 @@
+--- a/mt7996/main.c	2025-03-20 09:35:27.000000000 +0000
++++ b/mt7996/main.c	2025-03-20 09:35:27.000000000 +0000
+@@ -664,7 +664,7 @@
+ }
+ 
+ static int
+-mt7996_get_txpower(struct ieee80211_hw *hw, struct ieee80211_vif *vif, int *dbm)
++mt7996_get_txpower(struct ieee80211_hw *hw, struct ieee80211_vif *vif, unsigned int link_id, int *dbm)
+ {
+ 	struct mt7996_vif *mvif = (struct mt7996_vif *)vif->drv_priv;
+ 	struct mt7996_phy *phy = mt7996_vif_link_phy(&mvif->deflink);
