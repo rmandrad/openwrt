@@ -94,24 +94,35 @@
 			opp-shared;
 
 			opp00 {
-				opp-hz = /bits/ 64 <800000000>;
+				opp-hz = /bits/ 64 <400000000>;
 				opp-microvolt = <850000>;
 			};
 
 			opp01 {
-				opp-hz = /bits/ 64 <1100000000>;
+				opp-hz = /bits/ 64 <600000000>;
 				opp-microvolt = <850000>;
 			};
 
 			opp02 {
-				opp-hz = /bits/ 64 <1500000000>;
+				opp-hz = /bits/ 64 <800000000>;
 				opp-microvolt = <850000>;
 			};
 
 			opp03 {
+				opp-hz = /bits/ 64 <1500000000>;
+				opp-microvolt = <850000>;
+			};
+
+			opp04 {
 				opp-hz = /bits/ 64 <1800000000>;
 				opp-microvolt = <900000>;
 			};
+
+			opp05 {
+				opp-hz = /bits/ 64 <2200000000>;
+				opp-microvolt = <900000>;
+			};
+
 		};
 	};
 
@@ -120,22 +131,32 @@
 		opp-shared;
 
 		opp00 {
-			opp-hz = /bits/ 64 <480000000>;
+			opp-hz = /bits/ 64 <400000000>;
 			opp-microvolt = <850000>;
 		};
 
 		opp01 {
-			opp-hz = /bits/ 64 <660000000>;
+			opp-hz = /bits/ 64 <600000000>;
 			opp-microvolt = <850000>;
 		};
 
 		opp02 {
-			opp-hz = /bits/ 64 <900000000>;
+			opp-hz = /bits/ 64 <800000000>;
 			opp-microvolt = <850000>;
 		};
 
 		opp03 {
-			opp-hz = /bits/ 64 <1080000000>;
+			opp-hz = /bits/ 64 <1500000000>;
+			opp-microvolt = <900000>;
+		};
+
+		opp04 {
+			opp-hz = /bits/ 64 <1800000000>;
+			opp-microvolt = <900000>;
+		};
+		
+		opp05 {
+			opp-hz = /bits/ 64 <2200000000>;
 			opp-microvolt = <900000>;
 		};
 	};
@@ -1647,13 +1668,15 @@
 		};
 
 		crypto: crypto@15600000 {
-			compatible = "inside-secure,safexcel-eip197b";
+			compatible = "inside-secure,safexcel-eip197b",
+						 "security-ip-197-srv";
 			reg = <0 0x15600000 0 0x180000>;
-			interrupts = <GIC_SPI 214 IRQ_TYPE_LEVEL_HIGH>,
+			interrupts = <GIC_SPI 213 IRQ_TYPE_LEVEL_HIGH>,
+					 <GIC_SPI 214 IRQ_TYPE_LEVEL_HIGH>,
 				     <GIC_SPI 215 IRQ_TYPE_LEVEL_HIGH>,
 				     <GIC_SPI 216 IRQ_TYPE_LEVEL_HIGH>,
 				     <GIC_SPI 217 IRQ_TYPE_LEVEL_HIGH>;
-			interrupt-names = "ring0", "ring1", "ring2", "ring3";
+			interrupt-names = "global", "ring0", "ring1", "ring2", "ring3";
 			status = "okay";
 		};
 	};
