@@ -274,8 +274,8 @@ ifeq ($(DUMP),1)
     CPU_CFLAGS_archs = -mcpu=archs
   endif
   ifeq ($(ARCH),riscv64)
-    CPU_TYPE ?= riscv64
-    CPU_CFLAGS_riscv64:=-mabi=lp64d -march=rv64imafdc
+    CPU_TYPE ?= generic
+    CPU_CFLAGS_generic:=-mabi=lp64d -march=rv64gc
   endif
   ifeq ($(ARCH),loongarch64)
     CPU_TYPE ?= generic
@@ -313,6 +313,9 @@ ifeq ($(DUMP),1)
     endif
     ifneq ($(CONFIG_PCIEPORTBUS),)
       FEATURES += pcie
+    endif
+    ifneq ($(CONFIG_PWM),)
+      FEATURES += pwm
     endif
     ifneq ($(CONFIG_USB)$(CONFIG_USB_SUPPORT),)
       ifneq ($(CONFIG_USB_ARCH_HAS_HCD)$(CONFIG_USB_EHCI_HCD),)
