@@ -1,0 +1,54 @@
+From f4d4046b785b80ccaa2a467a2c63d02583b92514 Mon Sep 17 00:00:00 2001
+From: Bo Jiao <Bo.Jiao@mediatek.com>
+Date: Thu, 19 Oct 2023 14:08:50 +0800
+Subject: [PATCH 071/210] mtk: hostapd: fix issue that tx status handle with
+ unmatch hostapd_data.
+
+Signed-off-by: Bo Jiao <Bo.Jiao@mediatek.com>
+---
+ src/ap/ieee802_11.c                | 11 ++++++++++-
+ src/drivers/driver_nl80211_event.c |  2 +-
+ 2 files changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/src/ap/ieee802_11.c b/src/ap/ieee802_11.c
+index d02561fc8..c5393d490 100644
+--- a/src/ap/ieee802_11.c
++++ b/src/ap/ieee802_11.c
+@@ -6782,11 +6782,20 @@ static void handle_assoc_cb(struct hostapd_data *hapd,
+ #ifdef CONFIG_IEEE80211BE
+ 	if (ap_sta_is_mld(hapd, sta) &&
+ 	    hapd->mld_link_id != sta->mld_assoc_link_id) {
++		struct hostapd_data *temp_hapd = hapd;
++
+ 		/* See ieee80211_ml_link_sta_assoc_cb() for the MLD case */
+ 		wpa_printf(MSG_DEBUG,
+ 			   "%s: MLD: ignore on link station (%d != %d)",
+ 			   __func__, hapd->mld_link_id, sta->mld_assoc_link_id);
+-		return;
++
++		if (temp_hapd->conf->mld_ap && sta->mld_assoc_link_id >= 0) {
++			struct hostapd_data *link_bss;
++
++			link_bss = hostapd_mld_get_link_bss(temp_hapd, sta->mld_assoc_link_id);
++			if (link_bss)
++				hapd = link_bss;
++		}
+ 	}
+ #endif /* CONFIG_IEEE80211BE */
+ 
+diff --git a/src/drivers/driver_nl80211_event.c b/src/drivers/driver_nl80211_event.c
+index c82c9a138..eb8f1b087 100644
+--- a/src/drivers/driver_nl80211_event.c
++++ b/src/drivers/driver_nl80211_event.c
+@@ -1394,7 +1394,7 @@ static void mlme_event_mgmt(struct i802_bss *bss,
+ 	event.rx_mgmt.ctx = bss->ctx;
+ 	event.rx_mgmt.link_id = link_id;
+ 
+-	wpa_supplicant_event(drv->ctx, EVENT_RX_MGMT, &event);
++	wpa_supplicant_event(bss->ctx, EVENT_RX_MGMT, &event);
+ }
+ 
+ 
+-- 
+2.45.2
+

@@ -1,0 +1,5585 @@
+From 86898f86e6c28334549809f866fe35d763708c70 Mon Sep 17 00:00:00 2001
+From: Shayne Chen <shayne.chen@mediatek.com>
+Date: Tue, 15 Apr 2025 17:39:12 +0800
+Subject: [PATCH 001/101] backports: bump to wireless-next-2025-03-20 tag
+
+Signed-off-by: Shayne Chen <shayne.chen@mediatek.com>
+---
+ Kconfig.local                                 |  51 +-
+ MAINTAINERS                                   |   9 +-
+ Makefile.kernel                               |   2 +-
+ backport-include/kunit/static_stub.h          |  10 +
+ backport-include/linux/debugfs.h              |   1 -
+ backport-include/linux/jiffies.h              |  23 +
+ backport-include/linux/netdevice.h            |  27 +
+ backport-include/linux/skbuff.h               |   8 +
+ backport-include/linux/soc/mediatek/mtk_wed.h |   4 +-
+ backport-include/linux/string.h               |  11 +-
+ backport-include/linux/thermal.h              |   4 +-
+ backport-include/linux/unaligned.h            |   1 +
+ backport-include/net/dropreason-core.h        |   5 +
+ backport-include/net/genetlink.h              |  18 +-
+ backport-include/net/netlink.h                |   1 +
+ compat/backport-genetlink.c                   |  18 +-
+ include/linux/ieee80211.h                     |  12 +
+ include/linux/usb/usbnet.h                    |   1 +
+ include/net/cfg80211.h                        | 104 ++-
+ include/net/mac80211.h                        |  46 +-
+ include/uapi/linux/nl80211.h                  |  72 +-
+ local-symbols                                 |  17 +-
+ net/mac80211/agg-rx.c                         |  22 +-
+ net/mac80211/agg-tx.c                         |   9 +-
+ net/mac80211/cfg.c                            |  46 +-
+ net/mac80211/chan.c                           |  20 +-
+ net/mac80211/debugfs.c                        |  74 +-
+ net/mac80211/debugfs_key.c                    |   3 +
+ net/mac80211/debugfs_netdev.c                 |   1 +
+ net/mac80211/debugfs_sta.c                    |   3 +
+ net/mac80211/driver-ops.h                     |   3 +-
+ net/mac80211/drop.h                           |  21 +-
+ net/mac80211/ethtool.c                        |   2 +-
+ net/mac80211/ieee80211_i.h                    |  47 +-
+ net/mac80211/iface.c                          | 114 ++-
+ net/mac80211/led.c                            |  45 ++
+ net/mac80211/main.c                           |  16 +-
+ net/mac80211/mesh_hwmp.c                      |  14 +-
+ net/mac80211/mlme.c                           | 720 +++++++++++++++---
+ net/mac80211/rate.c                           |   4 +
+ net/mac80211/rx.c                             | 246 +++---
+ net/mac80211/scan.c                           |   2 +-
+ net/mac80211/sta_info.c                       |  64 +-
+ net/mac80211/status.c                         |  38 +-
+ net/mac80211/tests/Makefile                   |   2 +-
+ net/mac80211/tests/chan-mode.c                | 254 ++++++
+ net/mac80211/tests/util.c                     |   6 +-
+ net/mac80211/tx.c                             |   5 +-
+ net/mac80211/util.c                           |   3 +-
+ net/mac80211/wbrf.c                           |   3 +-
+ net/wireless/chan.c                           |  13 +-
+ net/wireless/core.c                           |  30 +-
+ net/wireless/core.h                           |   7 +-
+ net/wireless/mlme.c                           |  17 +-
+ net/wireless/nl80211.c                        | 131 +++-
+ net/wireless/rdev-ops.h                       |  10 +-
+ net/wireless/reg.c                            |   5 +-
+ net/wireless/scan.c                           |   8 +-
+ net/wireless/sysfs.c                          |   4 +
+ net/wireless/trace.h                          |  19 +-
+ net/wireless/util.c                           |   4 +-
+ versions                                      |   4 +-
+ 62 files changed, 1813 insertions(+), 671 deletions(-)
+ create mode 100644 backport-include/kunit/static_stub.h
+ create mode 100644 backport-include/linux/jiffies.h
+ create mode 100644 net/mac80211/tests/chan-mode.c
+
+diff --git a/Kconfig.local b/Kconfig.local
+index 2e87d345..cc45d594 100644
+--- a/Kconfig.local
++++ b/Kconfig.local
+@@ -520,12 +520,6 @@ config BACKPORTED_ATH12K_TRACING
+ config BACKPORTED_ATH12K_COREDUMP
+ 	tristate
+ 	default ATH12K_COREDUMP
+-config BACKPORTED_WLAN_VENDOR_ATMEL
+-	tristate
+-	default WLAN_VENDOR_ATMEL
+-config BACKPORTED_AT76C50X_USB
+-	tristate
+-	default AT76C50X_USB
+ config BACKPORTED_WLAN_VENDOR_BROADCOM
+ 	tristate
+ 	default WLAN_VENDOR_BROADCOM
+@@ -721,6 +715,9 @@ config BACKPORTED_IWLDVM
+ config BACKPORTED_IWLMVM
+ 	tristate
+ 	default IWLMVM
++config BACKPORTED_IWLMLD
++	tristate
++	default IWLMLD
+ config BACKPORTED_IWLWIFI_OPMODE_MODULAR
+ 	tristate
+ 	default IWLWIFI_OPMODE_MODULAR
+@@ -736,27 +733,6 @@ config BACKPORTED_IWLWIFI_DEVICE_TRACING
+ config BACKPORTED_IWLMEI
+ 	tristate
+ 	default IWLMEI
+-config BACKPORTED_WLAN_VENDOR_INTERSIL
+-	tristate
+-	default WLAN_VENDOR_INTERSIL
+-config BACKPORTED_P54_COMMON
+-	tristate
+-	default P54_COMMON
+-config BACKPORTED_P54_USB
+-	tristate
+-	default P54_USB
+-config BACKPORTED_P54_PCI
+-	tristate
+-	default P54_PCI
+-config BACKPORTED_P54_SPI
+-	tristate
+-	default P54_SPI
+-config BACKPORTED_P54_SPI_DEFAULT_EEPROM
+-	tristate
+-	default P54_SPI_DEFAULT_EEPROM
+-config BACKPORTED_P54_LEDS
+-	tristate
+-	default P54_LEDS
+ config BACKPORTED_WLAN_VENDOR_MARVELL
+ 	tristate
+ 	default WLAN_VENDOR_MARVELL
+@@ -919,12 +895,6 @@ config BACKPORTED_WILC1000_SPI
+ config BACKPORTED_WILC1000_HW_OOB_INTR
+ 	tristate
+ 	default WILC1000_HW_OOB_INTR
+-config BACKPORTED_WLAN_VENDOR_PURELIFI
+-	tristate
+-	default WLAN_VENDOR_PURELIFI
+-config BACKPORTED_PLFXLC
+-	tristate
+-	default PLFXLC
+ config BACKPORTED_WLAN_VENDOR_RALINK
+ 	tristate
+ 	default WLAN_VENDOR_RALINK
+@@ -1138,6 +1108,9 @@ config BACKPORTED_RTW88_8821A
+ config BACKPORTED_RTW88_8812A
+ 	tristate
+ 	default RTW88_8812A
++config BACKPORTED_RTW88_8814A
++	tristate
++	default RTW88_8814A
+ config BACKPORTED_RTW88_8822BE
+ 	tristate
+ 	default RTW88_8822BE
+@@ -1183,6 +1156,12 @@ config BACKPORTED_RTW88_8821AU
+ config BACKPORTED_RTW88_8812AU
+ 	tristate
+ 	default RTW88_8812AU
++config BACKPORTED_RTW88_8814AE
++	tristate
++	default RTW88_8814AE
++config BACKPORTED_RTW88_8814AU
++	tristate
++	default RTW88_8814AU
+ config BACKPORTED_RTW88_DEBUG
+ 	tristate
+ 	default RTW88_DEBUG
+@@ -1330,12 +1309,6 @@ config BACKPORTED_QTNFMAC
+ config BACKPORTED_QTNFMAC_PCIE
+ 	tristate
+ 	default QTNFMAC_PCIE
+-config BACKPORTED_MAC80211_HWSIM
+-	tristate
+-	default MAC80211_HWSIM
+-config BACKPORTED_VIRT_WIFI
+-	tristate
+-	default VIRT_WIFI
+ config BACKPORTED_USB_NET_DRIVERS
+ 	tristate
+ 	default USB_NET_DRIVERS
+diff --git a/MAINTAINERS b/MAINTAINERS
+index c9763412..241ca9e2 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -727,7 +727,7 @@ L:	linux-mediatek@lists.infradead.org (moderated for non-subscribers)
+ L:	netdev@vger.kernel.org
+ S:	Maintained
+ F:	Documentation/devicetree/bindings/net/airoha,en7581-eth.yaml
+-F:	drivers/net/ethernet/mediatek/airoha_eth.c
++F:	drivers/net/ethernet/airoha/
+ 
+ AIROHA PCIE PHY DRIVER
+ M:	Lorenzo Bianconi <lorenzo@kernel.org>
+@@ -9829,6 +9829,7 @@ S:	Maintained
+ F:	drivers/media/usb/go7007/
+ 
+ GOODIX TOUCHSCREEN
++M:	Bastien Nocera <hadess@hadess.net>
+ M:	Hans de Goede <hdegoede@redhat.com>
+ L:	linux-input@vger.kernel.org
+ S:	Maintained
+@@ -11140,7 +11141,7 @@ S:	Maintained
+ F:	drivers/i2c/busses/i2c-icy.c
+ 
+ IDEAPAD LAPTOP EXTRAS DRIVER
+-M:	Ike Panhc <ikepanhc@gmail.com>
++M:	Ike Panhc <ike.pan@canonical.com>
+ L:	platform-driver-x86@vger.kernel.org
+ S:	Maintained
+ W:	http://launchpad.net/ideapad-laptop
+@@ -11871,6 +11872,7 @@ L:	platform-driver-x86@vger.kernel.org
+ S:	Maintained
+ F:	Documentation/ABI/testing/sysfs-platform-intel-pmc
+ F:	drivers/platform/x86/intel/pmc/
++F:	linux/platform_data/x86/intel_pmc_ipc.h
+ 
+ INTEL PMIC GPIO DRIVERS
+ M:	Andy Shevchenko <andy@kernel.org>
+@@ -13905,6 +13907,7 @@ L:	netdev@vger.kernel.org
+ S:	Maintained
+ F:	Documentation/networking/mctp.rst
+ F:	drivers/net/mctp/
++F:	include/linux/usb/mctp-usb.h
+ F:	include/net/mctp.h
+ F:	include/net/mctpdevice.h
+ F:	include/net/netns/mctp.h
+@@ -24188,7 +24191,7 @@ W:	http://vtun.sourceforge.net/tun
+ F:	Documentation/networking/tuntap.rst
+ F:	arch/um/os-Linux/drivers/
+ F:	drivers/net/tap.c
+-F:	drivers/net/tun.c
++F:	drivers/net/tun*
+ 
+ TURBOCHANNEL SUBSYSTEM
+ M:	"Maciej W. Rozycki" <macro@orcam.me.uk>
+diff --git a/Makefile.kernel b/Makefile.kernel
+index 14375602..80f1db6e 100644
+--- a/Makefile.kernel
++++ b/Makefile.kernel
+@@ -41,7 +41,7 @@ obj-$(CPTCFG_MAC80211) += net/mac80211/
+ obj-$(CPTCFG_QRTR) += net/qrtr/
+ obj-$(CPTCFG_QCOM_QMI_HELPERS) += drivers/soc/qcom/
+ obj-$(CPTCFG_MHI_BUS) += drivers/bus/mhi/
+-obj-$(CPTCFG_WLAN) += drivers/net/wireless/
++#obj-$(CPTCFG_WLAN) += drivers/net/wireless/
+ obj-$(CPTCFG_USB_NET_RNDIS_WLAN) += drivers/net/usb/
+ 
+ obj-$(CPTCFG_USB_WDM) += drivers/usb/class/
+diff --git a/backport-include/kunit/static_stub.h b/backport-include/kunit/static_stub.h
+new file mode 100644
+index 00000000..b6fb4e7c
+--- /dev/null
++++ b/backport-include/kunit/static_stub.h
+@@ -0,0 +1,10 @@
++#ifndef _BACKPORT_KUNIT_STATIC_STUB_H
++#define _BACKPORT_KUNIT_STATIC_STUB_H
++
++#if LINUX_VERSION_IS_GEQ(6,2,0)
++#include_next <kunit/static_stub.h>
++#else
++#define KUNIT_STATIC_STUB_REDIRECT(real_fn_name, args...) do {} while (0)
++#endif
++
++#endif /* _BACKPORT_KUNIT_STATIC_STUB_H */
+diff --git a/backport-include/linux/debugfs.h b/backport-include/linux/debugfs.h
+index a625dcf7..a28634fb 100644
+--- a/backport-include/linux/debugfs.h
++++ b/backport-include/linux/debugfs.h
+@@ -63,5 +63,4 @@ debugfs_leave_cancellation(struct file *file,
+ 	})
+ #endif
+ 
+-
+ #endif /* __BACKPORT_DEBUGFS_H_ */
+diff --git a/backport-include/linux/jiffies.h b/backport-include/linux/jiffies.h
+new file mode 100644
+index 00000000..d37f9f01
+--- /dev/null
++++ b/backport-include/linux/jiffies.h
+@@ -0,0 +1,23 @@
++#ifndef __BACKPORT_JIFFIES_H
++#define __BACKPORT_JIFFIES_H
++#include_next <linux/jiffies.h>
++#include <linux/version.h>
++
++#if LINUX_VERSION_IS_LESS(6,13,0)
++
++/**
++ * secs_to_jiffies: - convert seconds to jiffies
++ * @_secs: time in seconds
++ *
++ * Conversion is done by simple multiplication with HZ
++ *
++ * secs_to_jiffies() is defined as a macro rather than a static inline
++ * function so it can be used in static initializers.
++ *
++ * Return: jiffies value
++ */
++#define secs_to_jiffies(_secs) ((_secs) * HZ)
++
++#endif /* < 6.13.0 */
++
++#endif /* __BACKPORT_JIFFIES_H */
+diff --git a/backport-include/linux/netdevice.h b/backport-include/linux/netdevice.h
+index ffb40bc7..9f8646e6 100644
+--- a/backport-include/linux/netdevice.h
++++ b/backport-include/linux/netdevice.h
+@@ -100,6 +100,33 @@ static inline void dev_sw_netstats_tx_add(struct net_device *dev,
+ }
+ #endif /* < 5.11 */
+ 
++/* add this API for driver usage */
++#if LINUX_VERSION_IS_LESS(5,10,0)
++static inline void __dev_sw_netstats_rx_add(struct net_device *dev,
++                                           unsigned int packets,
++                                           unsigned int len)
++{
++       struct pcpu_sw_netstats *tstats = this_cpu_ptr(dev->tstats);
++
++       u64_stats_update_begin(&tstats->syncp);
++       tstats->rx_bytes += len;
++       tstats->rx_packets += packets;
++       u64_stats_update_end(&tstats->syncp);
++}
++#else
++static inline void __dev_sw_netstats_rx_add(struct net_device *dev,
++                                           unsigned int packets,
++                                           unsigned int len)
++{
++       struct pcpu_sw_netstats *tstats = this_cpu_ptr(dev->tstats);
++
++       u64_stats_update_begin(&tstats->syncp);
++       u64_stats_add(&tstats->rx_bytes, len);
++       u64_stats_add(&tstats->rx_packets, packets);
++       u64_stats_update_end(&tstats->syncp);
++}
++#endif
++
+ #if LINUX_VERSION_IS_LESS(5,11,0)
+ #define dev_get_tstats64 LINUX_BACKPORT(dev_get_tstats64)
+ void dev_get_tstats64(struct net_device *dev, struct rtnl_link_stats64 *s);
+diff --git a/backport-include/linux/skbuff.h b/backport-include/linux/skbuff.h
+index 36b83fdf..9bc3d761 100644
+--- a/backport-include/linux/skbuff.h
++++ b/backport-include/linux/skbuff.h
+@@ -103,4 +103,12 @@ static inline bool skb_queue_empty_lockless(const struct sk_buff_head *list)
+ }
+ #endif /* < 5.4 */
+ 
++#if LINUX_VERSION_IS_LESS(6,0,0)
++#define kfree_skb_reason LINUX_BACKPORT(kfree_skb_reason)
++static inline void kfree_skb_reason(struct sk_buff *skb, int reason)
++{
++       return kfree_skb(skb);
++}
++#endif /* < 6.0.0 */
++
+ #endif /* __BACKPORT_SKBUFF_H */
+diff --git a/backport-include/linux/soc/mediatek/mtk_wed.h b/backport-include/linux/soc/mediatek/mtk_wed.h
+index 46caa89f..de7303df 100644
+--- a/backport-include/linux/soc/mediatek/mtk_wed.h
++++ b/backport-include/linux/soc/mediatek/mtk_wed.h
+@@ -2,7 +2,7 @@
+ #define __BACKPORT_MTK_WED_H
+ #include <linux/version.h>
+ 
+-#if LINUX_VERSION_IS_GEQ(5,19,0)
++#if LINUX_VERSION_IS_GEQ(5,4,0)
+ #include_next <linux/soc/mediatek/mtk_wed.h>
+ #else
+ #include <linux/kernel.h>
+@@ -53,6 +53,6 @@ static inline bool mtk_wed_device_active(struct mtk_wed_device *dev)
+ #define mtk_wed_device_irq_get(_dev, _mask) 0
+ #define mtk_wed_device_irq_set_mask(_dev, _mask) do {} while (0)
+ 
+-#endif /* >= 5.19.0 */
++#endif /* >= 5.4.0 */
+ 
+ #endif /* __BACKPORT_MTK_WED_H */
+diff --git a/backport-include/linux/string.h b/backport-include/linux/string.h
+index fe2d9fdd..6daf39ca 100644
+--- a/backport-include/linux/string.h
++++ b/backport-include/linux/string.h
+@@ -1,7 +1,9 @@
+ #ifndef __BACKPORT_LINUX_STRING_H
+ #define __BACKPORT_LINUX_STRING_H
+ #include_next <linux/string.h>
++#if LINUX_VERSION_IS_GEQ(6,6,0)
+ #include <linux/args.h>
++#endif
+ 
+ #ifndef memset_after
+ #define memset_after(obj, v, member)					\
+@@ -48,11 +50,10 @@
+ #define strscpy_pad(dst, src, ...)	\
+ 	CONCATENATE(__strscpy_pad, COUNT_ARGS(__VA_ARGS__))(dst, src, __VA_ARGS__)
+ 
+-static inline void *
+-kmemdup_array(const void *src, size_t count, size_t element_size, gfp_t gfp)
+-{
+-	return kmemdup(src, size_mul(element_size, count), gfp);
+-}
++/* for compatibility on 5.4 */
++#undef kmemdup_array
++#define kmemdup_array(src, count, element_size, gfp)	\
++	kmemdup(src, size_mul(element_size, count), gfp);
+ 
+ #endif /* <6.9 */
+ 
+diff --git a/backport-include/linux/thermal.h b/backport-include/linux/thermal.h
+index d6b8a8f4..e78f2fb8 100644
+--- a/backport-include/linux/thermal.h
++++ b/backport-include/linux/thermal.h
+@@ -37,7 +37,7 @@ static inline void *thermal_zone_device_priv(struct thermal_zone_device *tzd)
+ }
+ #endif
+ 
+-#if LINUX_VERSION_IS_LESS(6,6,0)
++#if LINUX_VERSION_IS_LESS(5,4,0)
+ #define for_each_thermal_trip LINUX_BACKPORT(for_each_thermal_trip)
+ static inline int for_each_thermal_trip(struct thermal_zone_device *tz,
+ 					int (*cb)(struct thermal_trip *, void *),
+@@ -56,6 +56,6 @@ static inline int for_each_thermal_trip(struct thermal_zone_device *tz,
+ 
+ 	return 0;
+ }
+-#endif /* < 6.6 */
++#endif /* < 5.4 */
+ 
+ #endif /* __BACKPORT_LINUX_THERMAL_H */
+diff --git a/backport-include/linux/unaligned.h b/backport-include/linux/unaligned.h
+index 9bda10ab..17c6519e 100644
+--- a/backport-include/linux/unaligned.h
++++ b/backport-include/linux/unaligned.h
+@@ -2,6 +2,7 @@
+ #define __BACKPORT_LINUX_UNALIGNED_H
+ 
+ #include <linux/version.h>
++
+ #if LINUX_VERSION_IS_LESS(6,12,0)
+ #include <asm/unaligned.h>
+ #else
+diff --git a/backport-include/net/dropreason-core.h b/backport-include/net/dropreason-core.h
+index ab8532e5..7e4011a4 100644
+--- a/backport-include/net/dropreason-core.h
++++ b/backport-include/net/dropreason-core.h
+@@ -13,6 +13,11 @@
+ 
+ #include <linux/version.h>
+ 
++#if LINUX_VERSION_IS_LESS(5,5,0)
++#define SKB_DROP_REASON_NOT_SPECIFIED 2
++#define SKB_DROP_REASON_MAX 69
++#endif
++
+ #if LINUX_VERSION_IS_LESS(5,18,0)
+ #define SKB_NOT_DROPPED_YET SKB_DROP_REASON_MAX
+ #endif
+diff --git a/backport-include/net/genetlink.h b/backport-include/net/genetlink.h
+index e8157e9f..43ca3b43 100644
+--- a/backport-include/net/genetlink.h
++++ b/backport-include/net/genetlink.h
+@@ -150,7 +150,7 @@ int genlmsg_multicast(const struct genl_family *family,
+ #define genlmsg_multicast_allns LINUX_BACKPORT(genlmsg_multicast_allns)
+ int backport_genlmsg_multicast_allns(const struct genl_family *family,
+ 				     struct sk_buff *skb, u32 portid,
+-				     unsigned int group);
++				     unsigned int group, gfp_t flags);
+ 
+ #define genl_family_attrbuf LINUX_BACKPORT(genl_family_attrbuf)
+ static inline struct nlattr **genl_family_attrbuf(struct genl_family *family)
+@@ -172,4 +172,20 @@ static inline int genlmsg_parse(const struct nlmsghdr *nlh,
+ }
+ #endif /* LINUX_VERSION_IS_LESS(5,2,0) */
+ 
++#if LINUX_VERSION_IS_LESS(5,5,0)
++static inline int backport_genlmsg_multicast_allns(const struct genl_family *family,
++						   struct sk_buff *skb, u32 portid,
++						   unsigned int group)
++{
++	int ret;
++
++	rcu_read_lock();
++	ret = genlmsg_multicast_allns(family, skb, portid, group, GFP_ATOMIC);
++	rcu_read_unlock();
++
++	return ret;
++}
++#define genlmsg_multicast_allns LINUX_BACKPORT(genlmsg_multicast_allns)
++#endif /* LINUX_VERSION_IS_LESS(5,5,0) */
++
+ #endif /* __BACKPORT_NET_GENETLINK_H */
+diff --git a/backport-include/net/netlink.h b/backport-include/net/netlink.h
+index d031c29c..1ed09226 100644
+--- a/backport-include/net/netlink.h
++++ b/backport-include/net/netlink.h
+@@ -415,6 +415,7 @@ static inline u16 nla_get_u16_default(const struct nlattr *nla, u16 defvalue)
+ 		return defvalue;
+ 	return nla_get_u16(nla);
+ }
++
+ static inline __be16 nla_get_be16_default(const struct nlattr *nla,
+ 					  __be16 defvalue)
+ {
+diff --git a/compat/backport-genetlink.c b/compat/backport-genetlink.c
+index a630e2a4..b4465daa 100644
+--- a/compat/backport-genetlink.c
++++ b/compat/backport-genetlink.c
+@@ -198,23 +198,23 @@ int genlmsg_multicast(const struct genl_family *family,
+ }
+ EXPORT_SYMBOL_GPL(genlmsg_multicast);
+ 
+-static int genlmsg_mcast(struct sk_buff *skb, u32 portid, unsigned long group)
++static int genlmsg_mcast(struct sk_buff *skb, u32 portid, unsigned long group,
++			 gfp_t flags)
+ {
+ 	struct sk_buff *tmp;
+ 	struct net *net, *prev = NULL;
+ 	bool delivered = false;
+ 	int err;
+ 
+-	rcu_read_lock();
+ 	for_each_net_rcu(net) {
+ 		if (prev) {
+-			tmp = skb_clone(skb, GFP_ATOMIC);
++			tmp = skb_clone(skb, flags);
+ 			if (!tmp) {
+ 				err = -ENOMEM;
+ 				goto error;
+ 			}
+ 			err = nlmsg_multicast(prev->genl_sock, tmp,
+-					      portid, group, GFP_ATOMIC);
++					      portid, group, flags);
+ 			if (!err)
+ 				delivered = true;
+ 			else if (err != -ESRCH)
+@@ -223,29 +223,25 @@ static int genlmsg_mcast(struct sk_buff *skb, u32 portid, unsigned long group)
+ 
+ 		prev = net;
+ 	}
+-	err = nlmsg_multicast(prev->genl_sock, skb, portid, group, GFP_ATOMIC);
+-
+-	rcu_read_unlock();
+ 
++	err = nlmsg_multicast(prev->genl_sock, skb, portid, group, flags);
+ 	if (!err)
+ 		delivered = true;
+ 	else if (err != -ESRCH)
+ 		return err;
+ 	return delivered ? 0 : -ESRCH;
+  error:
+-	rcu_read_unlock();
+-
+ 	kfree_skb(skb);
+ 	return err;
+ }
+ 
+ int backport_genlmsg_multicast_allns(const struct genl_family *family,
+ 				     struct sk_buff *skb, u32 portid,
+-				     unsigned int group)
++				     unsigned int group, gfp_t flags)
+ {
+ 	group = __backport_genl_group(family, group);
+ 	if (group == INVALID_GROUP)
+ 		return -EINVAL;
+-	return genlmsg_mcast(skb, portid, group);
++	return genlmsg_mcast(skb, portid, group, flags);
+ }
+ EXPORT_SYMBOL_GPL(backport_genlmsg_multicast_allns);
+diff --git a/include/linux/ieee80211.h b/include/linux/ieee80211.h
+index 16741e54..508d466d 100644
+--- a/include/linux/ieee80211.h
++++ b/include/linux/ieee80211.h
+@@ -1543,6 +1543,10 @@ struct ieee80211_mgmt {
+ 					u8 count;
+ 					u8 variable[];
+ 				} __packed ml_reconf_resp;
++				struct {
++					u8 action_code;
++					u8 variable[];
++				} __packed epcs;
+ 			} u;
+ 		} __packed action;
+ 		DECLARE_FLEX_ARRAY(u8, body); /* Generic frame body */
+@@ -3109,6 +3113,11 @@ ieee80211_he_spr_size(const u8 *he_spr_ie)
+ #define	IEEE80211_EHT_MAC_CAP0_MAX_MPDU_LEN_11454	        2
+ 
+ #define IEEE80211_EHT_MAC_CAP1_MAX_AMPDU_LEN_MASK		0x01
++#define IEEE80211_EHT_MAC_CAP1_EHT_TRS				0x02
++#define IEEE80211_EHT_MAC_CAP1_TXOP_RET				0x04
++#define IEEE80211_EHT_MAC_CAP1_TWO_BQRS				0x08
++#define IEEE80211_EHT_MAC_CAP1_EHT_LINK_ADAPT_MASK		0x30
++#define IEEE80211_EHT_MAC_CAP1_UNSOL_EPCS_PRIO_ACCESS		0x40
+ 
+ /* EHT PHY capabilities as defined in P802.11be_D2.0 section 9.4.2.313.3 */
+ #define IEEE80211_EHT_PHY_CAP0_320MHZ_IN_6GHZ			0x02
+@@ -5570,6 +5579,9 @@ static inline bool ieee80211_mle_reconf_sta_prof_size_ok(const u8 *data,
+ 	       fixed + prof->sta_info_len - 1 <= len;
+ }
+ 
++#define IEEE80211_MLE_STA_EPCS_CONTROL_LINK_ID			0x000f
++#define IEEE80211_EPCS_ENA_RESP_BODY_LEN                        3
++
+ static inline bool ieee80211_tid_to_link_map_size_ok(const u8 *data, size_t len)
+ {
+ 	const struct ieee80211_ttlm_elem *t2l = (const void *)data;
+diff --git a/include/linux/usb/usbnet.h b/include/linux/usb/usbnet.h
+index 0b9f1e59..d5c12775 100644
+--- a/include/linux/usb/usbnet.h
++++ b/include/linux/usb/usbnet.h
+@@ -264,6 +264,7 @@ extern int usbnet_stop(struct net_device *net);
+ extern netdev_tx_t usbnet_start_xmit(struct sk_buff *skb,
+ 				     struct net_device *net);
+ extern void usbnet_tx_timeout(struct net_device *net, unsigned int txqueue);
++extern void bp_usbnet_tx_timeout(struct net_device *net);
+ extern int usbnet_change_mtu(struct net_device *net, int new_mtu);
+ 
+ extern int usbnet_get_endpoints(struct usbnet *, struct usb_interface *);
+diff --git a/include/net/cfg80211.h b/include/net/cfg80211.h
+index 8753d3f1..823ea613 100644
+--- a/include/net/cfg80211.h
++++ b/include/net/cfg80211.h
+@@ -7,11 +7,15 @@
+  * Copyright 2006-2010	Johannes Berg <johannes@sipsolutions.net>
+  * Copyright 2013-2014 Intel Mobile Communications GmbH
+  * Copyright 2015-2017	Intel Deutschland GmbH
+- * Copyright (C) 2018-2024 Intel Corporation
++ * Copyright (C) 2018-2025 Intel Corporation
+  */
+ 
+ #include <linux/ethtool.h>
++#if LINUX_VERSION_IS_LESS(5,11,0)
++#include <linux/rfkill.h>
++#else
+ #include <uapi/linux/rfkill.h>
++#endif
+ #include <linux/netdevice.h>
+ #include <linux/debugfs.h>
+ #include <linux/list.h>
+@@ -24,6 +28,7 @@
+ #include <linux/net.h>
+ #include <linux/rfkill.h>
+ #include <net/regulatory.h>
++#include <net/netlink.h>
+ 
+ /**
+  * DOC: Introduction
+@@ -127,6 +132,8 @@ struct wiphy;
+  *	even if it is otherwise disabled.
+  * @IEEE80211_CHAN_ALLOW_6GHZ_VLP_AP: Allow using this channel for AP operation
+  *	with very low power (VLP), even if otherwise set to NO_IR.
++ * @IEEE80211_CHAN_ALLOW_20MHZ_ACTIVITY: Allow activity on a 20 MHz channel,
++ *	even if otherwise set to NO_IR.
+  */
+ enum ieee80211_channel_flags {
+ 	IEEE80211_CHAN_DISABLED			= BIT(0),
+@@ -155,6 +162,7 @@ enum ieee80211_channel_flags {
+ 	IEEE80211_CHAN_NO_6GHZ_AFC_CLIENT	= BIT(23),
+ 	IEEE80211_CHAN_CAN_MONITOR		= BIT(24),
+ 	IEEE80211_CHAN_ALLOW_6GHZ_VLP_AP	= BIT(25),
++	IEEE80211_CHAN_ALLOW_20MHZ_ACTIVITY     = BIT(26),
+ };
+ 
+ #define IEEE80211_CHAN_NO_HT40 \
+@@ -1005,6 +1013,17 @@ cfg80211_chandef_compatible(const struct cfg80211_chan_def *chandef1,
+  */
+ int nl80211_chan_width_to_mhz(enum nl80211_chan_width chan_width);
+ 
++/**
++ * cfg80211_chandef_get_width - return chandef width in MHz
++ * @c: chandef to return bandwidth for
++ * Return: channel width in MHz for the given chandef; note that it returns
++ *	80 for 80+80 configurations
++ */
++static inline int cfg80211_chandef_get_width(const struct cfg80211_chan_def *c)
++{
++	return nl80211_chan_width_to_mhz(c->width);
++}
++
+ /**
+  * cfg80211_chandef_valid - check if a channel definition is valid
+  * @chandef: the channel definition to check
+@@ -2045,9 +2064,6 @@ struct cfg80211_tid_stats {
+  * @assoc_at: bootime (ns) of the last association
+  * @rx_bytes: bytes (size of MPDUs) received from this station
+  * @tx_bytes: bytes (size of MPDUs) transmitted to this station
+- * @llid: mesh local link id
+- * @plid: mesh peer link id
+- * @plink_state: mesh peer link state
+  * @signal: The signal strength, type depends on the wiphy's signal_type.
+  *	For CFG80211_SIGNAL_TYPE_MBM, value is expressed in _dBm_.
+  * @signal_avg: Average signal strength, type depends on the wiphy's signal_type.
+@@ -2067,14 +2083,20 @@ struct cfg80211_tid_stats {
+  *	This number should increase every time the list of stations
+  *	changes, i.e. when a station is added or removed, so that
+  *	userspace can tell whether it got a consistent snapshot.
++ * @beacon_loss_count: Number of times beacon loss event has triggered.
+  * @assoc_req_ies: IEs from (Re)Association Request.
+  *	This is used only when in AP mode with drivers that do not use
+  *	user space MLME/SME implementation. The information is provided for
+  *	the cfg80211_new_sta() calls to notify user space of the IEs.
+  * @assoc_req_ies_len: Length of assoc_req_ies buffer in octets.
+  * @sta_flags: station flags mask & values
+- * @beacon_loss_count: Number of times beacon loss event has triggered.
+  * @t_offset: Time offset of the station relative to this host.
++ * @llid: mesh local link id
++ * @plid: mesh peer link id
++ * @plink_state: mesh peer link state
++ * @connected_to_gate: true if mesh STA has a path to mesh gate
++ * @connected_to_as: true if mesh STA has a path to authentication server
++ * @airtime_link_metric: mesh airtime link metric.
+  * @local_pm: local mesh STA power save mode
+  * @peer_pm: peer mesh STA power save mode
+  * @nonpeer_pm: non-peer mesh STA power save mode
+@@ -2083,7 +2105,6 @@ struct cfg80211_tid_stats {
+  * @rx_beacon: number of beacons received from this peer
+  * @rx_beacon_signal_avg: signal strength average (in dBm) for beacons received
+  *	from this peer
+- * @connected_to_gate: true if mesh STA has a path to mesh gate
+  * @rx_duration: aggregate PPDU duration(usecs) for all the frames from a peer
+  * @tx_duration: aggregate PPDU duration(usecs) for all the frames to a peer
+  * @airtime_weight: current airtime scheduling weight
+@@ -2097,8 +2118,6 @@ struct cfg80211_tid_stats {
+  * @fcs_err_count: number of packets (MPDUs) received from this station with
+  *	an FCS error. This counter should be incremented only when TA of the
+  *	received packet with an FCS error matches the peer MAC address.
+- * @airtime_link_metric: mesh airtime link metric.
+- * @connected_to_as: true if mesh STA has a path to authentication server
+  * @mlo_params_valid: Indicates @assoc_link_id and @mld_addr fields are filled
+  *	by driver. Drivers use this only in cfg80211_new_sta() calls when AP
+  *	MLD's MLME/SME is offload to driver. Drivers won't fill this
+@@ -2125,9 +2144,6 @@ struct station_info {
+ 	u64 assoc_at;
+ 	u64 rx_bytes;
+ 	u64 tx_bytes;
+-	u16 llid;
+-	u16 plid;
+-	u8 plink_state;
+ 	s8 signal;
+ 	s8 signal_avg;
+ 
+@@ -2147,36 +2163,38 @@ struct station_info {
+ 
+ 	int generation;
+ 
++	u32 beacon_loss_count;
++
+ 	const u8 *assoc_req_ies;
+ 	size_t assoc_req_ies_len;
+ 
+-	u32 beacon_loss_count;
+ 	s64 t_offset;
++	u16 llid;
++	u16 plid;
++	u8 plink_state;
++	u8 connected_to_gate;
++	u8 connected_to_as;
++	u32 airtime_link_metric;
+ 	enum nl80211_mesh_power_mode local_pm;
+ 	enum nl80211_mesh_power_mode peer_pm;
+ 	enum nl80211_mesh_power_mode nonpeer_pm;
+ 
+ 	u32 expected_throughput;
+ 
+-	u64 tx_duration;
+-	u64 rx_duration;
+-	u64 rx_beacon;
+-	u8 rx_beacon_signal_avg;
+-	u8 connected_to_gate;
++	u16 airtime_weight;
+ 
+-	struct cfg80211_tid_stats *pertid;
+ 	s8 ack_signal;
+ 	s8 avg_ack_signal;
++	struct cfg80211_tid_stats *pertid;
+ 
+-	u16 airtime_weight;
++	u64 tx_duration;
++	u64 rx_duration;
++	u64 rx_beacon;
++	u8 rx_beacon_signal_avg;
+ 
+ 	u32 rx_mpdu_count;
+ 	u32 fcs_err_count;
+ 
+-	u32 airtime_link_metric;
+-
+-	u8 connected_to_as;
+-
+ 	bool mlo_params_valid;
+ 	u8 assoc_link_id;
+ 	u8 mld_addr[ETH_ALEN] __aligned(2);
+@@ -2265,7 +2283,7 @@ static inline int cfg80211_get_station(struct net_device *dev,
+  * @MONITOR_FLAG_PLCPFAIL: pass frames with bad PLCP
+  * @MONITOR_FLAG_CONTROL: pass control frames
+  * @MONITOR_FLAG_OTHER_BSS: disable BSSID filtering
+- * @MONITOR_FLAG_COOK_FRAMES: report frames after processing
++ * @MONITOR_FLAG_COOK_FRAMES: deprecated, will unconditionally be refused
+  * @MONITOR_FLAG_ACTIVE: active monitor, ACKs frames on its MAC address
+  * @MONITOR_FLAG_SKIP_TX: do not pass locally transmitted frames
+  */
+@@ -2947,6 +2965,7 @@ struct cfg80211_bss_ies {
+  * @nontrans_list: list of non-transmitted BSS, if this is a transmitted one
+  *	(multi-BSSID support)
+  * @signal: signal strength value (type depends on the wiphy's signal_type)
++ * @ts_boottime: timestamp of the last BSS update in nanoseconds since boot
+  * @chains: bitmask for filled values in @chain_signal.
+  * @chain_signal: per-chain signal strength of last received BSS in dBm.
+  * @bssid_index: index in the multiple BSS set
+@@ -2971,6 +2990,8 @@ struct cfg80211_bss {
+ 
+ 	s32 signal;
+ 
++	u64 ts_boottime;
++
+ 	u16 beacon_interval;
+ 	u16 capability;
+ 
+@@ -3080,6 +3101,19 @@ struct cfg80211_assoc_link {
+ 	int error;
+ };
+ 
++/**
++ * struct cfg80211_ml_reconf_req - MLO link reconfiguration request
++ * @add_links: data for links to add, see &struct cfg80211_assoc_link
++ * @rem_links: bitmap of links to remove
++ * @ext_mld_capa_ops: extended MLD capabilities and operations set by
++ *	userspace for the ML reconfiguration action frame
++ */
++struct cfg80211_ml_reconf_req {
++	struct cfg80211_assoc_link add_links[IEEE80211_MLD_MAX_NUM_LINKS];
++	u16 rem_links;
++	u16 ext_mld_capa_ops;
++};
++
+ /**
+  * enum cfg80211_assoc_req_flags - Over-ride default behaviour in association.
+  *
+@@ -3130,10 +3164,10 @@ enum cfg80211_assoc_req_flags {
+  *	included in the Current AP address field of the Reassociation Request
+  *	frame.
+  * @flags:  See &enum cfg80211_assoc_req_flags
+- * @supported_selectors: supported selectors in IEEE 802.11 format
++ * @supported_selectors: supported BSS selectors in IEEE 802.11 format
+  *	(or %NULL for no change).
+  *	If %NULL, then support for SAE_H2E should be assumed.
+- * @supported_selectors_len: Length of supported_selectors in octets.
++ * @supported_selectors_len: number of supported BSS selectors
+  * @ht_capa:  HT Capabilities over-rides.  Values set in ht_capa_mask
+  *	will be used in ht_capa.  Un-supported values will be ignored.
+  * @ht_capa_mask:  The bits of ht_capa which are to be used.
+@@ -3152,6 +3186,8 @@ enum cfg80211_assoc_req_flags {
+  *	the link on which the association request should be sent
+  * @ap_mld_addr: AP MLD address in case of MLO association request,
+  *	valid iff @link_id >= 0
++ * @ext_mld_capa_ops: extended MLD capabilities and operations set by
++ *	userspace for the association
+  */
+ struct cfg80211_assoc_request {
+ 	struct cfg80211_bss *bss;
+@@ -3172,6 +3208,7 @@ struct cfg80211_assoc_request {
+ 	struct cfg80211_assoc_link links[IEEE80211_MLD_MAX_NUM_LINKS];
+ 	const u8 *ap_mld_addr;
+ 	s8 link_id;
++	u16 ext_mld_capa_ops;
+ };
+ 
+ /**
+@@ -4970,8 +5007,7 @@ struct cfg80211_ops {
+ 			    struct cfg80211_ttlm_params *params);
+ 	u32	(*get_radio_mask)(struct wiphy *wiphy, struct net_device *dev);
+ 	int     (*assoc_ml_reconf)(struct wiphy *wiphy, struct net_device *dev,
+-				   struct cfg80211_assoc_link *add_links,
+-				   u16 rem_links);
++				   struct cfg80211_ml_reconf_req *req);
+ 	int	(*set_epcs)(struct wiphy *wiphy, struct net_device *dev,
+ 			    bool val);
+ };
+@@ -5704,6 +5740,9 @@ struct wiphy {
+ 
+ 	/* assign these fields before you register the wiphy */
+ 
++#define WIPHY_COMPAT_PAD_SIZE	2304
++	u8 padding[WIPHY_COMPAT_PAD_SIZE];
++
+ 	u8 perm_addr[ETH_ALEN];
+ 	u8 addr_mask[ETH_ALEN];
+ 
+@@ -9750,6 +9789,7 @@ struct cfg80211_mlo_reconf_done_data {
+ 	u16 added_links;
+ 	struct {
+ 		struct cfg80211_bss *bss;
++		u8 *addr;
+ 	} links[IEEE80211_MLD_MAX_NUM_LINKS];
+ };
+ 
+@@ -9831,4 +9871,12 @@ ssize_t wiphy_locked_debugfs_write(struct wiphy *wiphy, struct file *file,
+ 				   void *data);
+ #endif
+ 
++
++#if LINUX_VERSION_IS_GEQ(6,12,0)
++#define backports_set_netns_immutable(_wdev) _wdev->netdev->netns_local = true
++#define backports_clear_netns_immutable(_wdev) _wdev->netdev->netns_local = false
++#else
++#define backports_set_netns_immutable(_wdev) wdev->netdev->features |= NETIF_F_NETNS_LOCAL
++#define backports_clear_netns_immutable(_wdev) wdev->netdev->features &= ~NETIF_F_NETNS_LOCAL
++#endif
+ #endif /* __NET_CFG80211_H */
+diff --git a/include/net/mac80211.h b/include/net/mac80211.h
+index 526b4cc2..e0ff697b 100644
+--- a/include/net/mac80211.h
++++ b/include/net/mac80211.h
+@@ -7,7 +7,7 @@
+  * Copyright 2007-2010	Johannes Berg <johannes@sipsolutions.net>
+  * Copyright 2013-2014  Intel Mobile Communications GmbH
+  * Copyright (C) 2015 - 2017 Intel Deutschland GmbH
+- * Copyright (C) 2018 - 2024 Intel Corporation
++ * Copyright (C) 2018 - 2025 Intel Corporation
+  */
+ 
+ #ifndef MAC80211_H
+@@ -702,6 +702,7 @@ struct ieee80211_parsed_tpe {
+  * @tpe: transmit power envelope information
+  * @pwr_reduction: power constraint of BSS.
+  * @eht_support: does this BSS support EHT
++ * @epcs_support: does this BSS support EPCS
+  * @csa_active: marks whether a channel switch is going on.
+  * @mu_mimo_owner: indicates interface owns MU-MIMO capability
+  * @chanctx_conf: The channel context this interface is assigned to, or %NULL
+@@ -823,7 +824,7 @@ struct ieee80211_bss_conf {
+ 
+ 	u8 pwr_reduction;
+ 	bool eht_support;
+-
++	bool epcs_support;
+ 	bool csa_active;
+ 
+ 	bool mu_mimo_owner;
+@@ -1350,7 +1351,11 @@ struct ieee80211_tx_status {
+ 	ktime_t ack_hwtstamp;
+ 	u8 n_rates;
+ 
++#if LINUX_VERSION_IS_GEQ(4,19,0)
+ 	struct list_head *free_list;
++#else
++	struct sk_buff_head *free_list;
++#endif
+ };
+ 
+ /**
+@@ -2851,6 +2856,11 @@ struct ieee80211_txq {
+  *	implements MLO, so operation can continue on other links when one
+  *	link is switching.
+  *
++ * @IEEE80211_HW_STRICT: strictly enforce certain things mandated by the spec
++ *	but otherwise ignored/worked around for interoperability. This is a
++ *	HW flag so drivers can opt in according to their own control, e.g. in
++ *	testing.
++ *
+  * @NUM_IEEE80211_HW_FLAGS: number of hardware flags, used for sizing arrays
+  */
+ enum ieee80211_hw_flags {
+@@ -2911,6 +2921,7 @@ enum ieee80211_hw_flags {
+ 	IEEE80211_HW_DISALLOW_PUNCTURING,
+ 	IEEE80211_HW_DISALLOW_PUNCTURING_5GHZ,
+ 	IEEE80211_HW_HANDLES_QUIET_CSA,
++	IEEE80211_HW_STRICT,
+ 
+ 	/* keep last, obviously */
+ 	NUM_IEEE80211_HW_FLAGS
+@@ -3823,7 +3834,7 @@ enum ieee80211_reconfig_type {
+  * @was_assoc: set if this call is due to deauth/disassoc
+  *	while just having been associated
+  * @link_id: the link id on which the frame will be TX'ed.
+- *	Only used with the mgd_prepare_tx() method.
++ *	0 for a non-MLO connection.
+  */
+ struct ieee80211_prep_tx_info {
+ 	u16 duration;
+@@ -5120,7 +5131,11 @@ void ieee80211_restart_hw(struct ieee80211_hw *hw);
+  * @list: the destination list
+  */
+ void ieee80211_rx_list(struct ieee80211_hw *hw, struct ieee80211_sta *sta,
++#if LINUX_VERSION_IS_GEQ(4,19,0)
+ 		       struct sk_buff *skb, struct list_head *list);
++#else
++		       struct sk_buff *skb, struct sk_buff_head *list);
++#endif
+ 
+ /**
+  * ieee80211_rx_napi - receive frame from NAPI context
+@@ -6664,6 +6679,31 @@ void ieee80211_iter_chan_contexts_atomic(
+ 		     void *data),
+ 	void *iter_data);
+ 
++/**
++ * ieee80211_iter_chan_contexts_mtx - iterate channel contexts
++ * @hw: pointer obtained from ieee80211_alloc_hw().
++ * @iter: iterator function
++ * @iter_data: data passed to iterator function
++ *
++ * Iterate all active channel contexts. This function can only be used while
++ * holding the wiphy mutex.
++ *
++ * The iterator will not find a context that's being added (during
++ * the driver callback to add it) but will find it while it's being
++ * removed.
++ *
++ * Note that during hardware restart, all contexts that existed
++ * before the restart are considered already present so will be
++ * found while iterating, whether they've been re-added already
++ * or not.
++ */
++void ieee80211_iter_chan_contexts_mtx(
++	struct ieee80211_hw *hw,
++	void (*iter)(struct ieee80211_hw *hw,
++		     struct ieee80211_chanctx_conf *chanctx_conf,
++		     void *data),
++	void *iter_data);
++
+ /**
+  * ieee80211_ap_probereq_get - retrieve a Probe Request template
+  * @hw: pointer obtained from ieee80211_alloc_hw().
+diff --git a/include/uapi/linux/nl80211.h b/include/uapi/linux/nl80211.h
+index f6c1b181..ddcc4cda 100644
+--- a/include/uapi/linux/nl80211.h
++++ b/include/uapi/linux/nl80211.h
+@@ -11,7 +11,7 @@
+  * Copyright 2008 Jouni Malinen <jouni.malinen@atheros.com>
+  * Copyright 2008 Colin McCabe <colin@cozybit.com>
+  * Copyright 2015-2017	Intel Deutschland GmbH
+- * Copyright (C) 2018-2024 Intel Corporation
++ * Copyright (C) 2018-2025 Intel Corporation
+  *
+  * Permission to use, copy, modify, and/or distribute this software for any
+  * purpose with or without fee is hereby granted, provided that the above
+@@ -2881,9 +2881,9 @@ enum nl80211_commands {
+  * @NL80211_ATTR_VIF_RADIO_MASK: Bitmask of allowed radios (u32).
+  *	A value of 0 means all radios.
+  *
+- * @NL80211_ATTR_SUPPORTED_SELECTORS: supported selectors, array of
+- *	supported selectors as defined by IEEE 802.11 7.3.2.2 but without the
+- *	length restriction (at most %NL80211_MAX_SUPP_SELECTORS).
++ * @NL80211_ATTR_SUPPORTED_SELECTORS: supported BSS Membership Selectors, array
++ *	of supported selectors as defined by IEEE Std 802.11-2020 9.4.2.3 but
++ *	without the length restriction (at most %NL80211_MAX_SUPP_SELECTORS).
+  *	This can be used to provide a list of selectors that are implemented
+  *	by the supplicant. If not given, support for SAE_H2E is assumed.
+  *
+@@ -2893,6 +2893,12 @@ enum nl80211_commands {
+  * @NL80211_ATTR_EPCS: Flag attribute indicating that EPCS is enabled for a
+  *	station interface.
+  *
++ * @NL80211_ATTR_ASSOC_MLD_EXT_CAPA_OPS: Extended MLD capabilities and
++ *	operations that userspace implements to use during association/ML
++ *	link reconfig, currently only "BTM MLD Recommendation For Multiple
++ *	APs Support". Drivers may set additional flags that they support
++ *	in the kernel or device.
++ *
+  * @NUM_NL80211_ATTR: total number of nl80211_attrs available
+  * @NL80211_ATTR_MAX: highest attribute number currently defined
+  * @__NL80211_ATTR_AFTER_LAST: internal use
+@@ -3448,6 +3454,8 @@ enum nl80211_attrs {
+ 	NL80211_ATTR_MLO_RECONF_REM_LINKS,
+ 	NL80211_ATTR_EPCS,
+ 
++	NL80211_ATTR_ASSOC_MLD_EXT_CAPA_OPS,
++
+ 	/* add attributes here, update the policy in nl80211.c */
+ 
+ 	__NL80211_ATTR_AFTER_LAST,
+@@ -4327,6 +4335,8 @@ enum nl80211_wmm_rule {
+  *	otherwise completely disabled.
+  * @NL80211_FREQUENCY_ATTR_ALLOW_6GHZ_VLP_AP: This channel can be used for a
+  *	very low power (VLP) AP, despite being NO_IR.
++ * @NL80211_FREQUENCY_ATTR_ALLOW_20MHZ_ACTIVITY: This channel can be active in
++ *	20 MHz bandwidth, despite being NO_IR.
+  * @NL80211_FREQUENCY_ATTR_MAX: highest frequency attribute number
+  *	currently defined
+  * @__NL80211_FREQUENCY_ATTR_AFTER_LAST: internal use
+@@ -4371,6 +4381,7 @@ enum nl80211_frequency_attr {
+ 	NL80211_FREQUENCY_ATTR_NO_6GHZ_AFC_CLIENT,
+ 	NL80211_FREQUENCY_ATTR_CAN_MONITOR,
+ 	NL80211_FREQUENCY_ATTR_ALLOW_6GHZ_VLP_AP,
++	NL80211_FREQUENCY_ATTR_ALLOW_20MHZ_ACTIVITY,
+ 
+ 	/* keep last */
+ 	__NL80211_FREQUENCY_ATTR_AFTER_LAST,
+@@ -4582,31 +4593,34 @@ enum nl80211_sched_scan_match_attr {
+  * @NL80211_RRF_NO_6GHZ_AFC_CLIENT: Client connection to AFC AP not allowed
+  * @NL80211_RRF_ALLOW_6GHZ_VLP_AP: Very low power (VLP) AP can be permitted
+  *	despite NO_IR configuration.
++ * @NL80211_RRF_ALLOW_20MHZ_ACTIVITY: Allow activity in 20 MHz bandwidth,
++ *	despite NO_IR configuration.
+  */
+ enum nl80211_reg_rule_flags {
+-	NL80211_RRF_NO_OFDM		= 1<<0,
+-	NL80211_RRF_NO_CCK		= 1<<1,
+-	NL80211_RRF_NO_INDOOR		= 1<<2,
+-	NL80211_RRF_NO_OUTDOOR		= 1<<3,
+-	NL80211_RRF_DFS			= 1<<4,
+-	NL80211_RRF_PTP_ONLY		= 1<<5,
+-	NL80211_RRF_PTMP_ONLY		= 1<<6,
+-	NL80211_RRF_NO_IR		= 1<<7,
+-	__NL80211_RRF_NO_IBSS		= 1<<8,
+-	NL80211_RRF_AUTO_BW		= 1<<11,
+-	NL80211_RRF_IR_CONCURRENT	= 1<<12,
+-	NL80211_RRF_NO_HT40MINUS	= 1<<13,
+-	NL80211_RRF_NO_HT40PLUS		= 1<<14,
+-	NL80211_RRF_NO_80MHZ		= 1<<15,
+-	NL80211_RRF_NO_160MHZ		= 1<<16,
+-	NL80211_RRF_NO_HE		= 1<<17,
+-	NL80211_RRF_NO_320MHZ		= 1<<18,
+-	NL80211_RRF_NO_EHT		= 1<<19,
+-	NL80211_RRF_PSD			= 1<<20,
+-	NL80211_RRF_DFS_CONCURRENT	= 1<<21,
+-	NL80211_RRF_NO_6GHZ_VLP_CLIENT	= 1<<22,
+-	NL80211_RRF_NO_6GHZ_AFC_CLIENT	= 1<<23,
+-	NL80211_RRF_ALLOW_6GHZ_VLP_AP	= 1<<24,
++	NL80211_RRF_NO_OFDM                 = 1 << 0,
++	NL80211_RRF_NO_CCK                  = 1 << 1,
++	NL80211_RRF_NO_INDOOR               = 1 << 2,
++	NL80211_RRF_NO_OUTDOOR              = 1 << 3,
++	NL80211_RRF_DFS                     = 1 << 4,
++	NL80211_RRF_PTP_ONLY                = 1 << 5,
++	NL80211_RRF_PTMP_ONLY               = 1 << 6,
++	NL80211_RRF_NO_IR                   = 1 << 7,
++	__NL80211_RRF_NO_IBSS               = 1 << 8,
++	NL80211_RRF_AUTO_BW                 = 1 << 11,
++	NL80211_RRF_IR_CONCURRENT           = 1 << 12,
++	NL80211_RRF_NO_HT40MINUS            = 1 << 13,
++	NL80211_RRF_NO_HT40PLUS             = 1 << 14,
++	NL80211_RRF_NO_80MHZ                = 1 << 15,
++	NL80211_RRF_NO_160MHZ               = 1 << 16,
++	NL80211_RRF_NO_HE                   = 1 << 17,
++	NL80211_RRF_NO_320MHZ               = 1 << 18,
++	NL80211_RRF_NO_EHT                  = 1 << 19,
++	NL80211_RRF_PSD                     = 1 << 20,
++	NL80211_RRF_DFS_CONCURRENT          = 1 << 21,
++	NL80211_RRF_NO_6GHZ_VLP_CLIENT      = 1 << 22,
++	NL80211_RRF_NO_6GHZ_AFC_CLIENT      = 1 << 23,
++	NL80211_RRF_ALLOW_6GHZ_VLP_AP       = 1 << 24,
++	NL80211_RRF_ALLOW_20MHZ_ACTIVITY    = 1 << 25,
+ };
+ 
+ #define NL80211_RRF_PASSIVE_SCAN	NL80211_RRF_NO_IR
+@@ -4727,8 +4741,8 @@ enum nl80211_survey_info {
+  * @NL80211_MNTR_FLAG_PLCPFAIL: pass frames with bad PLCP
+  * @NL80211_MNTR_FLAG_CONTROL: pass control frames
+  * @NL80211_MNTR_FLAG_OTHER_BSS: disable BSSID filtering
+- * @NL80211_MNTR_FLAG_COOK_FRAMES: report frames after processing.
+- *	overrides all other flags.
++ * @NL80211_MNTR_FLAG_COOK_FRAMES: deprecated
++ *	will unconditionally be refused
+  * @NL80211_MNTR_FLAG_ACTIVE: use the configured MAC address
+  *	and ACK incoming unicast packets.
+  * @NL80211_MNTR_FLAG_SKIP_TX: do not pass local tx packets
+diff --git a/local-symbols b/local-symbols
+index 2e6f2fdb..a051adbf 100644
+--- a/local-symbols
++++ b/local-symbols
+@@ -172,8 +172,6 @@ ATH12K_DEBUG=
+ ATH12K_DEBUGFS=
+ ATH12K_TRACING=
+ ATH12K_COREDUMP=
+-WLAN_VENDOR_ATMEL=
+-AT76C50X_USB=
+ WLAN_VENDOR_BROADCOM=
+ B43=
+ B43_BCMA=
+@@ -239,18 +237,12 @@ IWLWIFI_KUNIT_TESTS=
+ IWLWIFI_LEDS=
+ IWLDVM=
+ IWLMVM=
++IWLMLD=
+ IWLWIFI_OPMODE_MODULAR=
+ IWLWIFI_DEBUG=
+ IWLWIFI_DEBUGFS=
+ IWLWIFI_DEVICE_TRACING=
+ IWLMEI=
+-WLAN_VENDOR_INTERSIL=
+-P54_COMMON=
+-P54_USB=
+-P54_PCI=
+-P54_SPI=
+-P54_SPI_DEFAULT_EEPROM=
+-P54_LEDS=
+ WLAN_VENDOR_MARVELL=
+ MWL8K=
+ LIBERTAS=
+@@ -305,8 +297,6 @@ WILC1000=
+ WILC1000_SDIO=
+ WILC1000_SPI=
+ WILC1000_HW_OOB_INTR=
+-WLAN_VENDOR_PURELIFI=
+-PLFXLC=
+ WLAN_VENDOR_RALINK=
+ RT2X00=
+ RT2400PCI=
+@@ -378,6 +368,7 @@ RTW88_8821C=
+ RTW88_88XXA=
+ RTW88_8821A=
+ RTW88_8812A=
++RTW88_8814A=
+ RTW88_8822BE=
+ RTW88_8822BS=
+ RTW88_8822BU=
+@@ -393,6 +384,8 @@ RTW88_8821CS=
+ RTW88_8821CU=
+ RTW88_8821AU=
+ RTW88_8812AU=
++RTW88_8814AE=
++RTW88_8814AU=
+ RTW88_DEBUG=
+ RTW88_DEBUGFS=
+ RTW88_LEDS=
+@@ -442,8 +435,6 @@ ZD1211RW_DEBUG=
+ WLAN_VENDOR_QUANTENNA=
+ QTNFMAC=
+ QTNFMAC_PCIE=
+-MAC80211_HWSIM=
+-VIRT_WIFI=
+ USB_NET_DRIVERS=
+ USB_CATC=
+ USB_KAWETH=
+diff --git a/net/mac80211/agg-rx.c b/net/mac80211/agg-rx.c
+index f3fbe5a4..aeb99d10 100644
+--- a/net/mac80211/agg-rx.c
++++ b/net/mac80211/agg-rx.c
+@@ -9,7 +9,7 @@
+  * Copyright 2007, Michael Wu <flamingice@sourmilk.net>
+  * Copyright 2007-2010, Intel Corporation
+  * Copyright(c) 2015-2017 Intel Deutschland GmbH
+- * Copyright (C) 2018-2023 Intel Corporation
++ * Copyright (C) 2018-2024 Intel Corporation
+  */
+ 
+ /**
+@@ -206,17 +206,19 @@ u8 ieee80211_retrieve_addba_ext_data(struct sta_info *sta,
+ 
+ 	elems = ieee802_11_parse_elems(elem_data, elem_len, true, NULL);
+ 
+-	if (elems && !elems->parse_error && elems->addba_ext_ie) {
+-		data = elems->addba_ext_ie->data;
++	if (!elems || elems->parse_error || !elems->addba_ext_ie)
++		goto free;
+ 
+-		if (!sta->sta.deflink.eht_cap.has_eht || !buf_size)
+-			goto free;
++	data = elems->addba_ext_ie->data;
+ 
++	if (buf_size &&
++	    (sta->sta.valid_links || sta->sta.deflink.eht_cap.has_eht)) {
+ 		buf_size_1k = u8_get_bits(elems->addba_ext_ie->data,
+ 					  IEEE80211_ADDBA_EXT_BUF_SIZE_MASK);
+ 		*buf_size |= (u16)buf_size_1k <<
+ 			     IEEE80211_ADDBA_EXT_BUF_SIZE_SHIFT;
+ 	}
++
+ free:
+ 	kfree(elems);
+ 
+@@ -258,7 +260,7 @@ static void ieee80211_send_addba_resp(struct sta_info *sta, u8 *da, u16 tid,
+ 	mgmt->u.action.u.addba_resp.timeout = cpu_to_le16(timeout);
+ 	mgmt->u.action.u.addba_resp.status = cpu_to_le16(status);
+ 
+-	if (sta->sta.deflink.he_cap.has_he)
++	if (sta->sta.valid_links || sta->sta.deflink.he_cap.has_he)
+ 		ieee80211_add_addbaext(skb, req_addba_ext_data, buf_size);
+ 
+ 	ieee80211_tx_skb(sdata, skb);
+@@ -293,7 +295,8 @@ void __ieee80211_start_rx_ba_session(struct sta_info *sta,
+ 		goto end;
+ 	}
+ 
+-	if (!sta->sta.deflink.ht_cap.ht_supported &&
++	if (!sta->sta.valid_links &&
++	    !sta->sta.deflink.ht_cap.ht_supported &&
+ 	    !sta->sta.deflink.he_cap.has_he) {
+ 		ht_dbg(sta->sdata,
+ 		       "STA %pM erroneously requests BA session on tid %d w/o HT\n",
+@@ -309,7 +312,7 @@ void __ieee80211_start_rx_ba_session(struct sta_info *sta,
+ 		goto end;
+ 	}
+ 
+-	if (sta->sta.deflink.eht_cap.has_eht)
++	if (sta->sta.valid_links || sta->sta.deflink.eht_cap.has_eht)
+ 		max_buf_size = IEEE80211_MAX_AMPDU_BUF_EHT;
+ 	else if (sta->sta.deflink.he_cap.has_he)
+ 		max_buf_size = IEEE80211_MAX_AMPDU_BUF_HE;
+@@ -321,7 +324,8 @@ void __ieee80211_start_rx_ba_session(struct sta_info *sta,
+ 	 * and if buffer size does not exceeds max value */
+ 	/* XXX: check own ht delayed BA capability?? */
+ 	if (((ba_policy != 1) &&
+-	     (!(sta->sta.deflink.ht_cap.cap & IEEE80211_HT_CAP_DELAY_BA))) ||
++	     (sta->sta.valid_links ||
++	      !(sta->sta.deflink.ht_cap.cap & IEEE80211_HT_CAP_DELAY_BA))) ||
+ 	    (buf_size > max_buf_size)) {
+ 		status = WLAN_STATUS_INVALID_QOS_PARAM;
+ 		ht_dbg_ratelimited(sta->sdata,
+diff --git a/net/mac80211/agg-tx.c b/net/mac80211/agg-tx.c
+index 61f2cac3..63a5e482 100644
+--- a/net/mac80211/agg-tx.c
++++ b/net/mac80211/agg-tx.c
+@@ -9,7 +9,7 @@
+  * Copyright 2007, Michael Wu <flamingice@sourmilk.net>
+  * Copyright 2007-2010, Intel Corporation
+  * Copyright(c) 2015-2017 Intel Deutschland GmbH
+- * Copyright (C) 2018 - 2023 Intel Corporation
++ * Copyright (C) 2018 - 2024 Intel Corporation
+  */
+ 
+ #include <linux/ieee80211.h>
+@@ -464,7 +464,9 @@ static void ieee80211_send_addba_with_timeout(struct sta_info *sta,
+ 	sta->ampdu_mlme.addba_req_num[tid]++;
+ 	spin_unlock_bh(&sta->lock);
+ 
+-	if (sta->sta.deflink.eht_cap.has_eht) {
++	if (sta->sta.valid_links ||
++	    sta->sta.deflink.eht_cap.has_eht ||
++	    ieee80211_hw_check(&local->hw, STRICT)) {
+ 		buf_size = local->hw.max_tx_aggregation_subframes;
+ 	} else if (sta->sta.deflink.he_cap.has_he) {
+ 		buf_size = min_t(u16, local->hw.max_tx_aggregation_subframes,
+@@ -608,7 +610,8 @@ int ieee80211_start_tx_ba_session(struct ieee80211_sta *pubsta, u16 tid,
+ 		 "Requested to start BA session on reserved tid=%d", tid))
+ 		return -EINVAL;
+ 
+-	if (!pubsta->deflink.ht_cap.ht_supported &&
++	if (!pubsta->valid_links &&
++	    !pubsta->deflink.ht_cap.ht_supported &&
+ 	    !pubsta->deflink.vht_cap.vht_supported &&
+ 	    !pubsta->deflink.he_cap.has_he &&
+ 	    !pubsta->deflink.eht_cap.has_eht)
+diff --git a/net/mac80211/cfg.c b/net/mac80211/cfg.c
+index 8e11be7a..4b360d8d 100644
+--- a/net/mac80211/cfg.c
++++ b/net/mac80211/cfg.c
+@@ -5,7 +5,7 @@
+  * Copyright 2006-2010	Johannes Berg <johannes@sipsolutions.net>
+  * Copyright 2013-2015  Intel Mobile Communications GmbH
+  * Copyright (C) 2015-2017 Intel Deutschland GmbH
+- * Copyright (C) 2018-2024 Intel Corporation
++ * Copyright (C) 2018-2025 Intel Corporation
+  */
+ 
+ #include <linux/ieee80211.h>
+@@ -89,15 +89,14 @@ static int ieee80211_set_mon_options(struct ieee80211_sub_if_data *sdata,
+ 
+ 	/* check flags first */
+ 	if (params->flags && ieee80211_sdata_running(sdata)) {
+-		u32 mask = MONITOR_FLAG_COOK_FRAMES | MONITOR_FLAG_ACTIVE;
++		u32 mask = MONITOR_FLAG_ACTIVE;
+ 
+ 		/*
+-		 * Prohibit MONITOR_FLAG_COOK_FRAMES and
+-		 * MONITOR_FLAG_ACTIVE to be changed while the
+-		 * interface is up.
++		 * Prohibit MONITOR_FLAG_ACTIVE to be changed
++		 * while the interface is up.
+ 		 * Else we would need to add a lot of cruft
+ 		 * to update everything:
+-		 *	cooked_mntrs, monitor and all fif_* counters
++		 *	monitor and all fif_* counters
+ 		 *	reconfigure hardware
+ 		 */
+ 		if ((params->flags & mask) != (sdata->u.mntr.flags & mask))
+@@ -920,7 +919,7 @@ static int ieee80211_set_monitor_channel(struct wiphy *wiphy,
+ 	sdata = IEEE80211_DEV_TO_SUB_IF(dev);
+ 	if (!ieee80211_hw_check(&local->hw, NO_VIRTUAL_MONITOR)) {
+ 		if (cfg80211_chandef_identical(&local->monitor_chanreq.oper,
+-						   &chanreq.oper))
++					       &chanreq.oper))
+ 			return 0;
+ 
+ 		sdata = wiphy_dereference(wiphy, local->monitor_sdata);
+@@ -929,7 +928,7 @@ static int ieee80211_set_monitor_channel(struct wiphy *wiphy,
+ 	}
+ 
+ 	if (rcu_access_pointer(sdata->deflink.conf->chanctx_conf) &&
+-		cfg80211_chandef_identical(&sdata->vif.bss_conf.chanreq.oper,
++	    cfg80211_chandef_identical(&sdata->vif.bss_conf.chanreq.oper,
+ 				       &chanreq.oper))
+ 		return 0;
+ 
+@@ -1908,12 +1907,12 @@ static int sta_link_apply_parameters(struct ieee80211_local *local,
+ 	}
+ 
+ 	if (params->supported_rates &&
+-	    params->supported_rates_len) {
+-		ieee80211_parse_bitrates(link->conf->chanreq.oper.width,
+-					 sband, params->supported_rates,
+-					 params->supported_rates_len,
+-					 &link_sta->pub->supp_rates[sband->band]);
+-	}
++	    params->supported_rates_len &&
++	    !ieee80211_parse_bitrates(link->conf->chanreq.oper.width,
++				      sband, params->supported_rates,
++				      params->supported_rates_len,
++				      &link_sta->pub->supp_rates[sband->band]))
++		return -EINVAL;
+ 
+ 	if (params->ht_capa)
+ 		ieee80211_ht_cap_ie_to_sta_ht_cap(sdata, sband,
+@@ -4371,9 +4370,8 @@ static int ieee80211_cfg_get_channel(struct wiphy *wiphy,
+ 	if (chanctx_conf) {
+ 		*chandef = link->conf->chanreq.oper;
+ 		ret = 0;
+-	} else if (!ieee80211_hw_check(&local->hw, NO_VIRTUAL_MONITOR) &&
+-		   local->open_count > 0 &&
+-		   local->open_count == local->monitors &&
++	} else if (local->open_count > 0 &&
++		   local->open_count == local->virt_monitors &&
+ 		   sdata->vif.type == NL80211_IFTYPE_MONITOR) {
+ 		*chandef = local->monitor_chanreq.oper;
+ 		ret = 0;
+@@ -5187,14 +5185,21 @@ ieee80211_set_ttlm(struct wiphy *wiphy, struct net_device *dev,
+ 
+ static int
+ ieee80211_assoc_ml_reconf(struct wiphy *wiphy, struct net_device *dev,
+-			  struct cfg80211_assoc_link *add_links,
+-			  u16 rem_links)
++			  struct cfg80211_ml_reconf_req *req)
+ {
+ 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
+ 
+ 	lockdep_assert_wiphy(sdata->local->hw.wiphy);
+ 
+-	return ieee80211_mgd_assoc_ml_reconf(sdata, add_links, rem_links);
++	return ieee80211_mgd_assoc_ml_reconf(sdata, req);
++}
++
++static int
++ieee80211_set_epcs(struct wiphy *wiphy, struct net_device *dev, bool enable)
++{
++	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
++
++	return ieee80211_mgd_set_epcs(sdata, enable);
+ }
+ 
+ const struct cfg80211_ops mac80211_config_ops = {
+@@ -5312,4 +5317,5 @@ const struct cfg80211_ops mac80211_config_ops = {
+ 	.set_ttlm = ieee80211_set_ttlm,
+ 	.get_radio_mask = ieee80211_get_radio_mask,
+ 	.assoc_ml_reconf = ieee80211_assoc_ml_reconf,
++	.set_epcs = ieee80211_set_epcs,
+ };
+diff --git a/net/mac80211/chan.c b/net/mac80211/chan.c
+index dc28f2b0..c3bfac58 100644
+--- a/net/mac80211/chan.c
++++ b/net/mac80211/chan.c
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: GPL-2.0-only
+ /*
+  * mac80211 - channel management
+- * Copyright 2020 - 2024 Intel Corporation
++ * Copyright 2020 - 2025 Intel Corporation
+  */
+ 
+ #include <linux/nl80211.h>
+@@ -2178,3 +2178,21 @@ void ieee80211_iter_chan_contexts_atomic(
+ 	rcu_read_unlock();
+ }
+ EXPORT_SYMBOL_GPL(ieee80211_iter_chan_contexts_atomic);
++
++void ieee80211_iter_chan_contexts_mtx(
++	struct ieee80211_hw *hw,
++	void (*iter)(struct ieee80211_hw *hw,
++		     struct ieee80211_chanctx_conf *chanctx_conf,
++		     void *data),
++	void *iter_data)
++{
++	struct ieee80211_local *local = hw_to_local(hw);
++	struct ieee80211_chanctx *ctx;
++
++	lockdep_assert_wiphy(hw->wiphy);
++
++	list_for_each_entry(ctx, &local->chanctx_list, list)
++		if (ctx->driver_present)
++			iter(hw, &ctx->conf, iter_data);
++}
++EXPORT_SYMBOL_GPL(ieee80211_iter_chan_contexts_mtx);
+diff --git a/net/mac80211/debugfs.c b/net/mac80211/debugfs.c
+index f33d6237..66efa7ce 100644
+--- a/net/mac80211/debugfs.c
++++ b/net/mac80211/debugfs.c
+@@ -43,6 +43,7 @@ static ssize_t name## _read(struct file *file, char __user *userbuf,	\
+ 
+ #define DEBUGFS_READONLY_FILE_OPS(name)			\
+ static const struct debugfs_short_fops name## _ops = {				\
++	.open = simple_open,						\
+ 	.read = name## _read,						\
+ 	.llseek = generic_file_llseek,					\
+ };
+@@ -142,6 +143,10 @@ static ssize_t aqm_write(struct file *file,
+ }
+ 
+ static const struct debugfs_short_fops aqm_ops = {
++#if LINUX_VERSION_IS_LESS(6,12,0)
++	.open = simple_open,
++#endif
++	
+ 	.write = aqm_write,
+ 	.read = aqm_read,
+ 	.llseek = default_llseek,
+@@ -193,6 +198,10 @@ static ssize_t airtime_flags_write(struct file *file,
+ }
+ 
+ static const struct debugfs_short_fops airtime_flags_ops = {
++#if LINUX_VERSION_IS_LESS(6,12,0)
++	.open = simple_open,
++#endif
++	
+ 	.write = airtime_flags_write,
+ 	.read = airtime_flags_read,
+ 	.llseek = default_llseek,
+@@ -223,6 +232,10 @@ static ssize_t aql_pending_read(struct file *file,
+ }
+ 
+ static const struct debugfs_short_fops aql_pending_ops = {
++#if LINUX_VERSION_IS_LESS(6,12,0)
++	.open = simple_open,
++#endif
++	
+ 	.read = aql_pending_read,
+ 	.llseek = default_llseek,
+ };
+@@ -302,6 +315,10 @@ static ssize_t aql_txq_limit_write(struct file *file,
+ }
+ 
+ static const struct debugfs_short_fops aql_txq_limit_ops = {
++#if LINUX_VERSION_IS_LESS(6,12,0)
++	.open = simple_open,
++#endif
++	
+ 	.write = aql_txq_limit_write,
+ 	.read = aql_txq_limit_read,
+ 	.llseek = default_llseek,
+@@ -351,6 +368,10 @@ static ssize_t aql_enable_write(struct file *file, const char __user *user_buf,
+ }
+ 
+ static const struct debugfs_short_fops aql_enable_ops = {
++#if LINUX_VERSION_IS_LESS(6,12,0)
++	.open = simple_open,
++#endif
++	
+ 	.write = aql_enable_write,
+ 	.read = aql_enable_read,
+ 	.llseek = default_llseek,
+@@ -401,6 +422,10 @@ static ssize_t force_tx_status_write(struct file *file,
+ }
+ 
+ static const struct debugfs_short_fops force_tx_status_ops = {
++#if LINUX_VERSION_IS_LESS(6,12,0)
++	.open = simple_open,
++#endif
++	
+ 	.write = force_tx_status_write,
+ 	.read = force_tx_status_read,
+ 	.llseek = default_llseek,
+@@ -428,6 +453,10 @@ static ssize_t reset_write(struct file *file, const char __user *user_buf,
+ }
+ 
+ static const struct debugfs_short_fops reset_ops = {
++#if LINUX_VERSION_IS_LESS(6,12,0)
++	.open = simple_open,
++#endif
++	
+ 	.write = reset_write,
+ 	.llseek = noop_llseek,
+ };
+@@ -492,6 +521,7 @@ static const char *hw_flag_names[] = {
+ 	FLAG(DISALLOW_PUNCTURING),
+ 	FLAG(DISALLOW_PUNCTURING_5GHZ),
+ 	FLAG(HANDLES_QUIET_CSA),
++	FLAG(STRICT),
+ #undef FLAG
+ };
+ 
+@@ -524,6 +554,46 @@ static ssize_t hwflags_read(struct file *file, char __user *user_buf,
+ 	return rv;
+ }
+ 
++static ssize_t hwflags_write(struct file *file, const char __user *user_buf,
++			     size_t count, loff_t *ppos)
++{
++	struct ieee80211_local *local = file->private_data;
++	char buf[100];
++	int val;
++
++	if (count >= sizeof(buf))
++		return -EINVAL;
++
++	if (copy_from_user(buf, user_buf, count))
++		return -EFAULT;
++
++	if (count && buf[count - 1] == '\n')
++		buf[count - 1] = '\0';
++	else
++		buf[count] = '\0';
++
++	if (sscanf(buf, "strict=%d", &val) == 1) {
++		switch (val) {
++		case 0:
++			ieee80211_hw_set(&local->hw, STRICT);
++			return count;
++		case 1:
++			__clear_bit(IEEE80211_HW_STRICT, local->hw.flags);
++			return count;
++		default:
++			return -EINVAL;
++		}
++	}
++
++	return -EINVAL;
++}
++
++static const struct file_operations hwflags_ops = {
++	.open = simple_open,
++	.read = hwflags_read,
++	.write = hwflags_write,
++};
++
+ static ssize_t misc_read(struct file *file, char __user *user_buf,
+ 			 size_t count, loff_t *ppos)
+ {
+@@ -574,7 +644,6 @@ static ssize_t queues_read(struct file *file, char __user *user_buf,
+ 	return simple_read_from_buffer(user_buf, count, ppos, buf, res);
+ }
+ 
+-DEBUGFS_READONLY_FILE_OPS(hwflags);
+ DEBUGFS_READONLY_FILE_OPS(queues);
+ DEBUGFS_READONLY_FILE_OPS(misc);
+ 
+@@ -619,6 +688,7 @@ static ssize_t stats_ ##name## _read(struct file *file,			\
+ static const struct debugfs_short_fops stats_ ##name## _ops = {			\
+ 	.read = stats_ ##name## _read,					\
+ 	.llseek = generic_file_llseek,					\
++	.open = simple_open,						\
+ };
+ 
+ #ifdef CPTCFG_MAC80211_DEBUG_COUNTERS
+@@ -651,7 +721,7 @@ void debugfs_hw_add(struct ieee80211_local *local)
+ #ifdef CONFIG_PM
+ 	DEBUGFS_ADD_MODE(reset, 0200);
+ #endif
+-	DEBUGFS_ADD(hwflags);
++	DEBUGFS_ADD_MODE(hwflags, 0600);
+ 	DEBUGFS_ADD(user_power);
+ 	DEBUGFS_ADD(power);
+ 	DEBUGFS_ADD(hw_conf);
+diff --git a/net/mac80211/debugfs_key.c b/net/mac80211/debugfs_key.c
+index 117f58af..2c138f69 100644
+--- a/net/mac80211/debugfs_key.c
++++ b/net/mac80211/debugfs_key.c
+@@ -27,12 +27,14 @@ static ssize_t key_##name##_read(struct file *file,			\
+ 
+ #define KEY_OPS(name)							\
+ static const struct debugfs_short_fops key_ ##name## _ops = {		\
++	.open = simple_open,						\
+ 	.read = key_##name##_read,					\
+ 	.llseek = generic_file_llseek,					\
+ }
+ 
+ #define KEY_OPS_W(name)							\
+ static const struct debugfs_short_fops key_ ##name## _ops = {		\
++	.open = simple_open,						\
+ 	.read = key_##name##_read,					\
+ 	.write = key_##name##_write,					\
+ 	.llseek = generic_file_llseek,					\
+@@ -48,6 +50,7 @@ static const struct debugfs_short_fops key_ ##name## _ops = {		\
+ 
+ #define KEY_CONF_OPS(name)						\
+ static const struct debugfs_short_fops key_ ##name## _ops = {		\
++	.open = simple_open,						\
+ 	.read = key_conf_##name##_read,					\
+ 	.llseek = generic_file_llseek,					\
+ }
+diff --git a/net/mac80211/debugfs_netdev.c b/net/mac80211/debugfs_netdev.c
+index c753dc56..c7c74491 100644
+--- a/net/mac80211/debugfs_netdev.c
++++ b/net/mac80211/debugfs_netdev.c
+@@ -222,6 +222,7 @@ static ssize_t ieee80211_if_fmt_##name(					\
+ 
+ #define _IEEE80211_IF_FILE_OPS(name, _read, _write)			\
+ static const struct debugfs_short_fops name##_ops = {				\
++	.open = simple_open,						\
+ 	.read = (_read),						\
+ 	.write = (_write),						\
+ 	.llseek = generic_file_llseek,					\
+diff --git a/net/mac80211/debugfs_sta.c b/net/mac80211/debugfs_sta.c
+index a67a9d31..824e3f62 100644
+--- a/net/mac80211/debugfs_sta.c
++++ b/net/mac80211/debugfs_sta.c
+@@ -31,12 +31,14 @@ static ssize_t sta_ ##name## _read(struct file *file,			\
+ 
+ #define STA_OPS(name)							\
+ static const struct debugfs_short_fops sta_ ##name## _ops = {		\
++	.open = simple_open,						\
+ 	.read = sta_##name##_read,					\
+ 	.llseek = generic_file_llseek,					\
+ }
+ 
+ #define STA_OPS_RW(name)						\
+ static const struct debugfs_short_fops sta_ ##name## _ops = {		\
++	.open = simple_open,						\
+ 	.read = sta_##name##_read,					\
+ 	.write = sta_##name##_write,					\
+ 	.llseek = generic_file_llseek,					\
+@@ -449,6 +451,7 @@ STA_OPS_RW(agg_status);
+ /* link sta attributes */
+ #define LINK_STA_OPS(name)						\
+ static const struct debugfs_short_fops link_sta_ ##name## _ops = {		\
++	.open = simple_open,						\
+ 	.read = link_sta_##name##_read,					\
+ 	.llseek = generic_file_llseek,					\
+ }
+diff --git a/net/mac80211/driver-ops.h b/net/mac80211/driver-ops.h
+index 462f964a..7eddfca0 100644
+--- a/net/mac80211/driver-ops.h
++++ b/net/mac80211/driver-ops.h
+@@ -2,7 +2,7 @@
+ /*
+ * Portions of this file
+ * Copyright(c) 2016 Intel Deutschland GmbH
+-* Copyright (C) 2018-2019, 2021-2024 Intel Corporation
++* Copyright (C) 2018-2019, 2021-2025 Intel Corporation
+ */
+ 
+ #ifndef __MAC80211_DRIVER_OPS
+@@ -955,6 +955,7 @@ static inline void drv_mgd_complete_tx(struct ieee80211_local *local,
+ 		return;
+ 	WARN_ON_ONCE(sdata->vif.type != NL80211_IFTYPE_STATION);
+ 
++	info->link_id = info->link_id < 0 ? 0 : info->link_id;
+ 	trace_drv_mgd_complete_tx(local, sdata, info->duration,
+ 				  info->subtype, info->success);
+ 	if (local->ops->mgd_complete_tx)
+diff --git a/net/mac80211/drop.h b/net/mac80211/drop.h
+index 59e3ec4d..eb9ab310 100644
+--- a/net/mac80211/drop.h
++++ b/net/mac80211/drop.h
+@@ -11,12 +11,6 @@
+ 
+ typedef unsigned int __bitwise ieee80211_rx_result;
+ 
+-#define MAC80211_DROP_REASONS_MONITOR(R)	\
+-	R(RX_DROP_M_UNEXPECTED_4ADDR_FRAME)	\
+-	R(RX_DROP_M_BAD_BCN_KEYIDX)		\
+-	R(RX_DROP_M_BAD_MGMT_KEYIDX)		\
+-/* this line for the trailing \ - add before this */
+-
+ #define MAC80211_DROP_REASONS_UNUSABLE(R)	\
+ 	/* 0x00 == ___RX_DROP_UNUSABLE */	\
+ 	R(RX_DROP_U_MIC_FAIL)			\
+@@ -66,6 +60,10 @@ typedef unsigned int __bitwise ieee80211_rx_result;
+ 	R(RX_DROP_U_UNEXPECTED_STA_4ADDR)	\
+ 	R(RX_DROP_U_UNEXPECTED_VLAN_MCAST)	\
+ 	R(RX_DROP_U_NOT_PORT_CONTROL)		\
++	R(RX_DROP_U_UNEXPECTED_4ADDR_FRAME)	\
++	R(RX_DROP_U_BAD_BCN_KEYIDX)		\
++	/* 0x30 */				\
++	R(RX_DROP_U_BAD_MGMT_KEYIDX)		\
+ 	R(RX_DROP_U_UNKNOWN_ACTION_REJECTED)	\
+ /* this line for the trailing \ - add before this */
+ 
+@@ -78,10 +76,6 @@ enum ___mac80211_drop_reason {
+ 	___RX_QUEUED	= SKB_NOT_DROPPED_YET,
+ 
+ #define ENUM(x) ___ ## x,
+-	___RX_DROP_MONITOR = SKB_DROP_REASON_SUBSYS_MAC80211_MONITOR <<
+-		SKB_DROP_REASON_SUBSYS_SHIFT,
+-	MAC80211_DROP_REASONS_MONITOR(ENUM)
+-
+ 	___RX_DROP_UNUSABLE = SKB_DROP_REASON_SUBSYS_MAC80211_UNUSABLE <<
+ 		SKB_DROP_REASON_SUBSYS_SHIFT,
+ 	MAC80211_DROP_REASONS_UNUSABLE(ENUM)
+@@ -89,11 +83,10 @@ enum ___mac80211_drop_reason {
+ };
+ 
+ enum mac80211_drop_reason {
+-	RX_CONTINUE	 = (__force ieee80211_rx_result)___RX_CONTINUE,
+-	RX_QUEUED	 = (__force ieee80211_rx_result)___RX_QUEUED,
+-	RX_DROP_MONITOR	 = (__force ieee80211_rx_result)___RX_DROP_MONITOR,
++	RX_CONTINUE	= (__force ieee80211_rx_result)___RX_CONTINUE,
++	RX_QUEUED	= (__force ieee80211_rx_result)___RX_QUEUED,
++	RX_DROP		= (__force ieee80211_rx_result)___RX_DROP_UNUSABLE,
+ #define DEF(x) x = (__force ieee80211_rx_result)___ ## x,
+-	MAC80211_DROP_REASONS_MONITOR(DEF)
+ 	MAC80211_DROP_REASONS_UNUSABLE(DEF)
+ #undef DEF
+ };
+diff --git a/net/mac80211/ethtool.c b/net/mac80211/ethtool.c
+index 8ce167bd..c065c336 100644
+--- a/net/mac80211/ethtool.c
++++ b/net/mac80211/ethtool.c
+@@ -166,7 +166,7 @@ do_survey:
+ 	if (chanctx_conf)
+ 		channel = chanctx_conf->def.chan;
+ 	else if (local->open_count > 0 &&
+-		 local->open_count == local->monitors &&
++		 local->open_count == local->virt_monitors &&
+ 		 sdata->vif.type == NL80211_IFTYPE_MONITOR)
+ 		channel = local->monitor_chanreq.oper.chan;
+ 	else
+diff --git a/net/mac80211/ieee80211_i.h b/net/mac80211/ieee80211_i.h
+index 7f39fa57..6e1f1cb2 100644
+--- a/net/mac80211/ieee80211_i.h
++++ b/net/mac80211/ieee80211_i.h
+@@ -5,7 +5,7 @@
+  * Copyright 2006-2007	Jiri Benc <jbenc@suse.cz>
+  * Copyright 2007-2010	Johannes Berg <johannes@sipsolutions.net>
+  * Copyright 2013-2015  Intel Mobile Communications GmbH
+- * Copyright (C) 2018-2024 Intel Corporation
++ * Copyright (C) 2018-2025 Intel Corporation
+  */
+ 
+ #ifndef IEEE80211_I_H
+@@ -200,7 +200,6 @@ enum ieee80211_packet_rx_flags {
+ /**
+  * enum ieee80211_rx_flags - RX data flags
+  *
+- * @IEEE80211_RX_CMNTR: received on cooked monitor already
+  * @IEEE80211_RX_BEACON_REPORTED: This frame was already reported
+  *	to cfg80211_report_obss_beacon().
+  *
+@@ -208,12 +207,15 @@ enum ieee80211_packet_rx_flags {
+  * for a single frame.
+  */
+ enum ieee80211_rx_flags {
+-	IEEE80211_RX_CMNTR		= BIT(0),
+-	IEEE80211_RX_BEACON_REPORTED	= BIT(1),
++	IEEE80211_RX_BEACON_REPORTED	= BIT(0),
+ };
+ 
+ struct ieee80211_rx_data {
++#if LINUX_VERSION_IS_GEQ(4,19,0)
+ 	struct list_head *list;
++#else
++	struct sk_buff_head *list;
++#endif
+ 	struct sk_buff *skb;
+ 	struct ieee80211_local *local;
+ 	struct ieee80211_sub_if_data *sdata;
+@@ -446,8 +448,6 @@ struct ieee80211_mgd_assoc_data {
+ 	const u8 *supp_rates;
+ 	u8 supp_rates_len;
+ 
+-	unsigned long userspace_selectors[BITS_TO_LONGS(128)];
+-
+ 	unsigned long timeout;
+ 	int tries;
+ 
+@@ -462,7 +462,9 @@ struct ieee80211_mgd_assoc_data {
+ 	bool s1g;
+ 	bool spp_amsdu;
+ 
+-	unsigned int assoc_link_id;
++	s8 assoc_link_id;
++
++	__le16 ext_mld_capa_ops;
+ 
+ 	u8 fils_nonces[2 * FILS_NONCE_LEN];
+ 	u8 fils_kek[FILS_MAX_KEK_LEN];
+@@ -524,6 +526,8 @@ struct ieee80211_if_managed {
+ 	struct ieee80211_mgd_auth_data *auth_data;
+ 	struct ieee80211_mgd_assoc_data *assoc_data;
+ 
++	unsigned long userspace_selectors[BITS_TO_LONGS(128)];
++
+ 	bool powersave; /* powersave requested for this iface */
+ 	bool broken_ap; /* AP is broken -- turn off powersave */
+ 
+@@ -615,6 +619,12 @@ struct ieee80211_if_managed {
+ 		u16 added_links;
+ 		u8 dialog_token;
+ 	} reconf;
++
++	/* Support for epcs */
++	struct {
++		bool enabled;
++		u8 dialog_token;
++	} epcs;
+ };
+ 
+ struct ieee80211_if_ibss {
+@@ -1380,7 +1390,7 @@ struct ieee80211_local {
+ 	spinlock_t queue_stop_reason_lock;
+ 
+ 	int open_count;
+-	int monitors, cooked_mntrs, tx_mntrs;
++	int monitors, virt_monitors, tx_mntrs;
+ 	/* number of interfaces with corresponding FIF_ flags */
+ 	int fif_fcsfail, fif_plcpfail, fif_control, fif_other_bss, fif_pspoll,
+ 	    fif_probe_req;
+@@ -1492,7 +1502,7 @@ struct ieee80211_local {
+ 
+ 	/* see iface.c */
+ 	struct list_head interfaces;
+-	struct list_head mon_list; /* only that are IFF_UP && !cooked */
++	struct list_head mon_list; /* only that are IFF_UP */
+ 	struct mutex iflist_mtx;
+ 
+ 	/* Scanning and BSS list */
+@@ -2090,8 +2100,7 @@ struct sk_buff *
+ ieee80211_build_data_template(struct ieee80211_sub_if_data *sdata,
+ 			      struct sk_buff *skb, u32 info_flags);
+ void ieee80211_tx_monitor(struct ieee80211_local *local, struct sk_buff *skb,
+-			  int retry_count, bool send_to_cooked,
+-			  struct ieee80211_tx_status *status);
++			  int retry_count, struct ieee80211_tx_status *status);
+ 
+ void ieee80211_check_fast_xmit(struct sta_info *sta);
+ void ieee80211_check_fast_xmit_all(struct ieee80211_local *local);
+@@ -2774,14 +2783,19 @@ void ieee80211_process_neg_ttlm_res(struct ieee80211_sub_if_data *sdata,
+ 				    struct ieee80211_mgmt *mgmt, size_t len);
+ int ieee80211_req_neg_ttlm(struct ieee80211_sub_if_data *sdata,
+ 			   struct cfg80211_ttlm_params *params);
++void ieee80211_process_ttlm_teardown(struct ieee80211_sub_if_data *sdata);
+ 
+ void ieee80211_check_wbrf_support(struct ieee80211_local *local);
+ void ieee80211_add_wbrf(struct ieee80211_local *local, struct cfg80211_chan_def *chandef);
+ void ieee80211_remove_wbrf(struct ieee80211_local *local, struct cfg80211_chan_def *chandef);
++int ieee80211_mgd_set_epcs(struct ieee80211_sub_if_data *sdata, bool enable);
++void ieee80211_process_epcs_ena_resp(struct ieee80211_sub_if_data *sdata,
++				     struct ieee80211_mgmt *mgmt, size_t len);
++void ieee80211_process_epcs_teardown(struct ieee80211_sub_if_data *sdata,
++				     struct ieee80211_mgmt *mgmt, size_t len);
+ 
+ int ieee80211_mgd_assoc_ml_reconf(struct ieee80211_sub_if_data *sdata,
+-				  struct cfg80211_assoc_link *add_links,
+-				  u16 rem_links);
++				  struct cfg80211_ml_reconf_req *req);
+ 
+ void ieee80211_process_ml_reconf_resp(struct ieee80211_sub_if_data *sdata,
+ 				      struct ieee80211_mgmt *mgmt, size_t len);
+@@ -2795,6 +2809,13 @@ int ieee80211_calc_chandef_subchan_offset(const struct cfg80211_chan_def *ap,
+ void ieee80211_rearrange_tpe_psd(struct ieee80211_parsed_tpe_psd *psd,
+ 				 const struct cfg80211_chan_def *ap,
+ 				 const struct cfg80211_chan_def *used);
++struct ieee802_11_elems *
++ieee80211_determine_chan_mode(struct ieee80211_sub_if_data *sdata,
++			      struct ieee80211_conn_settings *conn,
++			      struct cfg80211_bss *cbss, int link_id,
++			      struct ieee80211_chan_req *chanreq,
++			      struct cfg80211_chan_def *ap_chandef,
++			      unsigned long *userspace_selectors);
+ #else
+ #define EXPORT_SYMBOL_IF_MAC80211_KUNIT(sym)
+ #define VISIBLE_IF_MAC80211_KUNIT static
+diff --git a/net/mac80211/iface.c b/net/mac80211/iface.c
+index 738de269..75a8a710 100644
+--- a/net/mac80211/iface.c
++++ b/net/mac80211/iface.c
+@@ -8,7 +8,7 @@
+  * Copyright 2008, Johannes Berg <johannes@sipsolutions.net>
+  * Copyright 2013-2014  Intel Mobile Communications GmbH
+  * Copyright (c) 2016        Intel Deutschland GmbH
+- * Copyright (C) 2018-2024 Intel Corporation
++ * Copyright (C) 2018-2025 Intel Corporation
+  */
+ #include <linux/slab.h>
+ #include <linux/kernel.h>
+@@ -483,8 +483,6 @@ static void ieee80211_do_stop(struct ieee80211_sub_if_data *sdata, bool going_do
+ 		ieee80211_ibss_stop(sdata);
+ 		break;
+ 	case NL80211_IFTYPE_MONITOR:
+-		if (sdata->u.mntr.flags & MONITOR_FLAG_COOK_FRAMES)
+-			break;
+ 		list_del_rcu(&sdata->u.mntr.list);
+ 		break;
+ 	default:
+@@ -584,18 +582,19 @@ static void ieee80211_do_stop(struct ieee80211_sub_if_data *sdata, bool going_do
+ 		/* no need to tell driver */
+ 		break;
+ 	case NL80211_IFTYPE_MONITOR:
+-		if (sdata->u.mntr.flags & MONITOR_FLAG_COOK_FRAMES) {
+-			local->cooked_mntrs--;
+-			break;
+-		}
+-
+ 		local->monitors--;
+-		if (local->monitors == 0) {
+-			local->hw.conf.flags &= ~IEEE80211_CONF_MONITOR;
+-			hw_reconf_flags |= IEEE80211_CONF_CHANGE_MONITOR;
+-		}
+ 
+-		ieee80211_adjust_monitor_flags(sdata, -1);
++		if (!(sdata->u.mntr.flags & MONITOR_FLAG_ACTIVE) &&
++		    !ieee80211_hw_check(&local->hw, NO_VIRTUAL_MONITOR)) {
++
++			local->virt_monitors--;
++			if (local->virt_monitors == 0) {
++				local->hw.conf.flags &= ~IEEE80211_CONF_MONITOR;
++				hw_reconf_flags |= IEEE80211_CONF_CHANGE_MONITOR;
++			}
++
++			ieee80211_adjust_monitor_flags(sdata, -1);
++		}
+ 		break;
+ 	case NL80211_IFTYPE_NAN:
+ 		/* clean all the functions */
+@@ -686,7 +685,7 @@ static void ieee80211_do_stop(struct ieee80211_sub_if_data *sdata, bool going_do
+ 	case NL80211_IFTYPE_AP_VLAN:
+ 		break;
+ 	case NL80211_IFTYPE_MONITOR:
+-		if (local->monitors == 0)
++		if (local->virt_monitors == 0)
+ 			ieee80211_del_virtual_monitor(local);
+ 
+ 		ieee80211_recalc_idle(local);
+@@ -723,7 +722,7 @@ static void ieee80211_do_stop(struct ieee80211_sub_if_data *sdata, bool going_do
+ 	ieee80211_configure_filter(local);
+ 	ieee80211_hw_config(local, hw_reconf_flags);
+ 
+-	if (local->monitors == local->open_count)
++	if (local->virt_monitors == local->open_count)
+ 		ieee80211_add_virtual_monitor(local);
+ }
+ 
+@@ -807,6 +806,9 @@ static void ieee80211_set_multicast_list(struct net_device *dev)
+  */
+ static void ieee80211_teardown_sdata(struct ieee80211_sub_if_data *sdata)
+ {
++	if (WARN_ON(!list_empty(&sdata->work.entry)))
++		wiphy_work_cancel(sdata->local->hw.wiphy, &sdata->work);
++
+ 	/* free extra data */
+ 	ieee80211_free_keys(sdata, false);
+ 
+@@ -826,6 +828,14 @@ static void ieee80211_uninit(struct net_device *dev)
+ 	ieee80211_teardown_sdata(IEEE80211_DEV_TO_SUB_IF(dev));
+ }
+ 
++#if LINUX_VERSION_IS_LESS(6,9,0)
++static void
++ieee80211_get_stats64(struct net_device *dev, struct rtnl_link_stats64 *stats)
++{
++	dev_fetch_sw_netstats(stats, dev->tstats);
++}
++#endif
++
+ static int ieee80211_netdev_setup_tc(struct net_device *dev,
+ 				     enum tc_setup_type type, void *type_data)
+ {
+@@ -843,6 +853,9 @@ static const struct net_device_ops ieee80211_dataif_ops = {
+ 	.ndo_set_rx_mode	= ieee80211_set_multicast_list,
+ 	.ndo_set_mac_address 	= ieee80211_change_mac,
+ 	.ndo_setup_tc		= ieee80211_netdev_setup_tc,
++#if LINUX_VERSION_IS_LESS(6,9,0)
++	.ndo_get_stats64	= ieee80211_get_stats64,
++#endif
+ };
+ 
+ static u16 ieee80211_monitor_select_queue(struct net_device *dev,
+@@ -881,6 +894,9 @@ static const struct net_device_ops ieee80211_monitorif_ops = {
+ 	.ndo_set_rx_mode	= ieee80211_set_multicast_list,
+ 	.ndo_set_mac_address 	= ieee80211_change_mac,
+ 	.ndo_select_queue	= ieee80211_monitor_select_queue,
++#if LINUX_VERSION_IS_LESS(6,9,0)
++	.ndo_get_stats64	= ieee80211_get_stats64,
++#endif
+ };
+ 
+ static int ieee80211_netdev_fill_forward_path(struct net_device_path_ctx *ctx,
+@@ -950,6 +966,9 @@ static const struct net_device_ops ieee80211_dataif_8023_ops = {
+ 	.ndo_set_mac_address	= ieee80211_change_mac,
+ 	.ndo_fill_forward_path	= ieee80211_netdev_fill_forward_path,
+ 	.ndo_setup_tc		= ieee80211_netdev_setup_tc,
++#if LINUX_VERSION_IS_LESS(6,9,0)
++	.ndo_get_stats64	= ieee80211_get_stats64,
++#endif
+ };
+ 
+ static bool ieee80211_iftype_supports_hdr_offload(enum nl80211_iftype iftype)
+@@ -979,7 +998,7 @@ static bool ieee80211_set_sdata_offload_flags(struct ieee80211_sub_if_data *sdat
+ 		    local->hw.wiphy->frag_threshold != (u32)-1)
+ 			flags &= ~IEEE80211_OFFLOAD_ENCAP_ENABLED;
+ 
+-		if (local->monitors)
++		if (local->virt_monitors)
+ 			flags &= ~IEEE80211_OFFLOAD_ENCAP_ENABLED;
+ 	} else {
+ 		flags &= ~IEEE80211_OFFLOAD_ENCAP_ENABLED;
+@@ -989,7 +1008,7 @@ static bool ieee80211_set_sdata_offload_flags(struct ieee80211_sub_if_data *sdat
+ 	    ieee80211_iftype_supports_hdr_offload(sdata->vif.type)) {
+ 		flags |= IEEE80211_OFFLOAD_DECAP_ENABLED;
+ 
+-		if (local->monitors &&
++		if (local->virt_monitors &&
+ 		    !ieee80211_hw_check(&local->hw, SUPPORTS_CONC_MON_RX_DECAP))
+ 			flags &= ~IEEE80211_OFFLOAD_DECAP_ENABLED;
+ 	} else {
+@@ -1327,28 +1346,27 @@ int ieee80211_do_open(struct wireless_dev *wdev, bool coming_up)
+ 		}
+ 		break;
+ 	case NL80211_IFTYPE_MONITOR:
+-		if (sdata->u.mntr.flags & MONITOR_FLAG_COOK_FRAMES) {
+-			local->cooked_mntrs++;
+-			break;
+-		}
+-
+ 		if ((sdata->u.mntr.flags & MONITOR_FLAG_ACTIVE) ||
+ 		    ieee80211_hw_check(&local->hw, NO_VIRTUAL_MONITOR)) {
+ 			res = drv_add_interface(local, sdata);
+ 			if (res)
+ 				goto err_stop;
+-		} else if (local->monitors == 0 && local->open_count == 0) {
+-			res = ieee80211_add_virtual_monitor(local);
+-			if (res)
+-				goto err_stop;
++		} else {
++			if (local->virt_monitors == 0 && local->open_count == 0) {
++				res = ieee80211_add_virtual_monitor(local);
++				if (res)
++					goto err_stop;
++			}
++			local->virt_monitors++;
++
++			/* must be before the call to ieee80211_configure_filter */
++			if (local->virt_monitors == 1) {
++				local->hw.conf.flags |= IEEE80211_CONF_MONITOR;
++				hw_reconf_flags |= IEEE80211_CONF_CHANGE_MONITOR;
++			}
+ 		}
+ 
+-		/* must be before the call to ieee80211_configure_filter */
+ 		local->monitors++;
+-		if (local->monitors == 1) {
+-			local->hw.conf.flags |= IEEE80211_CONF_MONITOR;
+-			hw_reconf_flags |= IEEE80211_CONF_CHANGE_MONITOR;
+-		}
+ 
+ 		ieee80211_adjust_monitor_flags(sdata, 1);
+ 		ieee80211_configure_filter(local);
+@@ -1424,8 +1442,6 @@ int ieee80211_do_open(struct wireless_dev *wdev, bool coming_up)
+ 		rcu_assign_pointer(local->p2p_sdata, sdata);
+ 		break;
+ 	case NL80211_IFTYPE_MONITOR:
+-		if (sdata->u.mntr.flags & MONITOR_FLAG_COOK_FRAMES)
+-			break;
+ 		list_add_tail_rcu(&sdata->u.mntr.list, &local->mon_list);
+ 		break;
+ 	default:
+@@ -1467,6 +1483,13 @@ int ieee80211_do_open(struct wireless_dev *wdev, bool coming_up)
+ 	return res;
+ }
+ 
++#if LINUX_VERSION_IS_LESS(5,5,0)
++static void ieee80211_if_free(struct net_device *dev)
++{
++       free_percpu(dev->tstats);
++}
++#endif
++
+ static void ieee80211_if_setup(struct net_device *dev)
+ {
+ 	ether_setup(dev);
+@@ -1474,6 +1497,9 @@ static void ieee80211_if_setup(struct net_device *dev)
+ 	dev->priv_flags |= IFF_NO_QUEUE;
+ 	dev->netdev_ops = &ieee80211_dataif_ops;
+ 	dev->needs_free_netdev = true;
++#if LINUX_VERSION_IS_LESS(5,5,0)
++       dev->priv_destructor = ieee80211_if_free;
++#endif
+ }
+ 
+ static void ieee80211_iface_process_skb(struct ieee80211_local *local,
+@@ -1561,10 +1587,21 @@ static void ieee80211_iface_process_skb(struct ieee80211_local *local,
+ 				ieee80211_process_neg_ttlm_res(sdata, mgmt,
+ 							       skb->len);
+ 				break;
++			case WLAN_PROTECTED_EHT_ACTION_TTLM_TEARDOWN:
++				ieee80211_process_ttlm_teardown(sdata);
++				break;
+ 			case WLAN_PROTECTED_EHT_ACTION_LINK_RECONFIG_RESP:
+ 				ieee80211_process_ml_reconf_resp(sdata, mgmt,
+ 								 skb->len);
+ 				break;
++			case WLAN_PROTECTED_EHT_ACTION_EPCS_ENABLE_RESP:
++				ieee80211_process_epcs_ena_resp(sdata, mgmt,
++								skb->len);
++				break;
++			case WLAN_PROTECTED_EHT_ACTION_EPCS_ENABLE_TEARDOWN:
++				ieee80211_process_epcs_teardown(sdata, mgmt,
++								skb->len);
++				break;
+ 			default:
+ 				break;
+ 			}
+@@ -2108,7 +2145,15 @@ int ieee80211_if_add(struct ieee80211_local *local, const char *name,
+ 
+ 		dev_net_set(ndev, wiphy_net(local->hw.wiphy));
+ 
++#if LINUX_VERSION_IS_LESS(5,5,0)
++		ndev->tstats = netdev_alloc_pcpu_stats(struct pcpu_sw_netstats);
++		if (!ndev->tstats) {
++			free_netdev(ndev);
++			return -ENOMEM;
++		}
++#else
+ 		ndev->pcpu_stat_type = NETDEV_PCPU_STAT_TSTATS;
++#endif
+ 
+ 		ndev->needed_headroom = local->tx_headroom +
+ 					4*6 /* four MAC addresses */
+@@ -2121,6 +2166,9 @@ int ieee80211_if_add(struct ieee80211_local *local, const char *name,
+ 
+ 		ret = dev_alloc_name(ndev, ndev->name);
+ 		if (ret < 0) {
++#if LINUX_VERSION_IS_LESS(5,5,0)
++			ieee80211_if_free(ndev);
++#endif
+ 			free_netdev(ndev);
+ 			return ret;
+ 		}
+diff --git a/net/mac80211/led.c b/net/mac80211/led.c
+index 2dc73214..b9924302 100644
+--- a/net/mac80211/led.c
++++ b/net/mac80211/led.c
+@@ -59,6 +59,11 @@ static int ieee80211_tx_led_activate(struct led_classdev *led_cdev)
+ 
+ 	return 0;
+ }
++#if LINUX_VERSION_IS_LESS(4,19,0)
++static void bp_ieee80211_tx_led_activate(struct led_classdev *led_cdev){
++	ieee80211_tx_led_activate(led_cdev);
++}
++#endif
+ 
+ static void ieee80211_tx_led_deactivate(struct led_classdev *led_cdev)
+ {
+@@ -79,6 +84,11 @@ static int ieee80211_rx_led_activate(struct led_classdev *led_cdev)
+ 
+ 	return 0;
+ }
++#if LINUX_VERSION_IS_LESS(4,19,0)
++static void bp_ieee80211_rx_led_activate(struct led_classdev *led_cdev){
++	ieee80211_rx_led_activate(led_cdev);
++}
++#endif
+ 
+ static void ieee80211_rx_led_deactivate(struct led_classdev *led_cdev)
+ {
+@@ -99,6 +109,11 @@ static int ieee80211_assoc_led_activate(struct led_classdev *led_cdev)
+ 
+ 	return 0;
+ }
++#if LINUX_VERSION_IS_LESS(4,19,0)
++static void bp_ieee80211_assoc_led_activate(struct led_classdev *led_cdev){
++	ieee80211_assoc_led_activate(led_cdev);
++}
++#endif
+ 
+ static void ieee80211_assoc_led_deactivate(struct led_classdev *led_cdev)
+ {
+@@ -119,6 +134,11 @@ static int ieee80211_radio_led_activate(struct led_classdev *led_cdev)
+ 
+ 	return 0;
+ }
++#if LINUX_VERSION_IS_LESS(4,19,0)
++static void bp_ieee80211_radio_led_activate(struct led_classdev *led_cdev){
++	ieee80211_radio_led_activate(led_cdev);
++}
++#endif
+ 
+ static void ieee80211_radio_led_deactivate(struct led_classdev *led_cdev)
+ {
+@@ -139,6 +159,11 @@ static int ieee80211_tpt_led_activate(struct led_classdev *led_cdev)
+ 
+ 	return 0;
+ }
++#if LINUX_VERSION_IS_LESS(4,19,0)
++static void bp_ieee80211_tpt_led_activate(struct led_classdev *led_cdev){
++	ieee80211_tpt_led_activate(led_cdev);
++}
++#endif
+ 
+ static void ieee80211_tpt_led_deactivate(struct led_classdev *led_cdev)
+ {
+@@ -152,7 +177,11 @@ static void ieee80211_tpt_led_deactivate(struct led_classdev *led_cdev)
+ void ieee80211_led_init(struct ieee80211_local *local)
+ {
+ 	atomic_set(&local->rx_led_active, 0);
++#if LINUX_VERSION_IS_GEQ(4,19,0)
+ 	local->rx_led.activate = ieee80211_rx_led_activate;
++#else
++	local->rx_led.activate = bp_ieee80211_rx_led_activate;
++#endif
+ 	local->rx_led.deactivate = ieee80211_rx_led_deactivate;
+ 	if (local->rx_led.name && led_trigger_register(&local->rx_led)) {
+ 		kfree(local->rx_led.name);
+@@ -160,7 +189,11 @@ void ieee80211_led_init(struct ieee80211_local *local)
+ 	}
+ 
+ 	atomic_set(&local->tx_led_active, 0);
++#if LINUX_VERSION_IS_GEQ(4,19,0)
+ 	local->tx_led.activate = ieee80211_tx_led_activate;
++#else
++	local->tx_led.activate = bp_ieee80211_tx_led_activate;
++#endif
+ 	local->tx_led.deactivate = ieee80211_tx_led_deactivate;
+ 	if (local->tx_led.name && led_trigger_register(&local->tx_led)) {
+ 		kfree(local->tx_led.name);
+@@ -168,7 +201,11 @@ void ieee80211_led_init(struct ieee80211_local *local)
+ 	}
+ 
+ 	atomic_set(&local->assoc_led_active, 0);
++#if LINUX_VERSION_IS_GEQ(4,19,0)
+ 	local->assoc_led.activate = ieee80211_assoc_led_activate;
++#else
++	local->assoc_led.activate = bp_ieee80211_assoc_led_activate;
++#endif
+ 	local->assoc_led.deactivate = ieee80211_assoc_led_deactivate;
+ 	if (local->assoc_led.name && led_trigger_register(&local->assoc_led)) {
+ 		kfree(local->assoc_led.name);
+@@ -176,7 +213,11 @@ void ieee80211_led_init(struct ieee80211_local *local)
+ 	}
+ 
+ 	atomic_set(&local->radio_led_active, 0);
++#if LINUX_VERSION_IS_GEQ(4,19,0)
+ 	local->radio_led.activate = ieee80211_radio_led_activate;
++#else
++	local->radio_led.activate = bp_ieee80211_radio_led_activate;
++#endif
+ 	local->radio_led.deactivate = ieee80211_radio_led_deactivate;
+ 	if (local->radio_led.name && led_trigger_register(&local->radio_led)) {
+ 		kfree(local->radio_led.name);
+@@ -185,7 +226,11 @@ void ieee80211_led_init(struct ieee80211_local *local)
+ 
+ 	atomic_set(&local->tpt_led_active, 0);
+ 	if (local->tpt_led_trigger) {
++#if LINUX_VERSION_IS_GEQ(4,19,0)
+ 		local->tpt_led.activate = ieee80211_tpt_led_activate;
++#else
++		local->tpt_led.activate = bp_ieee80211_tpt_led_activate;
++#endif
+ 		local->tpt_led.deactivate = ieee80211_tpt_led_deactivate;
+ 		if (led_trigger_register(&local->tpt_led)) {
+ 			kfree(local->tpt_led_trigger);
+diff --git a/net/mac80211/main.c b/net/mac80211/main.c
+index 440c1392..e2f31f2a 100644
+--- a/net/mac80211/main.c
++++ b/net/mac80211/main.c
+@@ -1744,18 +1744,7 @@ void ieee80211_free_hw(struct ieee80211_hw *hw)
+ 	wiphy_free(local->hw.wiphy);
+ }
+ EXPORT_SYMBOL(ieee80211_free_hw);
+-
+-static const char * const drop_reasons_monitor[] = {
+-#define V(x)	#x,
+-	[0] = "RX_DROP_MONITOR",
+-	MAC80211_DROP_REASONS_MONITOR(V)
+-};
+-
+-static struct drop_reason_list drop_reason_list_monitor = {
+-	.reasons = drop_reasons_monitor,
+-	.n_reasons = ARRAY_SIZE(drop_reasons_monitor),
+-};
+-
++#define V(x)   #x,
+ static const char * const drop_reasons_unusable[] = {
+ 	[0] = "RX_DROP_UNUSABLE",
+ 	MAC80211_DROP_REASONS_UNUSABLE(V)
+@@ -1784,8 +1773,6 @@ static int __init ieee80211_init(void)
+ 	if (ret)
+ 		goto err_netdev;
+ 
+-	drop_reasons_register_subsys(SKB_DROP_REASON_SUBSYS_MAC80211_MONITOR,
+-				     &drop_reason_list_monitor);
+ 	drop_reasons_register_subsys(SKB_DROP_REASON_SUBSYS_MAC80211_UNUSABLE,
+ 				     &drop_reason_list_unusable);
+ 
+@@ -1804,7 +1791,6 @@ static void __exit ieee80211_exit(void)
+ 
+ 	ieee80211_iface_exit();
+ 
+-	drop_reasons_unregister_subsys(SKB_DROP_REASON_SUBSYS_MAC80211_MONITOR);
+ 	drop_reasons_unregister_subsys(SKB_DROP_REASON_SUBSYS_MAC80211_UNUSABLE);
+ 
+ 	rcu_barrier();
+diff --git a/net/mac80211/mesh_hwmp.c b/net/mac80211/mesh_hwmp.c
+index 4e9546e9..c94a9c7c 100644
+--- a/net/mac80211/mesh_hwmp.c
++++ b/net/mac80211/mesh_hwmp.c
+@@ -367,6 +367,12 @@ u32 airtime_link_metric_get(struct ieee80211_local *local,
+ 	return (u32)result;
+ }
+ 
++/* Check that the first metric is at least 10% better than the second one */
++static bool is_metric_better(u32 x, u32 y)
++{
++	return (x < y) && (x < (y - x / 10));
++}
++
+ /**
+  * hwmp_route_info_get - Update routing info to originator and transmitter
+  *
+@@ -458,8 +464,8 @@ static u32 hwmp_route_info_get(struct ieee80211_sub_if_data *sdata,
+ 				    (mpath->sn == orig_sn &&
+ 				     (rcu_access_pointer(mpath->next_hop) !=
+ 						      sta ?
+-					      mult_frac(new_metric, 10, 9) :
+-					      new_metric) >= mpath->metric)) {
++					      !is_metric_better(new_metric, mpath->metric) :
++					      new_metric >= mpath->metric))) {
+ 					process = false;
+ 					fresh_info = false;
+ 				}
+@@ -533,8 +539,8 @@ static u32 hwmp_route_info_get(struct ieee80211_sub_if_data *sdata,
+ 			if ((mpath->flags & MESH_PATH_FIXED) ||
+ 			    ((mpath->flags & MESH_PATH_ACTIVE) &&
+ 			     ((rcu_access_pointer(mpath->next_hop) != sta ?
+-				       mult_frac(last_hop_metric, 10, 9) :
+-				       last_hop_metric) > mpath->metric)))
++				      !is_metric_better(last_hop_metric, mpath->metric) :
++				       last_hop_metric > mpath->metric))))
+ 				fresh_info = false;
+ 		} else {
+ 			mpath = mesh_path_add(sdata, ta);
+diff --git a/net/mac80211/mlme.c b/net/mac80211/mlme.c
+index 36a9be9a..c010bb3d 100644
+--- a/net/mac80211/mlme.c
++++ b/net/mac80211/mlme.c
+@@ -8,7 +8,7 @@
+  * Copyright 2007, Michael Wu <flamingice@sourmilk.net>
+  * Copyright 2013-2014  Intel Mobile Communications GmbH
+  * Copyright (C) 2015 - 2017 Intel Deutschland GmbH
+- * Copyright (C) 2018 - 2024 Intel Corporation
++ * Copyright (C) 2018 - 2025 Intel Corporation
+  */
+ 
+ #include <linux/delay.h>
+@@ -168,6 +168,9 @@ ieee80211_determine_ap_chan(struct ieee80211_sub_if_data *sdata,
+ 	bool no_vht = false;
+ 	u32 ht_cfreq;
+ 
++	if (ieee80211_hw_check(&sdata->local->hw, STRICT))
++		ignore_ht_channel_mismatch = false;
++
+ 	*chandef = (struct cfg80211_chan_def) {
+ 		.chan = channel,
+ 		.width = NL80211_CHAN_WIDTH_20_NOHT,
+@@ -342,6 +345,115 @@ ieee80211_determine_ap_chan(struct ieee80211_sub_if_data *sdata,
+ 	return IEEE80211_CONN_MODE_EHT;
+ }
+ 
++static bool
++ieee80211_verify_sta_ht_mcs_support(struct ieee80211_sub_if_data *sdata,
++				    struct ieee80211_supported_band *sband,
++				    const struct ieee80211_ht_operation *ht_op)
++{
++	struct ieee80211_sta_ht_cap sta_ht_cap;
++	int i;
++
++	if (sband->band == NL80211_BAND_6GHZ)
++		return true;
++
++	if (!ht_op)
++		return false;
++
++	memcpy(&sta_ht_cap, &sband->ht_cap, sizeof(sta_ht_cap));
++	ieee80211_apply_htcap_overrides(sdata, &sta_ht_cap);
++
++	/*
++	 * P802.11REVme/D7.0 - 6.5.4.2.4
++	 * ...
++	 * If the MLME of an HT STA receives an MLME-JOIN.request primitive
++	 * with the SelectedBSS parameter containing a Basic HT-MCS Set field
++	 * in the HT Operation parameter that contains any unsupported MCSs,
++	 * the MLME response in the resulting MLME-JOIN.confirm primitive shall
++	 * contain a ResultCode parameter that is not set to the value SUCCESS.
++	 * ...
++	 */
++
++	/* Simply check that all basic rates are in the STA RX mask */
++	for (i = 0; i < IEEE80211_HT_MCS_MASK_LEN; i++) {
++		if ((ht_op->basic_set[i] & sta_ht_cap.mcs.rx_mask[i]) !=
++		    ht_op->basic_set[i])
++			return false;
++	}
++
++	return true;
++}
++
++static bool
++ieee80211_verify_sta_vht_mcs_support(struct ieee80211_sub_if_data *sdata,
++				     int link_id,
++				     struct ieee80211_supported_band *sband,
++				     const struct ieee80211_vht_operation *vht_op)
++{
++	struct ieee80211_sta_vht_cap sta_vht_cap;
++	u16 ap_min_req_set, sta_rx_mcs_map, sta_tx_mcs_map;
++	int nss;
++
++	if (sband->band != NL80211_BAND_5GHZ)
++		return true;
++
++	if (!vht_op)
++		return false;
++
++	memcpy(&sta_vht_cap, &sband->vht_cap, sizeof(sta_vht_cap));
++	ieee80211_apply_vhtcap_overrides(sdata, &sta_vht_cap);
++
++	ap_min_req_set = le16_to_cpu(vht_op->basic_mcs_set);
++	sta_rx_mcs_map = le16_to_cpu(sta_vht_cap.vht_mcs.rx_mcs_map);
++	sta_tx_mcs_map = le16_to_cpu(sta_vht_cap.vht_mcs.tx_mcs_map);
++
++	/*
++	 * Many APs are incorrectly advertising an all-zero value here,
++	 * which really means MCS 0-7 are required for 1-8 streams, but
++	 * they don't really mean it that way.
++	 * Some other APs are incorrectly advertising 3 spatial streams
++	 * with MCS 0-7 are required, but don't really mean it that way
++	 * and we'll connect only with HT, rather than even HE.
++	 * As a result, unfortunately the VHT basic MCS/NSS set cannot
++	 * be used at all, so check it only in strict mode.
++	 */
++	if (!ieee80211_hw_check(&sdata->local->hw, STRICT))
++		return true;
++
++	/*
++	 * P802.11REVme/D7.0 - 6.5.4.2.4
++	 * ...
++	 * If the MLME of a VHT STA receives an MLME-JOIN.request primitive
++	 * with a SelectedBSS parameter containing a Basic VHT-MCS And NSS Set
++	 * field in the VHT Operation parameter that contains any unsupported
++	 * <VHT-MCS, NSS> tuple, the MLME response in the resulting
++	 * MLME-JOIN.confirm primitive shall contain a ResultCode parameter
++	 * that is not set to the value SUCCESS.
++	 * ...
++	 */
++	for (nss = 8; nss > 0; nss--) {
++		u8 ap_op_val = (ap_min_req_set >> (2 * (nss - 1))) & 3;
++		u8 sta_rx_val;
++		u8 sta_tx_val;
++
++		if (ap_op_val == IEEE80211_HE_MCS_NOT_SUPPORTED)
++			continue;
++
++		sta_rx_val = (sta_rx_mcs_map >> (2 * (nss - 1))) & 3;
++		sta_tx_val = (sta_tx_mcs_map >> (2 * (nss - 1))) & 3;
++
++		if (sta_rx_val == IEEE80211_HE_MCS_NOT_SUPPORTED ||
++		    sta_tx_val == IEEE80211_HE_MCS_NOT_SUPPORTED ||
++		    sta_rx_val < ap_op_val || sta_tx_val < ap_op_val) {
++			link_id_info(sdata, link_id,
++				     "Missing mandatory rates for %d Nss, rx %d, tx %d oper %d, disable VHT\n",
++				     nss, sta_rx_val, sta_tx_val, ap_op_val);
++			return false;
++		}
++	}
++
++	return true;
++}
++
+ static bool
+ ieee80211_verify_peer_he_mcs_support(struct ieee80211_sub_if_data *sdata,
+ 				     int link_id,
+@@ -388,7 +500,7 @@ ieee80211_verify_peer_he_mcs_support(struct ieee80211_sub_if_data *sdata,
+ 	 * zeroes, which is nonsense, and completely inconsistent with itself
+ 	 * (it doesn't have 8 streams). Accept the settings in this case anyway.
+ 	 */
+-	if (!ap_min_req_set)
++	if (!ieee80211_hw_check(&sdata->local->hw, STRICT) && !ap_min_req_set)
+ 		return true;
+ 
+ 	/* make sure the AP is consistent with itself
+@@ -448,7 +560,7 @@ ieee80211_verify_sta_he_mcs_support(struct ieee80211_sub_if_data *sdata,
+ 	 * zeroes, which is nonsense, and completely inconsistent with itself
+ 	 * (it doesn't have 8 streams). Accept the settings in this case anyway.
+ 	 */
+-	if (!ap_min_req_set)
++	if (!ieee80211_hw_check(&sdata->local->hw, STRICT) && !ap_min_req_set)
+ 		return true;
+ 
+ 	/* Need to go over for 80MHz, 160MHz and for 80+80 */
+@@ -676,7 +788,7 @@ static int ieee80211_chandef_num_subchans(const struct cfg80211_chan_def *c)
+ 	if (c->width == NL80211_CHAN_WIDTH_80P80)
+ 		return 4 + 4;
+ 
+-	return nl80211_chan_width_to_mhz(c->width) / 20;
++	return cfg80211_chandef_get_width(c) / 20;
+ }
+ 
+ static int ieee80211_chandef_num_widths(const struct cfg80211_chan_def *c)
+@@ -877,7 +989,7 @@ static void ieee80211_set_chanreq_ap(struct ieee80211_sub_if_data *sdata,
+ 	chanreq->ap = *ap_chandef;
+ }
+ 
+-static struct ieee802_11_elems *
++VISIBLE_IF_MAC80211_KUNIT struct ieee802_11_elems *
+ ieee80211_determine_chan_mode(struct ieee80211_sub_if_data *sdata,
+ 			      struct ieee80211_conn_settings *conn,
+ 			      struct cfg80211_bss *cbss, int link_id,
+@@ -1039,6 +1151,26 @@ again:
+ 		link_id_info(sdata, link_id,
+ 			     "regulatory prevented using AP config, downgraded\n");
+ 
++	if (conn->mode >= IEEE80211_CONN_MODE_HT &&
++	    !ieee80211_verify_sta_ht_mcs_support(sdata, sband,
++						 elems->ht_operation)) {
++		conn->mode = IEEE80211_CONN_MODE_LEGACY;
++		conn->bw_limit = IEEE80211_CONN_BW_LIMIT_20;
++		link_id_info(sdata, link_id,
++			     "required MCSes not supported, disabling HT\n");
++	}
++
++	if (conn->mode >= IEEE80211_CONN_MODE_VHT &&
++	    !ieee80211_verify_sta_vht_mcs_support(sdata, link_id, sband,
++						  elems->vht_operation)) {
++		conn->mode = IEEE80211_CONN_MODE_HT;
++		conn->bw_limit = min_t(enum ieee80211_conn_bw_limit,
++				       conn->bw_limit,
++				       IEEE80211_CONN_BW_LIMIT_40);
++		link_id_info(sdata, link_id,
++			     "required MCSes not supported, disabling VHT\n");
++	}
++
+ 	if (conn->mode >= IEEE80211_CONN_MODE_HE &&
+ 	    (!ieee80211_verify_peer_he_mcs_support(sdata, link_id,
+ 						   (void *)elems->he_cap,
+@@ -1082,6 +1214,7 @@ free:
+ 	kfree(elems);
+ 	return ERR_PTR(ret);
+ }
++EXPORT_SYMBOL_IF_MAC80211_KUNIT(ieee80211_determine_chan_mode);
+ 
+ static int ieee80211_config_bw(struct ieee80211_link_data *link,
+ 			       struct ieee802_11_elems *elems,
+@@ -1313,13 +1446,15 @@ static bool ieee80211_add_vht_ie(struct ieee80211_sub_if_data *sdata,
+ 	 * Some APs apparently get confused if our capabilities are better
+ 	 * than theirs, so restrict what we advertise in the assoc request.
+ 	 */
+-	if (!(ap_vht_cap->vht_cap_info &
+-			cpu_to_le32(IEEE80211_VHT_CAP_SU_BEAMFORMER_CAPABLE)))
+-		cap &= ~(IEEE80211_VHT_CAP_SU_BEAMFORMEE_CAPABLE |
+-			 IEEE80211_VHT_CAP_MU_BEAMFORMEE_CAPABLE);
+-	else if (!(ap_vht_cap->vht_cap_info &
+-			cpu_to_le32(IEEE80211_VHT_CAP_MU_BEAMFORMER_CAPABLE)))
+-		cap &= ~IEEE80211_VHT_CAP_MU_BEAMFORMEE_CAPABLE;
++	if (!ieee80211_hw_check(&local->hw, STRICT)) {
++		if (!(ap_vht_cap->vht_cap_info &
++				cpu_to_le32(IEEE80211_VHT_CAP_SU_BEAMFORMER_CAPABLE)))
++			cap &= ~(IEEE80211_VHT_CAP_SU_BEAMFORMEE_CAPABLE |
++				 IEEE80211_VHT_CAP_MU_BEAMFORMEE_CAPABLE);
++		else if (!(ap_vht_cap->vht_cap_info &
++				cpu_to_le32(IEEE80211_VHT_CAP_MU_BEAMFORMER_CAPABLE)))
++			cap &= ~IEEE80211_VHT_CAP_MU_BEAMFORMEE_CAPABLE;
++	}
+ 
+ 	/*
+ 	 * If some other vif is using the MU-MIMO capability we cannot associate
+@@ -1361,14 +1496,16 @@ static bool ieee80211_add_vht_ie(struct ieee80211_sub_if_data *sdata,
+ 	return mu_mimo_owner;
+ }
+ 
+-static void ieee80211_assoc_add_rates(struct sk_buff *skb,
++static void ieee80211_assoc_add_rates(struct ieee80211_local *local,
++				      struct sk_buff *skb,
+ 				      enum nl80211_chan_width width,
+ 				      struct ieee80211_supported_band *sband,
+ 				      struct ieee80211_mgd_assoc_data *assoc_data)
+ {
+ 	u32 rates;
+ 
+-	if (assoc_data->supp_rates_len) {
++	if (assoc_data->supp_rates_len &&
++	    !ieee80211_hw_check(&local->hw, STRICT)) {
+ 		/*
+ 		 * Get all rates supported by the device and the AP as
+ 		 * some APs don't like getting a superset of their rates
+@@ -1584,7 +1721,7 @@ ieee80211_add_link_elems(struct ieee80211_sub_if_data *sdata,
+ 		*capab |= WLAN_CAPABILITY_SPECTRUM_MGMT;
+ 
+ 	if (sband->band != NL80211_BAND_S1GHZ)
+-		ieee80211_assoc_add_rates(skb, width, sband, assoc_data);
++		ieee80211_assoc_add_rates(local, skb, width, sband, assoc_data);
+ 
+ 	if (*capab & WLAN_CAPABILITY_SPECTRUM_MGMT ||
+ 	    *capab & WLAN_CAPABILITY_RADIO_MEASURE) {
+@@ -1806,6 +1943,21 @@ ieee80211_assoc_add_ml_elem(struct ieee80211_sub_if_data *sdata,
+ 	}
+ 	skb_put_data(skb, &mld_capa_ops, sizeof(mld_capa_ops));
+ 
++	/* Many APs have broken parsing of the extended MLD capa/ops field,
++	 * dropping (re-)association request frames or replying with association
++	 * response with a failure status if it's present. Without a clear
++	 * indication as to whether the AP supports parsing this field or not do
++	 * not include it in the common information unless strict mode is set.
++	 */
++	if (ieee80211_hw_check(&local->hw, STRICT) &&
++	    assoc_data->ext_mld_capa_ops) {
++		ml_elem->control |=
++			cpu_to_le16(IEEE80211_MLC_BASIC_PRES_EXT_MLD_CAPA_OP);
++		common->len += 2;
++		skb_put_data(skb, &assoc_data->ext_mld_capa_ops,
++			     sizeof(assoc_data->ext_mld_capa_ops));
++	}
++
+ 	for (link_id = 0; link_id < IEEE80211_MLD_MAX_NUM_LINKS; link_id++) {
+ 		u16 link_present_elems[PRESENT_ELEMS_MAX] = {};
+ 		const u8 *extra_elems;
+@@ -1975,6 +2127,7 @@ static int ieee80211_send_assoc(struct ieee80211_sub_if_data *sdata)
+ 		/* max common info field in basic multi-link element */
+ 		size += sizeof(struct ieee80211_mle_basic_common_info) +
+ 			2 + /* capa & op */
++			2 + /* ext capa & op */
+ 			2; /* EML capa */
+ 
+ 		/*
+@@ -2051,7 +2204,8 @@ static int ieee80211_send_assoc(struct ieee80211_sub_if_data *sdata)
+ 	 * for some reason check it and want it to be set, set the bit for all
+ 	 * pre-EHT connections as we used to do.
+ 	 */
+-	if (link->u.mgd.conn.mode < IEEE80211_CONN_MODE_EHT)
++	if (link->u.mgd.conn.mode < IEEE80211_CONN_MODE_EHT &&
++	    !ieee80211_hw_check(&local->hw, STRICT))
+ 		capab |= WLAN_CAPABILITY_ESS;
+ 
+ 	/* add the elements for the assoc (main) link */
+@@ -3375,10 +3529,10 @@ void ieee80211_mgd_set_link_qos_params(struct ieee80211_link_data *link)
+ 
+ /* MLME */
+ static bool
+-ieee80211_sta_wmm_params(struct ieee80211_local *local,
+-			 struct ieee80211_link_data *link,
+-			 const u8 *wmm_param, size_t wmm_param_len,
+-			 const struct ieee80211_mu_edca_param_set *mu_edca)
++_ieee80211_sta_wmm_params(struct ieee80211_local *local,
++			  struct ieee80211_link_data *link,
++			  const u8 *wmm_param, size_t wmm_param_len,
++			  const struct ieee80211_mu_edca_param_set *mu_edca)
+ {
+ 	struct ieee80211_sub_if_data *sdata = link->sdata;
+ 	struct ieee80211_tx_queue_params params[IEEE80211_NUM_ACS];
+@@ -3507,6 +3661,19 @@ ieee80211_sta_wmm_params(struct ieee80211_local *local,
+ 	for (ac = 0; ac < IEEE80211_NUM_ACS; ac++)
+ 		link->tx_conf[ac] = params[ac];
+ 
++	return true;
++}
++
++static bool
++ieee80211_sta_wmm_params(struct ieee80211_local *local,
++			 struct ieee80211_link_data *link,
++			 const u8 *wmm_param, size_t wmm_param_len,
++			 const struct ieee80211_mu_edca_param_set *mu_edca)
++{
++	if (!_ieee80211_sta_wmm_params(local, link, wmm_param, wmm_param_len,
++				       mu_edca))
++		return false;
++
+ 	ieee80211_mgd_set_link_qos_params(link);
+ 
+ 	/* enable WMM or activate new settings */
+@@ -3779,8 +3946,34 @@ static void ieee80211_set_disassoc(struct ieee80211_sub_if_data *sdata,
+ 
+ 	ifmgd->associated = false;
+ 
++	if (tx) {
++		bool tx_link_found = false;
++
++		for (link_id = 0;
++		     link_id < ARRAY_SIZE(sdata->link);
++		     link_id++) {
++			struct ieee80211_link_data *link;
++
++			if (!ieee80211_vif_link_active(&sdata->vif, link_id))
++				continue;
++
++			link = sdata_dereference(sdata->link[link_id], sdata);
++			if (WARN_ON_ONCE(!link))
++				continue;
++
++			if (link->u.mgd.csa.blocked_tx)
++				continue;
++
++			tx_link_found = true;
++			break;
++		}
++
++		tx = tx_link_found;
++	}
++
+ 	/* other links will be destroyed */
+ 	sdata->deflink.conf->bss = NULL;
++	sdata->deflink.conf->epcs_support = false;
+ 	sdata->deflink.smps_mode = IEEE80211_SMPS_OFF;
+ 
+ 	netif_carrier_off(sdata->dev);
+@@ -3808,23 +4001,24 @@ static void ieee80211_set_disassoc(struct ieee80211_sub_if_data *sdata,
+ 	 * insist sending these frames which can take time and delay
+ 	 * the disconnection and possible the roaming.
+ 	 */
+-	if (tx)
+-		ieee80211_flush_queues(local, sdata, true);
++	ieee80211_flush_queues(local, sdata, true);
+ 
+-	/* deauthenticate/disassociate now */
+-	if (tx || frame_buf) {
++	if (tx) {
+ 		drv_mgd_prepare_tx(sdata->local, sdata, &info);
+ 
+ 		ieee80211_send_deauth_disassoc(sdata, sdata->vif.cfg.ap_addr,
+ 					       sdata->vif.cfg.ap_addr, stype,
+-					       reason, tx, frame_buf);
+-	}
++					       reason, true, frame_buf);
+ 
+-	/* flush out frame - make sure the deauth was actually sent */
+-	if (tx)
++		/* flush out frame - make sure the deauth was actually sent */
+ 		ieee80211_flush_queues(local, sdata, false);
+ 
+-	drv_mgd_complete_tx(sdata->local, sdata, &info);
++		drv_mgd_complete_tx(sdata->local, sdata, &info);
++	} else if (frame_buf) {
++		ieee80211_send_deauth_disassoc(sdata, sdata->vif.cfg.ap_addr,
++					       sdata->vif.cfg.ap_addr, stype,
++					       reason, false, frame_buf);
++	}
+ 
+ 	/* clear AP addr only after building the needed mgmt frames */
+ 	eth_zero_addr(sdata->deflink.u.mgd.bssid);
+@@ -3958,15 +4152,21 @@ static void ieee80211_set_disassoc(struct ieee80211_sub_if_data *sdata,
+ 	wiphy_work_cancel(sdata->local->hw.wiphy,
+ 			  &ifmgd->teardown_ttlm_work);
+ 
+-	ieee80211_vif_set_links(sdata, 0, 0);
+-
+-	ifmgd->mcast_seq_last = IEEE80211_SN_MODULO;
+-
+ 	/* if disconnection happens in the middle of the ML reconfiguration
+ 	 * flow, cfg80211 must called to release the BSS references obtained
+ 	 * when the flow started.
+ 	 */
+ 	ieee80211_ml_reconf_reset(sdata);
++
++	ieee80211_vif_set_links(sdata, 0, 0);
++
++	ifmgd->mcast_seq_last = IEEE80211_SN_MODULO;
++
++	ifmgd->epcs.enabled = false;
++	ifmgd->epcs.dialog_token = 0;
++
++	memset(ifmgd->userspace_selectors, 0,
++	       sizeof(ifmgd->userspace_selectors));
+ }
+ 
+ static void ieee80211_reset_ap_probe(struct ieee80211_sub_if_data *sdata)
+@@ -4247,33 +4447,12 @@ static void __ieee80211_disconnect(struct ieee80211_sub_if_data *sdata)
+ 	struct ieee80211_local *local = sdata->local;
+ 	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
+ 	u8 frame_buf[IEEE80211_DEAUTH_FRAME_LEN];
+-	bool tx = false;
+ 
+ 	lockdep_assert_wiphy(local->hw.wiphy);
+ 
+ 	if (!ifmgd->associated)
+ 		return;
+ 
+-	/* only transmit if we have a link that makes that worthwhile */
+-	for (unsigned int link_id = 0;
+-	     link_id < ARRAY_SIZE(sdata->link);
+-	     link_id++) {
+-		struct ieee80211_link_data *link;
+-
+-		if (!ieee80211_vif_link_active(&sdata->vif, link_id))
+-			continue;
+-
+-		link = sdata_dereference(sdata->link[link_id], sdata);
+-		if (WARN_ON_ONCE(!link))
+-			continue;
+-
+-		if (link->u.mgd.csa.blocked_tx)
+-			continue;
+-
+-		tx = true;
+-		break;
+-	}
+-
+ 	if (!ifmgd->driver_disconnect) {
+ 		unsigned int link_id;
+ 
+@@ -4290,7 +4469,7 @@ static void __ieee80211_disconnect(struct ieee80211_sub_if_data *sdata)
+ 			struct ieee80211_link_data *link;
+ 
+ 			link = sdata_dereference(sdata->link[link_id], sdata);
+-			if (!link)
++			if (!link || !link->conf->bss)
+ 				continue;
+ 			cfg80211_unlink_bss(local->hw.wiphy, link->conf->bss);
+ 			link->conf->bss = NULL;
+@@ -4301,14 +4480,14 @@ static void __ieee80211_disconnect(struct ieee80211_sub_if_data *sdata)
+ 			       ifmgd->driver_disconnect ?
+ 					WLAN_REASON_DEAUTH_LEAVING :
+ 					WLAN_REASON_DISASSOC_DUE_TO_INACTIVITY,
+-			       tx, frame_buf);
++			       true, frame_buf);
+ 	/* the other links will be destroyed */
+ 	sdata->vif.bss_conf.csa_active = false;
+ 	sdata->deflink.u.mgd.csa.waiting_bcn = false;
+ 	sdata->deflink.u.mgd.csa.blocked_tx = false;
+ 	ieee80211_vif_unblock_queues_csa(sdata);
+ 
+-	ieee80211_report_disconnect(sdata, frame_buf, sizeof(frame_buf), tx,
++	ieee80211_report_disconnect(sdata, frame_buf, sizeof(frame_buf), true,
+ 				    WLAN_REASON_DISASSOC_DUE_TO_INACTIVITY,
+ 				    ifmgd->reconnect);
+ 	ifmgd->reconnect = false;
+@@ -4570,6 +4749,8 @@ static void ieee80211_rx_mgmt_auth(struct ieee80211_sub_if_data *sdata,
+ 	auth_transaction = le16_to_cpu(mgmt->u.auth.auth_transaction);
+ 	status_code = le16_to_cpu(mgmt->u.auth.status_code);
+ 
++	info.link_id = ifmgd->auth_data->link_id;
++
+ 	if (auth_alg != ifmgd->auth_data->algorithm ||
+ 	    (auth_alg != WLAN_AUTH_SAE &&
+ 	     auth_transaction != ifmgd->auth_data->expected_transaction) ||
+@@ -4835,6 +5016,82 @@ static bool ieee80211_twt_bcast_support(struct ieee80211_sub_if_data *sdata,
+ 			IEEE80211_HE_MAC_CAP2_BCAST_TWT);
+ }
+ 
++static void ieee80211_epcs_changed(struct ieee80211_sub_if_data *sdata,
++				   bool enabled)
++{
++	/* in any case this is called, dialog token should be reset */
++	sdata->u.mgd.epcs.dialog_token = 0;
++
++	if (sdata->u.mgd.epcs.enabled == enabled)
++		return;
++
++	sdata->u.mgd.epcs.enabled = enabled;
++	cfg80211_epcs_changed(sdata->dev, enabled);
++}
++
++static void ieee80211_epcs_teardown(struct ieee80211_sub_if_data *sdata)
++{
++	struct ieee80211_local *local = sdata->local;
++	u8 link_id;
++
++	if (!sdata->u.mgd.epcs.enabled)
++		return;
++
++	lockdep_assert_wiphy(local->hw.wiphy);
++
++	for (link_id = 0; link_id < IEEE80211_MLD_MAX_NUM_LINKS; link_id++) {
++		struct ieee802_11_elems *elems;
++		struct ieee80211_link_data *link;
++		const struct cfg80211_bss_ies *ies;
++		bool ret;
++
++		rcu_read_lock();
++
++		link = sdata_dereference(sdata->link[link_id], sdata);
++		if (!link || !link->conf || !link->conf->bss) {
++			rcu_read_unlock();
++			continue;
++		}
++
++		if (link->u.mgd.disable_wmm_tracking) {
++			rcu_read_unlock();
++			ieee80211_set_wmm_default(link, false, false);
++			continue;
++		}
++
++		ies = rcu_dereference(link->conf->bss->beacon_ies);
++		if (!ies) {
++			rcu_read_unlock();
++			ieee80211_set_wmm_default(link, false, false);
++			continue;
++		}
++
++		elems = ieee802_11_parse_elems(ies->data, ies->len, false,
++					       NULL);
++		if (!elems) {
++			rcu_read_unlock();
++			ieee80211_set_wmm_default(link, false, false);
++			continue;
++		}
++
++		ret = _ieee80211_sta_wmm_params(local, link,
++						elems->wmm_param,
++						elems->wmm_param_len,
++						elems->mu_edca_param_set);
++
++		kfree(elems);
++		rcu_read_unlock();
++
++		if (!ret) {
++			ieee80211_set_wmm_default(link, false, false);
++			continue;
++		}
++
++		ieee80211_mgd_set_link_qos_params(link);
++		ieee80211_link_info_change_notify(sdata, link, BSS_CHANGED_QOS);
++	}
++}
++
+ static bool ieee80211_assoc_config_link(struct ieee80211_link_data *link,
+ 					struct link_sta_info *link_sta,
+ 					struct cfg80211_bss *cbss,
+@@ -4936,7 +5193,7 @@ static bool ieee80211_assoc_config_link(struct ieee80211_link_data *link,
+ 	 * 2G/3G/4G wifi routers, reported models include the "Onda PN51T",
+ 	 * "Vodafone PocketWiFi 2", "ZTE MF60" and a similar T-Mobile device.
+ 	 */
+-	if (!is_6ghz &&
++	if (!ieee80211_hw_check(&local->hw, STRICT) && !is_6ghz &&
+ 	    ((assoc_data->wmm && !elems->wmm_param) ||
+ 	     (link->u.mgd.conn.mode >= IEEE80211_CONN_MODE_HT &&
+ 	      (!elems->ht_cap_elem || !elems->ht_operation)) ||
+@@ -5072,6 +5329,15 @@ static bool ieee80211_assoc_config_link(struct ieee80211_link_data *link,
+ 				bss_vht_cap = (const void *)elem->data;
+ 		}
+ 
++		if (ieee80211_hw_check(&local->hw, STRICT) &&
++		    (!bss_vht_cap || memcmp(bss_vht_cap, elems->vht_cap_elem,
++					    sizeof(*bss_vht_cap)))) {
++			rcu_read_unlock();
++			ret = false;
++			link_info(link, "VHT capabilities mismatch\n");
++			goto out;
++		}
++
+ 		ieee80211_vht_cap_ie_to_sta_vht_cap(sdata, sband,
+ 						    elems->vht_cap_elem,
+ 						    bss_vht_cap, link_sta);
+@@ -5109,14 +5375,27 @@ static bool ieee80211_assoc_config_link(struct ieee80211_link_data *link,
+ 							    link_sta);
+ 
+ 			bss_conf->eht_support = link_sta->pub->eht_cap.has_eht;
++			bss_conf->epcs_support = bss_conf->eht_support &&
++				!!(elems->eht_cap->fixed.mac_cap_info[0] &
++				   IEEE80211_EHT_MAC_CAP0_EPCS_PRIO_ACCESS);
++
++			/* EPCS might be already enabled but a new added link
++			 * does not support EPCS. This should not really happen
++			 * in practice.
++			 */
++			if (sdata->u.mgd.epcs.enabled &&
++			    !bss_conf->epcs_support)
++				ieee80211_epcs_teardown(sdata);
+ 		} else {
+ 			bss_conf->eht_support = false;
++			bss_conf->epcs_support = false;
+ 		}
+ 	} else {
+ 		bss_conf->he_support = false;
+ 		bss_conf->twt_requester = false;
+ 		bss_conf->twt_protected = false;
+ 		bss_conf->eht_support = false;
++		bss_conf->epcs_support = false;
+ 	}
+ 
+ 	bss_conf->twt_broadcast =
+@@ -5861,7 +6140,7 @@ static bool ieee80211_assoc_success(struct ieee80211_sub_if_data *sdata,
+ 
+ 			err = ieee80211_prep_channel(sdata, link, link_id, cbss,
+ 						     true, &link->u.mgd.conn,
+-						     assoc_data->userspace_selectors);
++						     sdata->u.mgd.userspace_selectors);
+ 			if (err) {
+ 				link_info(link, "prep_channel failed\n");
+ 				goto out_err;
+@@ -7147,7 +7426,8 @@ static void ieee80211_rx_mgmt_beacon(struct ieee80211_link_data *link,
+ 
+ 	ieee80211_mgd_update_bss_param_ch_cnt(sdata, bss_conf, elems);
+ 
+-	if (!link->u.mgd.disable_wmm_tracking &&
++	if (!sdata->u.mgd.epcs.enabled &&
++	    !link->u.mgd.disable_wmm_tracking &&
+ 	    ieee80211_sta_wmm_params(local, link, elems->wmm_param,
+ 				     elems->wmm_param_len,
+ 				     elems->mu_edca_param_set))
+@@ -7599,13 +7879,9 @@ void ieee80211_process_neg_ttlm_res(struct ieee80211_sub_if_data *sdata,
+ 		__ieee80211_disconnect(sdata);
+ }
+ 
+-static void ieee80211_teardown_ttlm_work(struct wiphy *wiphy,
+-					 struct wiphy_work *work)
++void ieee80211_process_ttlm_teardown(struct ieee80211_sub_if_data *sdata)
+ {
+ 	u16 new_dormant_links;
+-	struct ieee80211_sub_if_data *sdata =
+-		container_of(work, struct ieee80211_sub_if_data,
+-			     u.mgd.teardown_ttlm_work);
+ 
+ 	if (!sdata->vif.neg_ttlm.valid)
+ 		return;
+@@ -7620,6 +7896,16 @@ static void ieee80211_teardown_ttlm_work(struct wiphy *wiphy,
+ 					       BSS_CHANGED_MLD_VALID_LINKS);
+ }
+ 
++static void ieee80211_teardown_ttlm_work(struct wiphy *wiphy,
++					 struct wiphy_work *work)
++{
++	struct ieee80211_sub_if_data *sdata =
++		container_of(work, struct ieee80211_sub_if_data,
++			     u.mgd.teardown_ttlm_work);
++
++	ieee80211_process_ttlm_teardown(sdata);
++}
++
+ void ieee80211_send_teardown_neg_ttlm(struct ieee80211_vif *vif)
+ {
+ 	struct ieee80211_sub_if_data *sdata = vif_to_sdata(vif);
+@@ -9100,6 +9386,8 @@ int ieee80211_mgd_assoc(struct ieee80211_sub_if_data *sdata,
+ 	else
+ 		memcpy(assoc_data->ap_addr, cbss->bssid, ETH_ALEN);
+ 
++	assoc_data->ext_mld_capa_ops = cpu_to_le16(req->ext_mld_capa_ops);
++
+ 	if (ifmgd->associated) {
+ 		u8 frame_buf[IEEE80211_DEAUTH_FRAME_LEN];
+ 
+@@ -9116,7 +9404,9 @@ int ieee80211_mgd_assoc(struct ieee80211_sub_if_data *sdata,
+ 					    false);
+ 	}
+ 
+-	ieee80211_parse_cfg_selectors(assoc_data->userspace_selectors,
++	memset(sdata->u.mgd.userspace_selectors, 0,
++	       sizeof(sdata->u.mgd.userspace_selectors));
++	ieee80211_parse_cfg_selectors(sdata->u.mgd.userspace_selectors,
+ 				      req->supported_selectors,
+ 				      req->supported_selectors_len);
+ 
+@@ -9367,7 +9657,7 @@ int ieee80211_mgd_assoc(struct ieee80211_sub_if_data *sdata,
+ 		err = ieee80211_prep_channel(sdata, NULL, i,
+ 					     assoc_data->link[i].bss, true,
+ 					     &assoc_data->link[i].conn,
+-					     assoc_data->userspace_selectors);
++					     sdata->u.mgd.userspace_selectors);
+ 		if (err) {
+ 			req->links[i].error = err;
+ 			goto err_clear;
+@@ -9384,7 +9674,7 @@ int ieee80211_mgd_assoc(struct ieee80211_sub_if_data *sdata,
+ 					req->ap_mld_addr, true,
+ 					&assoc_data->link[assoc_link_id].conn,
+ 					override,
+-					assoc_data->userspace_selectors);
++					sdata->u.mgd.userspace_selectors);
+ 	if (err)
+ 		goto err_clear;
+ 
+@@ -9490,7 +9780,6 @@ int ieee80211_mgd_deauth(struct ieee80211_sub_if_data *sdata,
+ 		ieee80211_report_disconnect(sdata, frame_buf,
+ 					    sizeof(frame_buf), true,
+ 					    req->reason_code, false);
+-		drv_mgd_complete_tx(sdata->local, sdata, &info);
+ 		return 0;
+ 	}
+ 
+@@ -9629,16 +9918,6 @@ void ieee80211_disable_rssi_reports(struct ieee80211_vif *vif)
+ }
+ EXPORT_SYMBOL(ieee80211_disable_rssi_reports);
+ 
+-static void ieee80211_ml_reconf_selectors(unsigned long *userspace_selectors)
+-{
+-	*userspace_selectors = 0;
+-
+-	/* these selectors are mandatory for ML reconfiguration */
+-	set_bit(BSS_MEMBERSHIP_SELECTOR_SAE_H2E, userspace_selectors);
+-	set_bit(BSS_MEMBERSHIP_SELECTOR_HE_PHY, userspace_selectors);
+-	set_bit(BSS_MEMBERSHIP_SELECTOR_EHT_PHY, userspace_selectors);
+-}
+-
+ void ieee80211_process_ml_reconf_resp(struct ieee80211_sub_if_data *sdata,
+ 				      struct ieee80211_mgmt *mgmt, size_t len)
+ {
+@@ -9652,7 +9931,6 @@ void ieee80211_process_ml_reconf_resp(struct ieee80211_sub_if_data *sdata,
+ 		                sdata->u.mgd.reconf.removed_links;
+ 	u16 link_mask, valid_links;
+ 	unsigned int link_id;
+-	unsigned long userspace_selectors;
+ 	size_t orig_len = len;
+ 	u8 i, group_key_data_len;
+ 	u8 *pos;
+@@ -9760,7 +10038,6 @@ void ieee80211_process_ml_reconf_resp(struct ieee80211_sub_if_data *sdata,
+ 	}
+ 
+ 	ieee80211_vif_set_links(sdata, valid_links, sdata->vif.dormant_links);
+-	ieee80211_ml_reconf_selectors(&userspace_selectors);
+ 	link_mask = 0;
+ 	for (link_id = 0; link_id < IEEE80211_MLD_MAX_NUM_LINKS; link_id++) {
+ 		struct cfg80211_bss *cbss = add_links_data->link[link_id].bss;
+@@ -9806,7 +10083,7 @@ void ieee80211_process_ml_reconf_resp(struct ieee80211_sub_if_data *sdata,
+ 		link->u.mgd.conn = add_links_data->link[link_id].conn;
+ 		if (ieee80211_prep_channel(sdata, link, link_id, cbss,
+ 					   true, &link->u.mgd.conn,
+-					   &userspace_selectors)) {
++					   sdata->u.mgd.userspace_selectors)) {
+ 			link_info(link, "mlo: reconf: prep_channel failed\n");
+ 			goto disconnect;
+ 		}
+@@ -9854,8 +10131,11 @@ void ieee80211_process_ml_reconf_resp(struct ieee80211_sub_if_data *sdata,
+ 	done_data.len = orig_len;
+ 	done_data.added_links = link_mask;
+ 
+-	for (link_id = 0; link_id < IEEE80211_MLD_MAX_NUM_LINKS; link_id++)
++	for (link_id = 0; link_id < IEEE80211_MLD_MAX_NUM_LINKS; link_id++) {
+ 		done_data.links[link_id].bss = add_links_data->link[link_id].bss;
++		done_data.links[link_id].addr =
++			add_links_data->link[link_id].addr;
++	}
+ 
+ 	cfg80211_mlo_reconf_add_done(sdata->dev, &done_data);
+ 	kfree(sdata->u.mgd.reconf.add_links_data);
+@@ -9871,7 +10151,7 @@ disconnect:
+ static struct sk_buff *
+ ieee80211_build_ml_reconf_req(struct ieee80211_sub_if_data *sdata,
+ 			      struct ieee80211_mgd_assoc_data *add_links_data,
+-			      u16 removed_links)
++			      u16 removed_links, __le16 ext_mld_capa_ops)
+ {
+ 	struct ieee80211_local *local = sdata->local;
+ 	struct ieee80211_mgmt *mgmt;
+@@ -9920,6 +10200,9 @@ ieee80211_build_ml_reconf_req(struct ieee80211_sub_if_data *sdata,
+ 			var_common_size += 2;
+ 	}
+ 
++	if (ext_mld_capa_ops)
++		var_common_size += 2;
++
+ 	/* Add the common information length */
+ 	size += common_size + var_common_size;
+ 
+@@ -9946,8 +10229,8 @@ ieee80211_build_ml_reconf_req(struct ieee80211_sub_if_data *sdata,
+ 		size += 2 + sizeof(struct ieee80211_mle_per_sta_profile) +
+ 			ETH_ALEN;
+ 
+-		/* SSID element + WMM */
+-		size += 2 + sdata->vif.cfg.ssid_len + 9;
++		/* WMM */
++		size += 9;
+ 		size += ieee80211_link_common_elems_size(sdata, iftype, cbss,
+ 							 elems_len);
+ 	}
+@@ -10004,6 +10287,12 @@ ieee80211_build_ml_reconf_req(struct ieee80211_sub_if_data *sdata,
+ 		skb_put_data(skb, &mld_capa_ops, sizeof(mld_capa_ops));
+ 	}
+ 
++	if (ext_mld_capa_ops) {
++		ml_elem->control |=
++			cpu_to_le16(IEEE80211_MLC_RECONF_PRES_EXT_MLD_CAPA_OP);
++		skb_put_data(skb, &ext_mld_capa_ops, sizeof(ext_mld_capa_ops));
++	}
++
+ 	if (sdata->u.mgd.flags & IEEE80211_STA_ENABLE_RRM)
+ 		capab |= WLAN_CAPABILITY_RADIO_MEASURE;
+ 
+@@ -10053,11 +10342,6 @@ ieee80211_build_ml_reconf_req(struct ieee80211_sub_if_data *sdata,
+ 
+ 			capab_pos = skb_put(skb, 2);
+ 
+-			skb_put_u8(skb, WLAN_EID_SSID);
+-			skb_put_u8(skb, sdata->vif.cfg.ssid_len);
+-			skb_put_data(skb, sdata->vif.cfg.ssid,
+-				     sdata->vif.cfg.ssid_len);
+-
+ 			extra_used =
+ 				ieee80211_add_link_elems(sdata, skb, &capab, NULL,
+ 							 add_links_data->link[link_id].elems,
+@@ -10097,8 +10381,7 @@ ieee80211_build_ml_reconf_req(struct ieee80211_sub_if_data *sdata,
+ }
+ 
+ int ieee80211_mgd_assoc_ml_reconf(struct ieee80211_sub_if_data *sdata,
+-				  struct cfg80211_assoc_link *add_links,
+-				  u16 rem_links)
++				  struct cfg80211_ml_reconf_req *req)
+ {
+ 	struct ieee80211_local *local = sdata->local;
+ 	struct ieee80211_mgd_assoc_data *data = NULL;
+@@ -10118,9 +10401,8 @@ int ieee80211_mgd_assoc_ml_reconf(struct ieee80211_sub_if_data *sdata,
+ 		return -EBUSY;
+ 
+ 	added_links = 0;
+-	for (link_id = 0; add_links && link_id < IEEE80211_MLD_MAX_NUM_LINKS;
+-	     link_id++) {
+-		if (!add_links[link_id].bss)
++	for (link_id = 0; link_id < IEEE80211_MLD_MAX_NUM_LINKS; link_id++) {
++		if (!req->add_links[link_id].bss)
+ 			continue;
+ 
+ 		added_links |= BIT(link_id);
+@@ -10130,9 +10412,6 @@ int ieee80211_mgd_assoc_ml_reconf(struct ieee80211_sub_if_data *sdata,
+ 	if (WARN_ON(!sta))
+ 		return -ENOLINK;
+ 
+-	if (rem_links & BIT(sta->sta.deflink.link_id))
+-		return -EINVAL;
+-
+ 	/* Adding links to the set of valid link is done only after a successful
+ 	 * ML reconfiguration frame exchange. Here prepare the data for the ML
+ 	 * reconfiguration frame construction and allocate the required
+@@ -10140,18 +10419,20 @@ int ieee80211_mgd_assoc_ml_reconf(struct ieee80211_sub_if_data *sdata,
+ 	 */
+ 	if (added_links) {
+ 		bool uapsd_supported;
+-		unsigned long userspace_selectors;
+ 
+ 		data = kzalloc(sizeof(*data), GFP_KERNEL);
+ 		if (!data)
+ 			return -ENOMEM;
+ 
++		data->assoc_link_id = -1;
++		data->wmm = true;
++
+ 		uapsd_supported = true;
+-		ieee80211_ml_reconf_selectors(&userspace_selectors);
+ 		for (link_id = 0; link_id < IEEE80211_MLD_MAX_NUM_LINKS;
+ 		     link_id++) {
+ 			struct ieee80211_supported_band *sband;
+-			struct cfg80211_bss *link_cbss = add_links[link_id].bss;
++			struct cfg80211_bss *link_cbss =
++				req->add_links[link_id].bss;
+ 			struct ieee80211_bss *bss;
+ 
+ 			if (!link_cbss)
+@@ -10181,11 +10462,11 @@ int ieee80211_mgd_assoc_ml_reconf(struct ieee80211_sub_if_data *sdata,
+ 
+ 			data->link[link_id].bss = link_cbss;
+ 			data->link[link_id].disabled =
+-				add_links[link_id].disabled;
++				req->add_links[link_id].disabled;
+ 			data->link[link_id].elems =
+-				(u8 *)add_links[link_id].elems;
++				(u8 *)req->add_links[link_id].elems;
+ 			data->link[link_id].elems_len =
+-				add_links[link_id].elems_len;
++				req->add_links[link_id].elems_len;
+ 
+ 			if (!bss->uapsd_supported)
+ 				uapsd_supported = false;
+@@ -10204,12 +10485,11 @@ int ieee80211_mgd_assoc_ml_reconf(struct ieee80211_sub_if_data *sdata,
+ 			}
+ 		}
+ 
+-		/* Require U-APSD support to be similar to the current valid
+-		 * links
+-		 */
+-		if (uapsd_supported !=
+-		    !!(sdata->u.mgd.flags & IEEE80211_STA_UAPSD_ENABLED)) {
++		/* Require U-APSD support if we enabled it */
++		if (sdata->u.mgd.flags & IEEE80211_STA_UAPSD_ENABLED &&
++		    !uapsd_supported) {
+ 			err = -EINVAL;
++			sdata_info(sdata, "U-APSD on but not available on (all) new links\n");
+ 			goto err_free;
+ 		}
+ 
+@@ -10223,7 +10503,7 @@ int ieee80211_mgd_assoc_ml_reconf(struct ieee80211_sub_if_data *sdata,
+ 						     data->link[link_id].bss,
+ 						     true,
+ 						     &data->link[link_id].conn,
+-						     &userspace_selectors);
++						     sdata->u.mgd.userspace_selectors);
+ 			if (err)
+ 				goto err_free;
+ 		}
+@@ -10235,10 +10515,11 @@ int ieee80211_mgd_assoc_ml_reconf(struct ieee80211_sub_if_data *sdata,
+ 	 * Section 35.3.6.4 in Draft P802.11be_D7.0 the AP MLD should accept the
+ 	 * link removal request.
+ 	 */
+-	if (rem_links) {
+-		u16 new_active_links = sdata->vif.active_links & ~rem_links;
++	if (req->rem_links) {
++		u16 new_active_links =
++			sdata->vif.active_links & ~req->rem_links;
+ 
+-		new_valid_links = sdata->vif.valid_links & ~rem_links;
++		new_valid_links = sdata->vif.valid_links & ~req->rem_links;
+ 
+ 		/* Should not be left with no valid links to perform the
+ 		 * ML reconfiguration
+@@ -10273,14 +10554,16 @@ int ieee80211_mgd_assoc_ml_reconf(struct ieee80211_sub_if_data *sdata,
+ 	 * is expected to send the ML reconfiguration response frame on the link
+ 	 * on which the request was received.
+ 	 */
+-	skb = ieee80211_build_ml_reconf_req(sdata, data, rem_links);
++	skb = ieee80211_build_ml_reconf_req(sdata, data, req->rem_links,
++					    cpu_to_le16(req->ext_mld_capa_ops));
+ 	if (!skb) {
+ 		err = -ENOMEM;
+ 		goto err_free;
+ 	}
+ 
+-	if (rem_links) {
+-		u16 new_dormant_links = sdata->vif.dormant_links & ~rem_links;
++	if (req->rem_links) {
++		u16 new_dormant_links =
++			sdata->vif.dormant_links & ~req->rem_links;
+ 
+ 		err = ieee80211_vif_set_links(sdata, new_valid_links,
+ 					      new_dormant_links);
+@@ -10293,7 +10576,7 @@ int ieee80211_mgd_assoc_ml_reconf(struct ieee80211_sub_if_data *sdata,
+ 
+ 		for (link_id = 0; link_id < IEEE80211_MLD_MAX_NUM_LINKS;
+ 		     link_id++) {
+-			if (!(rem_links & BIT(link_id)))
++			if (!(req->rem_links & BIT(link_id)))
+ 				continue;
+ 
+ 			ieee80211_sta_remove_link(sta, link_id);
+@@ -10302,17 +10585,17 @@ int ieee80211_mgd_assoc_ml_reconf(struct ieee80211_sub_if_data *sdata,
+ 		/* notify the driver and upper layers */
+ 		ieee80211_vif_cfg_change_notify(sdata,
+ 						BSS_CHANGED_MLD_VALID_LINKS);
+-		cfg80211_links_removed(sdata->dev, rem_links);
++		cfg80211_links_removed(sdata->dev, req->rem_links);
+ 	}
+ 
+ 	sdata_info(sdata, "mlo: reconf: adding=0x%x, removed=0x%x\n",
+-		   added_links, rem_links);
++		   added_links, req->rem_links);
+ 
+ 	ieee80211_tx_skb(sdata, skb);
+ 
+ 	sdata->u.mgd.reconf.added_links = added_links;
+ 	sdata->u.mgd.reconf.add_links_data = data;
+-	sdata->u.mgd.reconf.removed_links = rem_links;
++	sdata->u.mgd.reconf.removed_links = req->rem_links;
+ 	wiphy_delayed_work_queue(sdata->local->hw.wiphy,
+ 				 &sdata->u.mgd.reconf.wk,
+ 				 IEEE80211_ASSOC_TIMEOUT_SHORT);
+@@ -10322,3 +10605,198 @@ int ieee80211_mgd_assoc_ml_reconf(struct ieee80211_sub_if_data *sdata,
+ 	kfree(data);
+ 	return err;
+ }
++
++static bool ieee80211_mgd_epcs_supp(struct ieee80211_sub_if_data *sdata)
++{
++	unsigned long valid_links = sdata->vif.valid_links;
++	u8 link_id;
++
++	lockdep_assert_wiphy(sdata->local->hw.wiphy);
++
++	if (!ieee80211_vif_is_mld(&sdata->vif))
++		return false;
++
++	for_each_set_bit(link_id, &valid_links, IEEE80211_MLD_MAX_NUM_LINKS) {
++		struct ieee80211_bss_conf *bss_conf =
++			sdata_dereference(sdata->vif.link_conf[link_id], sdata);
++
++		if (WARN_ON(!bss_conf) || !bss_conf->epcs_support)
++			return false;
++	}
++
++	return true;
++}
++
++int ieee80211_mgd_set_epcs(struct ieee80211_sub_if_data *sdata, bool enable)
++{
++	struct ieee80211_local *local = sdata->local;
++	struct ieee80211_mgmt *mgmt;
++	struct sk_buff *skb;
++	int frame_len = offsetofend(struct ieee80211_mgmt,
++				    u.action.u.epcs) + (enable ? 1 : 0);
++
++	if (!ieee80211_mgd_epcs_supp(sdata))
++		return -EINVAL;
++
++	if (sdata->u.mgd.epcs.enabled == enable &&
++	    !sdata->u.mgd.epcs.dialog_token)
++		return 0;
++
++	/* Do not allow enabling EPCS if the AP didn't respond yet.
++	 * However, allow disabling EPCS in such a case.
++	 */
++	if (sdata->u.mgd.epcs.dialog_token && enable)
++		return -EALREADY;
++
++	skb = dev_alloc_skb(local->hw.extra_tx_headroom + frame_len);
++	if (!skb)
++		return -ENOBUFS;
++
++	skb_reserve(skb, local->hw.extra_tx_headroom);
++	mgmt = skb_put_zero(skb, frame_len);
++	mgmt->frame_control = cpu_to_le16(IEEE80211_FTYPE_MGMT |
++					  IEEE80211_STYPE_ACTION);
++	memcpy(mgmt->da, sdata->vif.cfg.ap_addr, ETH_ALEN);
++	memcpy(mgmt->sa, sdata->vif.addr, ETH_ALEN);
++	memcpy(mgmt->bssid, sdata->vif.cfg.ap_addr, ETH_ALEN);
++
++	mgmt->u.action.category = WLAN_CATEGORY_PROTECTED_EHT;
++	if (enable) {
++		u8 *pos = mgmt->u.action.u.epcs.variable;
++
++		mgmt->u.action.u.epcs.action_code =
++			WLAN_PROTECTED_EHT_ACTION_EPCS_ENABLE_REQ;
++
++		*pos = ++sdata->u.mgd.dialog_token_alloc;
++		sdata->u.mgd.epcs.dialog_token = *pos;
++	} else {
++		mgmt->u.action.u.epcs.action_code =
++			WLAN_PROTECTED_EHT_ACTION_EPCS_ENABLE_TEARDOWN;
++
++		ieee80211_epcs_teardown(sdata);
++		ieee80211_epcs_changed(sdata, false);
++	}
++
++	ieee80211_tx_skb(sdata, skb);
++	return 0;
++}
++
++static void ieee80211_ml_epcs(struct ieee80211_sub_if_data *sdata,
++			      struct ieee802_11_elems *elems)
++{
++	const struct element *sub;
++	size_t scratch_len = elems->ml_epcs_len;
++	u8 *scratch __free(kfree) = kzalloc(scratch_len, GFP_KERNEL);
++
++	lockdep_assert_wiphy(sdata->local->hw.wiphy);
++
++	if (!ieee80211_vif_is_mld(&sdata->vif) || !elems->ml_epcs)
++		return;
++
++	if (WARN_ON(!scratch))
++		return;
++
++	/* Directly parse the sub elements as the common information doesn't
++	 * hold any useful information.
++	 */
++	for_each_mle_subelement(sub, (const u8 *)elems->ml_epcs,
++				elems->ml_epcs_len) {
++		struct ieee80211_link_data *link;
++		struct ieee802_11_elems *link_elems __free(kfree);
++		u8 *pos = (void *)sub->data;
++		u16 control;
++		ssize_t len;
++		u8 link_id;
++
++		if (sub->id != IEEE80211_MLE_SUBELEM_PER_STA_PROFILE)
++			continue;
++
++		if (sub->datalen < sizeof(control))
++			break;
++
++		control = get_unaligned_le16(pos);
++		link_id = control & IEEE80211_MLE_STA_EPCS_CONTROL_LINK_ID;
++
++		link = sdata_dereference(sdata->link[link_id], sdata);
++		if (!link)
++			continue;
++
++		len = cfg80211_defragment_element(sub, (u8 *)elems->ml_epcs,
++						  elems->ml_epcs_len,
++						  scratch, scratch_len,
++						  IEEE80211_MLE_SUBELEM_FRAGMENT);
++		if (len < (ssize_t)sizeof(control))
++			continue;
++
++		pos = scratch + sizeof(control);
++		len -= sizeof(control);
++
++		link_elems = ieee802_11_parse_elems(pos, len, false, NULL);
++		if (!link_elems)
++			continue;
++
++		if (ieee80211_sta_wmm_params(sdata->local, link,
++					     link_elems->wmm_param,
++					     link_elems->wmm_param_len,
++					     link_elems->mu_edca_param_set))
++			ieee80211_link_info_change_notify(sdata, link,
++							  BSS_CHANGED_QOS);
++	}
++}
++
++void ieee80211_process_epcs_ena_resp(struct ieee80211_sub_if_data *sdata,
++				     struct ieee80211_mgmt *mgmt, size_t len)
++{
++	struct ieee802_11_elems *elems __free(kfree) = NULL;
++	size_t ies_len;
++	u16 status_code;
++	u8 *pos, dialog_token;
++
++	if (!ieee80211_mgd_epcs_supp(sdata))
++		return;
++
++	/* Handle dialog token and status code */
++	pos = mgmt->u.action.u.epcs.variable;
++	dialog_token = *pos;
++	status_code = get_unaligned_le16(pos + 1);
++
++	/* An EPCS enable response with dialog token == 0 is an unsolicited
++	 * notification from the AP MLD. In such a case, EPCS should already be
++	 * enabled and status must be success
++	 */
++	if (!dialog_token &&
++	    (!sdata->u.mgd.epcs.enabled ||
++	     status_code != WLAN_STATUS_SUCCESS))
++		return;
++
++	if (sdata->u.mgd.epcs.dialog_token != dialog_token)
++		return;
++
++	sdata->u.mgd.epcs.dialog_token = 0;
++
++	if (status_code != WLAN_STATUS_SUCCESS)
++		return;
++
++	pos += IEEE80211_EPCS_ENA_RESP_BODY_LEN;
++	ies_len = len - offsetof(struct ieee80211_mgmt,
++				 u.action.u.epcs.variable) -
++		IEEE80211_EPCS_ENA_RESP_BODY_LEN;
++
++	elems = ieee802_11_parse_elems(pos, ies_len, true, NULL);
++	if (!elems)
++		return;
++
++	ieee80211_ml_epcs(sdata, elems);
++	ieee80211_epcs_changed(sdata, true);
++}
++
++void ieee80211_process_epcs_teardown(struct ieee80211_sub_if_data *sdata,
++				     struct ieee80211_mgmt *mgmt, size_t len)
++{
++	if (!ieee80211_vif_is_mld(&sdata->vif) ||
++	    !sdata->u.mgd.epcs.enabled)
++		return;
++
++	ieee80211_epcs_teardown(sdata);
++	ieee80211_epcs_changed(sdata, false);
++}
+diff --git a/net/mac80211/rate.c b/net/mac80211/rate.c
+index 89ba1642..f974ad58 100644
+--- a/net/mac80211/rate.c
++++ b/net/mac80211/rate.c
+@@ -250,6 +250,10 @@ static ssize_t rcname_read(struct file *file, char __user *userbuf,
+ }
+ 
+ const struct debugfs_short_fops rcname_ops = {
++#if LINUX_VERSION_IS_LESS(6,12,0)
++	.open = simple_open,
++#endif
++	
+ 	.read = rcname_read,
+ 	.llseek = default_llseek,
+ };
+diff --git a/net/mac80211/rx.c b/net/mac80211/rx.c
+index 753b1c13..87e6e6c2 100644
+--- a/net/mac80211/rx.c
++++ b/net/mac80211/rx.c
+@@ -1045,14 +1045,14 @@ static ieee80211_rx_result ieee80211_rx_mesh_check(struct ieee80211_rx_data *rx)
+ 		if (is_multicast_ether_addr(hdr->addr1)) {
+ 			if (ieee80211_has_tods(hdr->frame_control) ||
+ 			    !ieee80211_has_fromds(hdr->frame_control))
+-				return RX_DROP_MONITOR;
++				return RX_DROP;
+ 			if (ether_addr_equal(hdr->addr3, dev_addr))
+-				return RX_DROP_MONITOR;
++				return RX_DROP;
+ 		} else {
+ 			if (!ieee80211_has_a4(hdr->frame_control))
+-				return RX_DROP_MONITOR;
++				return RX_DROP;
+ 			if (ether_addr_equal(hdr->addr4, dev_addr))
+-				return RX_DROP_MONITOR;
++				return RX_DROP;
+ 		}
+ 	}
+ 
+@@ -1064,20 +1064,20 @@ static ieee80211_rx_result ieee80211_rx_mesh_check(struct ieee80211_rx_data *rx)
+ 		struct ieee80211_mgmt *mgmt;
+ 
+ 		if (!ieee80211_is_mgmt(hdr->frame_control))
+-			return RX_DROP_MONITOR;
++			return RX_DROP;
+ 
+ 		if (ieee80211_is_action(hdr->frame_control)) {
+ 			u8 category;
+ 
+ 			/* make sure category field is present */
+ 			if (rx->skb->len < IEEE80211_MIN_ACTION_SIZE)
+-				return RX_DROP_MONITOR;
++				return RX_DROP;
+ 
+ 			mgmt = (struct ieee80211_mgmt *)hdr;
+ 			category = mgmt->u.action.category;
+ 			if (category != WLAN_CATEGORY_MESH_ACTION &&
+ 			    category != WLAN_CATEGORY_SELF_PROTECTED)
+-				return RX_DROP_MONITOR;
++				return RX_DROP;
+ 			return RX_CONTINUE;
+ 		}
+ 
+@@ -1087,7 +1087,7 @@ static ieee80211_rx_result ieee80211_rx_mesh_check(struct ieee80211_rx_data *rx)
+ 		    ieee80211_is_auth(hdr->frame_control))
+ 			return RX_CONTINUE;
+ 
+-		return RX_DROP_MONITOR;
++		return RX_DROP;
+ 	}
+ 
+ 	return RX_CONTINUE;
+@@ -1513,7 +1513,7 @@ ieee80211_rx_h_check(struct ieee80211_rx_data *rx)
+ 			hdrlen = ieee80211_hdrlen(hdr->frame_control);
+ 
+ 			if (rx->skb->len < hdrlen + 8)
+-				return RX_DROP_MONITOR;
++				return RX_DROP;
+ 
+ 			skb_copy_bits(rx->skb, hdrlen + 6, &ethertype, 2);
+ 			if (ethertype == rx->sdata->control_port_protocol)
+@@ -1526,7 +1526,7 @@ ieee80211_rx_h_check(struct ieee80211_rx_data *rx)
+ 					       GFP_ATOMIC))
+ 			return RX_DROP_U_SPURIOUS;
+ 
+-		return RX_DROP_MONITOR;
++		return RX_DROP;
+ 	}
+ 
+ 	return RX_CONTINUE;
+@@ -1862,7 +1862,7 @@ ieee80211_rx_h_sta_process(struct ieee80211_rx_data *rx)
+ 				cfg80211_rx_unexpected_4addr_frame(
+ 					rx->sdata->dev, sta->sta.addr,
+ 					GFP_ATOMIC);
+-			return RX_DROP_M_UNEXPECTED_4ADDR_FRAME;
++			return RX_DROP_U_UNEXPECTED_4ADDR_FRAME;
+ 		}
+ 		/*
+ 		 * Update counter and free packet here to avoid
+@@ -1997,7 +1997,7 @@ ieee80211_rx_h_decrypt(struct ieee80211_rx_data *rx)
+ 				cfg80211_rx_unprot_mlme_mgmt(rx->sdata->dev,
+ 							     skb->data,
+ 							     skb->len);
+-			return RX_DROP_M_BAD_BCN_KEYIDX;
++			return RX_DROP_U_BAD_BCN_KEYIDX;
+ 		}
+ 
+ 		rx->key = ieee80211_rx_get_bigtk(rx, mmie_keyidx);
+@@ -2011,11 +2011,11 @@ ieee80211_rx_h_decrypt(struct ieee80211_rx_data *rx)
+ 
+ 		if (mmie_keyidx < NUM_DEFAULT_KEYS ||
+ 		    mmie_keyidx >= NUM_DEFAULT_KEYS + NUM_DEFAULT_MGMT_KEYS)
+-			return RX_DROP_M_BAD_MGMT_KEYIDX; /* unexpected BIP keyidx */
++			return RX_DROP_U_BAD_MGMT_KEYIDX; /* unexpected BIP keyidx */
+ 		if (rx->link_sta) {
+ 			if (ieee80211_is_group_privacy_action(skb) &&
+ 			    test_sta_flag(rx->sta, WLAN_STA_MFP))
+-				return RX_DROP_MONITOR;
++				return RX_DROP;
+ 
+ 			rx->key = rcu_dereference(rx->link_sta->gtk[mmie_keyidx]);
+ 		}
+@@ -2100,11 +2100,11 @@ ieee80211_rx_h_decrypt(struct ieee80211_rx_data *rx)
+ 
+ 	if (rx->key) {
+ 		if (unlikely(rx->key->flags & KEY_FLAG_TAINTED))
+-			return RX_DROP_MONITOR;
++			return RX_DROP;
+ 
+ 		/* TODO: add threshold stuff again */
+ 	} else {
+-		return RX_DROP_MONITOR;
++		return RX_DROP;
+ 	}
+ 
+ 	switch (rx->key->conf.cipher) {
+@@ -2278,7 +2278,7 @@ ieee80211_rx_h_defragment(struct ieee80211_rx_data *rx)
+ 		goto out;
+ 
+ 	if (is_multicast_ether_addr(hdr->addr1))
+-		return RX_DROP_MONITOR;
++		return RX_DROP;
+ 
+ 	I802_DEBUG_INC(rx->local->rx_handlers_fragments);
+ 
+@@ -2333,7 +2333,7 @@ ieee80211_rx_h_defragment(struct ieee80211_rx_data *rx)
+ 					  rx->seqno_idx, hdr);
+ 	if (!entry) {
+ 		I802_DEBUG_INC(rx->local->rx_handlers_drop_defrag);
+-		return RX_DROP_MONITOR;
++		return RX_DROP;
+ 	}
+ 
+ 	/* "The receiver shall discard MSDUs and MMPDUs whose constituent
+@@ -2654,7 +2654,11 @@ static void ieee80211_deliver_skb_to_local_stack(struct sk_buff *skb,
+ 
+ 		/* deliver to local stack */
+ 		if (rx->list)
++#if LINUX_VERSION_IS_GEQ(4,19,0)
+ 			list_add_tail(&skb->list, rx->list);
++#else
++			__skb_queue_tail(rx->list, skb);
++#endif
+ 		else
+ 			netif_receive_skb(skb);
+ 	}
+@@ -2855,25 +2859,25 @@ ieee80211_rx_mesh_data(struct ieee80211_sub_if_data *sdata, struct sta_info *sta
+ 		return RX_CONTINUE;
+ 
+ 	if (!pskb_may_pull(skb, sizeof(*eth) + 6))
+-		return RX_DROP_MONITOR;
++		return RX_DROP;
+ 
+ 	mesh_hdr = (struct ieee80211s_hdr *)(skb->data + sizeof(*eth));
+ 	mesh_hdrlen = ieee80211_get_mesh_hdrlen(mesh_hdr);
+ 
+ 	if (!pskb_may_pull(skb, sizeof(*eth) + mesh_hdrlen))
+-		return RX_DROP_MONITOR;
++		return RX_DROP;
+ 
+ 	eth = (struct ethhdr *)skb->data;
+ 	multicast = is_multicast_ether_addr(eth->h_dest);
+ 
+ 	mesh_hdr = (struct ieee80211s_hdr *)(eth + 1);
+ 	if (!mesh_hdr->ttl)
+-		return RX_DROP_MONITOR;
++		return RX_DROP;
+ 
+ 	/* frame is in RMC, don't forward */
+ 	if (is_multicast_ether_addr(eth->h_dest) &&
+ 	    mesh_rmc_check(sdata, eth->h_source, mesh_hdr))
+-		return RX_DROP_MONITOR;
++		return RX_DROP;
+ 
+ 	/* forward packet */
+ 	if (sdata->crypto_tx_tailroom_needed_cnt)
+@@ -2890,7 +2894,7 @@ ieee80211_rx_mesh_data(struct ieee80211_sub_if_data *sdata, struct sta_info *sta
+ 			/* has_a4 already checked in ieee80211_rx_mesh_check */
+ 			proxied_addr = mesh_hdr->eaddr2;
+ 		else
+-			return RX_DROP_MONITOR;
++			return RX_DROP;
+ 
+ 		rcu_read_lock();
+ 		mppath = mpp_path_lookup(sdata, proxied_addr);
+@@ -2922,14 +2926,14 @@ ieee80211_rx_mesh_data(struct ieee80211_sub_if_data *sdata, struct sta_info *sta
+ 			goto rx_accept;
+ 
+ 		IEEE80211_IFSTA_MESH_CTR_INC(ifmsh, dropped_frames_ttl);
+-		return RX_DROP_MONITOR;
++		return RX_DROP;
+ 	}
+ 
+ 	if (!ifmsh->mshcfg.dot11MeshForwarding) {
+ 		if (is_multicast_ether_addr(eth->h_dest))
+ 			goto rx_accept;
+ 
+-		return RX_DROP_MONITOR;
++		return RX_DROP;
+ 	}
+ 
+ 	skb_set_queue_mapping(skb, ieee802_1d_to_ac[skb->priority]);
+@@ -3122,7 +3126,7 @@ ieee80211_rx_h_amsdu(struct ieee80211_rx_data *rx)
+ 		return RX_CONTINUE;
+ 
+ 	if (unlikely(!ieee80211_is_data_present(fc)))
+-		return RX_DROP_MONITOR;
++		return RX_DROP;
+ 
+ 	if (unlikely(ieee80211_has_a4(hdr->frame_control))) {
+ 		switch (rx->sdata->vif.type) {
+@@ -3179,19 +3183,16 @@ ieee80211_rx_h_data(struct ieee80211_rx_data *rx)
+ 		return RX_CONTINUE;
+ 
+ 	if (unlikely(!ieee80211_is_data_present(hdr->frame_control)))
+-		return RX_DROP_MONITOR;
++		return RX_DROP;
+ 
+-	/*
+-	 * Send unexpected-4addr-frame event to hostapd. For older versions,
+-	 * also drop the frame to cooked monitor interfaces.
+-	 */
++	/* Send unexpected-4addr-frame event to hostapd */
+ 	if (ieee80211_has_a4(hdr->frame_control) &&
+ 	    sdata->vif.type == NL80211_IFTYPE_AP) {
+ 		if (rx->sta &&
+ 		    !test_and_set_sta_flag(rx->sta, WLAN_STA_4ADDR_EVENT))
+ 			cfg80211_rx_unexpected_4addr_frame(
+ 				rx->sdata->dev, rx->sta->sta.addr, GFP_ATOMIC);
+-		return RX_DROP_MONITOR;
++		return RX_DROP;
+ 	}
+ 
+ 	res = __ieee80211_data_to_8023(rx, &port_control);
+@@ -3203,7 +3204,7 @@ ieee80211_rx_h_data(struct ieee80211_rx_data *rx)
+ 		return res;
+ 
+ 	if (!ieee80211_frame_allowed(rx, fc))
+-		return RX_DROP_MONITOR;
++		return RX_DROP;
+ 
+ 	/* directly handle TDLS channel switch requests/responses */
+ 	if (unlikely(((struct ethhdr *)rx->skb->data)->h_proto ==
+@@ -3268,11 +3269,11 @@ ieee80211_rx_h_ctrl(struct ieee80211_rx_data *rx, struct sk_buff_head *frames)
+ 		};
+ 
+ 		if (!rx->sta)
+-			return RX_DROP_MONITOR;
++			return RX_DROP;
+ 
+ 		if (skb_copy_bits(skb, offsetof(struct ieee80211_bar, control),
+ 				  &bar_data, sizeof(bar_data)))
+-			return RX_DROP_MONITOR;
++			return RX_DROP;
+ 
+ 		tid = le16_to_cpu(bar_data.control) >> 12;
+ 
+@@ -3284,7 +3285,7 @@ ieee80211_rx_h_ctrl(struct ieee80211_rx_data *rx, struct sk_buff_head *frames)
+ 
+ 		tid_agg_rx = rcu_dereference(rx->sta->ampdu_mlme.tid_rx[tid]);
+ 		if (!tid_agg_rx)
+-			return RX_DROP_MONITOR;
++			return RX_DROP;
+ 
+ 		start_seq_num = le16_to_cpu(bar_data.start_seq_num) >> 4;
+ 		event.u.ba.tid = tid;
+@@ -3308,12 +3309,7 @@ ieee80211_rx_h_ctrl(struct ieee80211_rx_data *rx, struct sk_buff_head *frames)
+ 		return RX_QUEUED;
+ 	}
+ 
+-	/*
+-	 * After this point, we only want management frames,
+-	 * so we can drop all remaining control frames to
+-	 * cooked monitor interfaces.
+-	 */
+-	return RX_DROP_MONITOR;
++	return RX_DROP;
+ }
+ 
+ static void ieee80211_process_sa_query_req(struct ieee80211_sub_if_data *sdata,
+@@ -3422,10 +3418,10 @@ ieee80211_rx_h_mgmt_check(struct ieee80211_rx_data *rx)
+ 	 * and unknown (reserved) frames are useless.
+ 	 */
+ 	if (rx->skb->len < 24)
+-		return RX_DROP_MONITOR;
++		return RX_DROP;
+ 
+ 	if (!ieee80211_is_mgmt(mgmt->frame_control))
+-		return RX_DROP_MONITOR;
++		return RX_DROP;
+ 
+ 	/* drop too small action frames */
+ 	if (ieee80211_is_action(mgmt->frame_control) &&
+@@ -3819,6 +3815,14 @@ ieee80211_rx_h_action(struct ieee80211_rx_data *rx)
+ 					      u.action.u.ttlm_res))
+ 				goto invalid;
+ 			goto queue;
++		case WLAN_PROTECTED_EHT_ACTION_TTLM_TEARDOWN:
++			if (sdata->vif.type != NL80211_IFTYPE_STATION)
++				break;
++
++			if (len < offsetofend(typeof(*mgmt),
++					      u.action.u.ttlm_tear_down))
++				goto invalid;
++			goto queue;
+ 		case WLAN_PROTECTED_EHT_ACTION_LINK_RECONFIG_RESP:
+ 			if (sdata->vif.type != NL80211_IFTYPE_STATION)
+ 				break;
+@@ -3831,6 +3835,23 @@ ieee80211_rx_h_action(struct ieee80211_rx_data *rx)
+ 					u.action.u.ml_reconf_resp) + 3)
+ 				goto invalid;
+ 			goto queue;
++		case WLAN_PROTECTED_EHT_ACTION_EPCS_ENABLE_RESP:
++			if (sdata->vif.type != NL80211_IFTYPE_STATION)
++				break;
++
++			if (len < offsetofend(typeof(*mgmt),
++					      u.action.u.epcs) +
++			    IEEE80211_EPCS_ENA_RESP_BODY_LEN)
++				goto invalid;
++			goto queue;
++		case WLAN_PROTECTED_EHT_ACTION_EPCS_ENABLE_TEARDOWN:
++			if (sdata->vif.type != NL80211_IFTYPE_STATION)
++				break;
++
++			if (len < offsetofend(typeof(*mgmt),
++					      u.action.u.epcs))
++				goto invalid;
++			goto queue;
+ 		default:
+ 			break;
+ 		}
+@@ -3951,17 +3972,16 @@ ieee80211_rx_h_action_return(struct ieee80211_rx_data *rx)
+ 	 * ones. For all other modes we will return them to the sender,
+ 	 * setting the 0x80 bit in the action category, as required by
+ 	 * 802.11-2012 9.24.4.
+-	 * Newer versions of hostapd shall also use the management frame
+-	 * registration mechanisms, but older ones still use cooked
+-	 * monitor interfaces so push all frames there.
++	 * Newer versions of hostapd use the management frame registration
++	 * mechanisms and old cooked monitor interface is no longer supported.
+ 	 */
+ 	if (!(status->rx_flags & IEEE80211_RX_MALFORMED_ACTION_FRM) &&
+ 	    (sdata->vif.type == NL80211_IFTYPE_AP ||
+ 	     sdata->vif.type == NL80211_IFTYPE_AP_VLAN))
+-		return RX_DROP_MONITOR;
++		return RX_DROP;
+ 
+ 	if (is_multicast_ether_addr(mgmt->da))
+-		return RX_DROP_MONITOR;
++		return RX_DROP;
+ 
+ 	/* do not return rejected action frames */
+ 	if (mgmt->u.action.category & 0x80)
+@@ -4006,7 +4026,7 @@ ieee80211_rx_h_ext(struct ieee80211_rx_data *rx)
+ 		return RX_CONTINUE;
+ 
+ 	if (sdata->vif.type != NL80211_IFTYPE_STATION)
+-		return RX_DROP_MONITOR;
++		return RX_DROP;
+ 
+ 	/* for now only beacons are ext, so queue them */
+ 	ieee80211_queue_skb_to_iface(sdata, rx->link_id, rx->sta, rx->skb);
+@@ -4027,7 +4047,7 @@ ieee80211_rx_h_mgmt(struct ieee80211_rx_data *rx)
+ 	    sdata->vif.type != NL80211_IFTYPE_ADHOC &&
+ 	    sdata->vif.type != NL80211_IFTYPE_OCB &&
+ 	    sdata->vif.type != NL80211_IFTYPE_STATION)
+-		return RX_DROP_MONITOR;
++		return RX_DROP;
+ 
+ 	switch (stype) {
+ 	case cpu_to_le16(IEEE80211_STYPE_AUTH):
+@@ -4038,32 +4058,32 @@ ieee80211_rx_h_mgmt(struct ieee80211_rx_data *rx)
+ 	case cpu_to_le16(IEEE80211_STYPE_DEAUTH):
+ 		if (is_multicast_ether_addr(mgmt->da) &&
+ 		    !is_broadcast_ether_addr(mgmt->da))
+-			return RX_DROP_MONITOR;
++			return RX_DROP;
+ 
+ 		/* process only for station/IBSS */
+ 		if (sdata->vif.type != NL80211_IFTYPE_STATION &&
+ 		    sdata->vif.type != NL80211_IFTYPE_ADHOC)
+-			return RX_DROP_MONITOR;
++			return RX_DROP;
+ 		break;
+ 	case cpu_to_le16(IEEE80211_STYPE_ASSOC_RESP):
+ 	case cpu_to_le16(IEEE80211_STYPE_REASSOC_RESP):
+ 	case cpu_to_le16(IEEE80211_STYPE_DISASSOC):
+ 		if (is_multicast_ether_addr(mgmt->da) &&
+ 		    !is_broadcast_ether_addr(mgmt->da))
+-			return RX_DROP_MONITOR;
++			return RX_DROP;
+ 
+ 		/* process only for station */
+ 		if (sdata->vif.type != NL80211_IFTYPE_STATION)
+-			return RX_DROP_MONITOR;
++			return RX_DROP;
+ 		break;
+ 	case cpu_to_le16(IEEE80211_STYPE_PROBE_REQ):
+ 		/* process only for ibss and mesh */
+ 		if (sdata->vif.type != NL80211_IFTYPE_ADHOC &&
+ 		    sdata->vif.type != NL80211_IFTYPE_MESH_POINT)
+-			return RX_DROP_MONITOR;
++			return RX_DROP;
+ 		break;
+ 	default:
+-		return RX_DROP_MONITOR;
++		return RX_DROP;
+ 	}
+ 
+ 	ieee80211_queue_skb_to_iface(sdata, rx->link_id, rx->sta, rx->skb);
+@@ -4071,82 +4091,9 @@ ieee80211_rx_h_mgmt(struct ieee80211_rx_data *rx)
+ 	return RX_QUEUED;
+ }
+ 
+-static void ieee80211_rx_cooked_monitor(struct ieee80211_rx_data *rx,
+-					struct ieee80211_rate *rate,
+-					ieee80211_rx_result reason)
+-{
+-	struct ieee80211_sub_if_data *sdata;
+-	struct ieee80211_local *local = rx->local;
+-	struct sk_buff *skb = rx->skb, *skb2;
+-	struct net_device *prev_dev = NULL;
+-	struct ieee80211_rx_status *status = IEEE80211_SKB_RXCB(skb);
+-	int needed_headroom;
+-
+-	/*
+-	 * If cooked monitor has been processed already, then
+-	 * don't do it again. If not, set the flag.
+-	 */
+-	if (rx->flags & IEEE80211_RX_CMNTR)
+-		goto out_free_skb;
+-	rx->flags |= IEEE80211_RX_CMNTR;
+-
+-	/* If there are no cooked monitor interfaces, just free the SKB */
+-	if (!local->cooked_mntrs)
+-		goto out_free_skb;
+-
+-	/* room for the radiotap header based on driver features */
+-	needed_headroom = ieee80211_rx_radiotap_hdrlen(local, status, skb);
+-
+-	if (skb_headroom(skb) < needed_headroom &&
+-	    pskb_expand_head(skb, needed_headroom, 0, GFP_ATOMIC))
+-		goto out_free_skb;
+-
+-	/* prepend radiotap information */
+-	ieee80211_add_rx_radiotap_header(local, skb, rate, needed_headroom,
+-					 false);
+-
+-	skb_reset_mac_header(skb);
+-	skb->ip_summed = CHECKSUM_UNNECESSARY;
+-	skb->pkt_type = PACKET_OTHERHOST;
+-	skb->protocol = htons(ETH_P_802_2);
+-
+-	list_for_each_entry_rcu(sdata, &local->interfaces, list) {
+-		if (!ieee80211_sdata_running(sdata))
+-			continue;
+-
+-		if (sdata->vif.type != NL80211_IFTYPE_MONITOR ||
+-		    !(sdata->u.mntr.flags & MONITOR_FLAG_COOK_FRAMES))
+-			continue;
+-
+-		if (prev_dev) {
+-			skb2 = skb_clone(skb, GFP_ATOMIC);
+-			if (skb2) {
+-				skb2->dev = prev_dev;
+-				netif_receive_skb(skb2);
+-			}
+-		}
+-
+-		prev_dev = sdata->dev;
+-		dev_sw_netstats_rx_add(sdata->dev, skb->len);
+-	}
+-
+-	if (prev_dev) {
+-		skb->dev = prev_dev;
+-		netif_receive_skb(skb);
+-		return;
+-	}
+-
+- out_free_skb:
+-	kfree_skb_reason(skb, (__force u32)reason);
+-}
+-
+ static void ieee80211_rx_handlers_result(struct ieee80211_rx_data *rx,
+ 					 ieee80211_rx_result res)
+ {
+-	struct ieee80211_rx_status *status = IEEE80211_SKB_RXCB(rx->skb);
+-	struct ieee80211_supported_band *sband;
+-	struct ieee80211_rate *rate = NULL;
+-
+ 	if (res == RX_QUEUED) {
+ 		I802_DEBUG_INC(rx->sdata->local->rx_handlers_queued);
+ 		return;
+@@ -4158,23 +4105,13 @@ static void ieee80211_rx_handlers_result(struct ieee80211_rx_data *rx,
+ 			rx->link_sta->rx_stats.dropped++;
+ 	}
+ 
+-	if (u32_get_bits((__force u32)res, SKB_DROP_REASON_SUBSYS_MASK) ==
+-			SKB_DROP_REASON_SUBSYS_MAC80211_UNUSABLE) {
+-		kfree_skb_reason(rx->skb, (__force u32)res);
+-		return;
+-	}
+-
+-	sband = rx->local->hw.wiphy->bands[status->band];
+-	if (status->encoding == RX_ENC_LEGACY)
+-		rate = &sband->bitrates[status->rate_idx];
+-
+-	ieee80211_rx_cooked_monitor(rx, rate, res);
++	kfree_skb_reason(rx->skb, (__force u32)res);
+ }
+ 
+ static void ieee80211_rx_handlers(struct ieee80211_rx_data *rx,
+ 				  struct sk_buff_head *frames)
+ {
+-	ieee80211_rx_result res = RX_DROP_MONITOR;
++	ieee80211_rx_result res = RX_DROP;
+ 	struct sk_buff *skb;
+ 
+ #define CALL_RXH(rxh)			\
+@@ -4238,7 +4175,7 @@ static void ieee80211_rx_handlers(struct ieee80211_rx_data *rx,
+ static void ieee80211_invoke_rx_handlers(struct ieee80211_rx_data *rx)
+ {
+ 	struct sk_buff_head reorder_release;
+-	ieee80211_rx_result res = RX_DROP_MONITOR;
++	ieee80211_rx_result res = RX_DROP;
+ 
+ 	__skb_queue_head_init(&reorder_release);
+ 
+@@ -5111,7 +5048,11 @@ static bool ieee80211_prepare_and_rx_handle(struct ieee80211_rx_data *rx,
+ static void __ieee80211_rx_handle_8023(struct ieee80211_hw *hw,
+ 				       struct ieee80211_sta *pubsta,
+ 				       struct sk_buff *skb,
++#if LINUX_VERSION_IS_GEQ(4,19,0)
+ 				       struct list_head *list)
++#else
++				       struct sk_buff_head *list)
++#endif
+ {
+ 	struct ieee80211_local *local = hw_to_local(hw);
+ 	struct ieee80211_rx_status *status = IEEE80211_SKB_RXCB(skb);
+@@ -5199,7 +5140,11 @@ static bool ieee80211_rx_for_interface(struct ieee80211_rx_data *rx,
+ static void __ieee80211_rx_handle_packet(struct ieee80211_hw *hw,
+ 					 struct ieee80211_sta *pubsta,
+ 					 struct sk_buff *skb,
++#if LINUX_VERSION_IS_GEQ(4,19,0)
+ 					 struct list_head *list)
++#else
++					 struct sk_buff_head *list)
++#endif
+ {
+ 	struct ieee80211_local *local = hw_to_local(hw);
+ 	struct ieee80211_rx_status *status = IEEE80211_SKB_RXCB(skb);
+@@ -5358,7 +5303,11 @@ static void __ieee80211_rx_handle_packet(struct ieee80211_hw *hw,
+  * 802.11 MPDU is received from the hardware.
+  */
+ void ieee80211_rx_list(struct ieee80211_hw *hw, struct ieee80211_sta *pubsta,
++#if LINUX_VERSION_IS_GEQ(4,19,0)
+ 		       struct sk_buff *skb, struct list_head *list)
++#else
++		       struct sk_buff *skb, struct sk_buff_head *list)
++#endif
+ {
+ 	struct ieee80211_local *local = hw_to_local(hw);
+ 	struct ieee80211_rate *rate = NULL;
+@@ -5494,7 +5443,13 @@ void ieee80211_rx_napi(struct ieee80211_hw *hw, struct ieee80211_sta *pubsta,
+ 		       struct sk_buff *skb, struct napi_struct *napi)
+ {
+ 	struct sk_buff *tmp;
++#if LINUX_VERSION_IS_GEQ(4,19,0)
+ 	LIST_HEAD(list);
++#else
++	struct sk_buff_head list;
++
++	__skb_queue_head_init(&list);
++#endif
+ 
+ 
+ 	/*
+@@ -5511,8 +5466,13 @@ void ieee80211_rx_napi(struct ieee80211_hw *hw, struct ieee80211_sta *pubsta,
+ 		return;
+ 	}
+ 
++#if LINUX_VERSION_IS_GEQ(4,19,0)
+ 	list_for_each_entry_safe(skb, tmp, &list, list) {
+ 		skb_list_del_init(skb);
++#else
++	skb_queue_walk_safe(&list, skb, tmp) {
++		__skb_unlink(skb, &list);
++#endif
+ 		napi_gro_receive(napi, skb);
+ 	}
+ }
+diff --git a/net/mac80211/scan.c b/net/mac80211/scan.c
+index cb707907..e9f064f3 100644
+--- a/net/mac80211/scan.c
++++ b/net/mac80211/scan.c
+@@ -1016,7 +1016,7 @@ set_channel:
+ 	if ((chan->flags & (IEEE80211_CHAN_NO_IR | IEEE80211_CHAN_RADAR)) ||
+ 	    !scan_req->n_ssids) {
+ 		*next_delay = max(msecs_to_jiffies(scan_req->duration),
+-				  IEEE80211_PASSIVE_CHANNEL_TIME);
++				  (unsigned long)IEEE80211_PASSIVE_CHANNEL_TIME);
+ 		local->next_scan_state = SCAN_DECISION;
+ 		if (scan_req->n_ssids)
+ 			set_bit(SCAN_BEACON_WAIT, &local->scanning);
+diff --git a/net/mac80211/sta_info.c b/net/mac80211/sta_info.c
+index 2f00959e..ff6ff8b4 100644
+--- a/net/mac80211/sta_info.c
++++ b/net/mac80211/sta_info.c
+@@ -2598,6 +2598,39 @@ static inline u64 sta_get_stats_bytes(struct ieee80211_sta_rx_stats *rxstats)
+ 	return value;
+ }
+ 
++#ifdef CPTCFG_MAC80211_MESH
++static void sta_set_mesh_sinfo(struct sta_info *sta,
++			       struct station_info *sinfo)
++{
++	struct ieee80211_local *local = sta->sdata->local;
++
++	sinfo->filled |= BIT_ULL(NL80211_STA_INFO_LLID) |
++			 BIT_ULL(NL80211_STA_INFO_PLID) |
++			 BIT_ULL(NL80211_STA_INFO_PLINK_STATE) |
++			 BIT_ULL(NL80211_STA_INFO_LOCAL_PM) |
++			 BIT_ULL(NL80211_STA_INFO_PEER_PM) |
++			 BIT_ULL(NL80211_STA_INFO_NONPEER_PM) |
++			 BIT_ULL(NL80211_STA_INFO_CONNECTED_TO_GATE) |
++			 BIT_ULL(NL80211_STA_INFO_CONNECTED_TO_AS);
++
++	sinfo->llid = sta->mesh->llid;
++	sinfo->plid = sta->mesh->plid;
++	sinfo->plink_state = sta->mesh->plink_state;
++	if (test_sta_flag(sta, WLAN_STA_TOFFSET_KNOWN)) {
++		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_T_OFFSET);
++		sinfo->t_offset = sta->mesh->t_offset;
++	}
++	sinfo->local_pm = sta->mesh->local_pm;
++	sinfo->peer_pm = sta->mesh->peer_pm;
++	sinfo->nonpeer_pm = sta->mesh->nonpeer_pm;
++	sinfo->connected_to_gate = sta->mesh->connected_to_gate;
++	sinfo->connected_to_as = sta->mesh->connected_to_as;
++
++	sinfo->filled |= BIT_ULL(NL80211_STA_INFO_AIRTIME_LINK_METRIC);
++	sinfo->airtime_link_metric = airtime_link_metric_get(local, sta);
++}
++#endif
++
+ void sta_set_sinfo(struct sta_info *sta, struct station_info *sinfo,
+ 		   bool tidstats)
+ {
+@@ -2782,31 +2815,10 @@ void sta_set_sinfo(struct sta_info *sta, struct station_info *sinfo,
+ 			sta_set_tidstats(sta, &sinfo->pertid[i], i);
+ 	}
+ 
+-	if (ieee80211_vif_is_mesh(&sdata->vif)) {
+ #ifdef CPTCFG_MAC80211_MESH
+-		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_LLID) |
+-				 BIT_ULL(NL80211_STA_INFO_PLID) |
+-				 BIT_ULL(NL80211_STA_INFO_PLINK_STATE) |
+-				 BIT_ULL(NL80211_STA_INFO_LOCAL_PM) |
+-				 BIT_ULL(NL80211_STA_INFO_PEER_PM) |
+-				 BIT_ULL(NL80211_STA_INFO_NONPEER_PM) |
+-				 BIT_ULL(NL80211_STA_INFO_CONNECTED_TO_GATE) |
+-				 BIT_ULL(NL80211_STA_INFO_CONNECTED_TO_AS);
+-
+-		sinfo->llid = sta->mesh->llid;
+-		sinfo->plid = sta->mesh->plid;
+-		sinfo->plink_state = sta->mesh->plink_state;
+-		if (test_sta_flag(sta, WLAN_STA_TOFFSET_KNOWN)) {
+-			sinfo->filled |= BIT_ULL(NL80211_STA_INFO_T_OFFSET);
+-			sinfo->t_offset = sta->mesh->t_offset;
+-		}
+-		sinfo->local_pm = sta->mesh->local_pm;
+-		sinfo->peer_pm = sta->mesh->peer_pm;
+-		sinfo->nonpeer_pm = sta->mesh->nonpeer_pm;
+-		sinfo->connected_to_gate = sta->mesh->connected_to_gate;
+-		sinfo->connected_to_as = sta->mesh->connected_to_as;
++	if (ieee80211_vif_is_mesh(&sdata->vif))
++		sta_set_mesh_sinfo(sta, sinfo);
+ #endif
+-	}
+ 
+ 	sinfo->bss_param.flags = 0;
+ 	if (sdata->vif.bss_conf.use_cts_prot)
+@@ -2862,12 +2874,6 @@ void sta_set_sinfo(struct sta_info *sta, struct station_info *sinfo,
+ 		sinfo->filled |=
+ 			BIT_ULL(NL80211_STA_INFO_ACK_SIGNAL_AVG);
+ 	}
+-
+-	if (ieee80211_vif_is_mesh(&sdata->vif)) {
+-		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_AIRTIME_LINK_METRIC);
+-		sinfo->airtime_link_metric =
+-			airtime_link_metric_get(local, sta);
+-	}
+ }
+ 
+ u32 sta_get_expected_throughput(struct sta_info *sta)
+diff --git a/net/mac80211/status.c b/net/mac80211/status.c
+index 5f28f363..3def95dd 100644
+--- a/net/mac80211/status.c
++++ b/net/mac80211/status.c
+@@ -895,8 +895,7 @@ static int ieee80211_tx_get_rates(struct ieee80211_hw *hw,
+ }
+ 
+ void ieee80211_tx_monitor(struct ieee80211_local *local, struct sk_buff *skb,
+-			  int retry_count, bool send_to_cooked,
+-			  struct ieee80211_tx_status *status)
++			  int retry_count, struct ieee80211_tx_status *status)
+ {
+ 	struct sk_buff *skb2;
+ 	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
+@@ -930,10 +929,6 @@ void ieee80211_tx_monitor(struct ieee80211_local *local, struct sk_buff *skb,
+ 			if (sdata->u.mntr.flags & MONITOR_FLAG_SKIP_TX)
+ 				continue;
+ 
+-			if ((sdata->u.mntr.flags & MONITOR_FLAG_COOK_FRAMES) &&
+-			    !send_to_cooked)
+-				continue;
+-
+ 			if (prev_dev) {
+ 				skb2 = skb_clone(skb, GFP_ATOMIC);
+ 				if (skb2) {
+@@ -964,7 +959,6 @@ static void __ieee80211_tx_status(struct ieee80211_hw *hw,
+ 	struct ieee80211_tx_info *info = status->info;
+ 	struct sta_info *sta;
+ 	__le16 fc;
+-	bool send_to_cooked;
+ 	bool acked;
+ 	bool noack_success;
+ 	struct ieee80211_bar *bar;
+@@ -1091,28 +1085,10 @@ static void __ieee80211_tx_status(struct ieee80211_hw *hw,
+ 
+ 	ieee80211_report_used_skb(local, skb, false, status->ack_hwtstamp);
+ 
+-	/* this was a transmitted frame, but now we want to reuse it */
+-	skb_orphan(skb);
+-
+-	/* Need to make a copy before skb->cb gets cleared */
+-	send_to_cooked = !!(info->flags & IEEE80211_TX_CTL_INJECTED) ||
+-			 !(ieee80211_is_data(fc));
+-
+-	/*
+-	 * This is a bit racy but we can avoid a lot of work
+-	 * with this test...
+-	 */
+-	if (!local->tx_mntrs && (!send_to_cooked || !local->cooked_mntrs)) {
+-		if (status->free_list)
+-			list_add_tail(&skb->list, status->free_list);
+-		else
+-			dev_kfree_skb(skb);
+-		return;
+-	}
+-
+-	/* send to monitor interfaces */
+-	ieee80211_tx_monitor(local, skb, retry_count,
+-			     send_to_cooked, status);
++	if (status->free_list)
++		list_add_tail(&skb->list, status->free_list);
++	else
++		dev_kfree_skb(skb);
+ }
+ 
+ void ieee80211_tx_status_skb(struct ieee80211_hw *hw, struct sk_buff *skb)
+@@ -1254,7 +1230,11 @@ free:
+ 
+ 	ieee80211_report_used_skb(local, skb, false, status->ack_hwtstamp);
+ 	if (status->free_list)
++#if LINUX_VERSION_IS_GEQ(4,19,0)
+ 		list_add_tail(&skb->list, status->free_list);
++#else
++		__skb_queue_tail(status->free_list, skb);
++#endif
+ 	else
+ 		dev_kfree_skb(skb);
+ }
+diff --git a/net/mac80211/tests/Makefile b/net/mac80211/tests/Makefile
+index a23d9586..42b1e2ad 100644
+--- a/net/mac80211/tests/Makefile
++++ b/net/mac80211/tests/Makefile
+@@ -1,3 +1,3 @@
+-mac80211-tests-y += module.o util.o elems.o mfp.o tpe.o
++mac80211-tests-y += module.o util.o elems.o mfp.o tpe.o chan-mode.o
+ 
+ obj-$(CPTCFG_MAC80211_KUNIT_TEST) += mac80211-tests.o
+diff --git a/net/mac80211/tests/chan-mode.c b/net/mac80211/tests/chan-mode.c
+new file mode 100644
+index 00000000..96c7b3ab
+--- /dev/null
++++ b/net/mac80211/tests/chan-mode.c
+@@ -0,0 +1,254 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * KUnit tests for channel mode functions
++ *
++ * Copyright (C) 2024 Intel Corporation
++ */
++#include <net/cfg80211.h>
++#include <kunit/test.h>
++
++#include "util.h"
++
++MODULE_IMPORT_NS("EXPORTED_FOR_KUNIT_TESTING");
++
++static const struct determine_chan_mode_case {
++	const char *desc;
++	u8 extra_supp_rate;
++	enum ieee80211_conn_mode conn_mode;
++	enum ieee80211_conn_mode expected_mode;
++	bool strict;
++	u8 userspace_selector;
++	struct ieee80211_ht_cap ht_capa_mask;
++	struct ieee80211_vht_cap vht_capa;
++	struct ieee80211_vht_cap vht_capa_mask;
++	u8 vht_basic_mcs_1_4_set:1,
++	   vht_basic_mcs_5_8_set:1,
++	   he_basic_mcs_1_4_set:1,
++	   he_basic_mcs_5_8_set:1;
++	u8 vht_basic_mcs_1_4, vht_basic_mcs_5_8;
++	u8 he_basic_mcs_1_4, he_basic_mcs_5_8;
++	u8 eht_mcs7_min_nss;
++	int error;
++} determine_chan_mode_cases[] = {
++	{
++		.desc = "Normal case, EHT is working",
++		.conn_mode = IEEE80211_CONN_MODE_EHT,
++		.expected_mode = IEEE80211_CONN_MODE_EHT,
++	}, {
++		.desc = "Requiring EHT support is fine",
++		.conn_mode = IEEE80211_CONN_MODE_EHT,
++		.expected_mode = IEEE80211_CONN_MODE_EHT,
++		.extra_supp_rate = 0x80 | BSS_MEMBERSHIP_SELECTOR_EHT_PHY,
++	}, {
++		.desc = "Lowering the mode limits us",
++		.conn_mode = IEEE80211_CONN_MODE_VHT,
++		.expected_mode = IEEE80211_CONN_MODE_VHT,
++	}, {
++		.desc = "Requesting a basic rate/selector that we do not support",
++		.conn_mode = IEEE80211_CONN_MODE_EHT,
++		.extra_supp_rate = 0x80 | (BSS_MEMBERSHIP_SELECTOR_MIN - 1),
++		.error = EINVAL,
++	}, {
++		.desc = "As before, but userspace says it is taking care of it",
++		.conn_mode = IEEE80211_CONN_MODE_EHT,
++		.userspace_selector = BSS_MEMBERSHIP_SELECTOR_MIN - 1,
++		.extra_supp_rate = 0x80 | (BSS_MEMBERSHIP_SELECTOR_MIN - 1),
++		.expected_mode = IEEE80211_CONN_MODE_EHT,
++	}, {
++		.desc = "Masking out a supported rate in HT capabilities",
++		.conn_mode = IEEE80211_CONN_MODE_EHT,
++		.expected_mode = IEEE80211_CONN_MODE_LEGACY,
++		.ht_capa_mask = {
++			.mcs.rx_mask[0] = 0xf7,
++		},
++	}, {
++		.desc = "Masking out a RX rate in VHT capabilities",
++		.conn_mode = IEEE80211_CONN_MODE_EHT,
++		.expected_mode = IEEE80211_CONN_MODE_HT,
++		/* Only one RX stream at MCS 0-7 */
++		.vht_capa = {
++			.supp_mcs.rx_mcs_map =
++				cpu_to_le16(IEEE80211_VHT_MCS_SUPPORT_0_7),
++		},
++		.vht_capa_mask = {
++			.supp_mcs.rx_mcs_map = cpu_to_le16(0xffff),
++		},
++		.strict = true,
++	}, {
++		.desc = "Masking out a TX rate in VHT capabilities",
++		.conn_mode = IEEE80211_CONN_MODE_EHT,
++		.expected_mode = IEEE80211_CONN_MODE_HT,
++		/* Only one TX stream at MCS 0-7 */
++		.vht_capa = {
++			.supp_mcs.tx_mcs_map =
++				cpu_to_le16(IEEE80211_VHT_MCS_SUPPORT_0_7),
++		},
++		.vht_capa_mask = {
++			.supp_mcs.tx_mcs_map = cpu_to_le16(0xffff),
++		},
++		.strict = true,
++	}, {
++		.desc = "AP has higher VHT requirement than client",
++		.conn_mode = IEEE80211_CONN_MODE_EHT,
++		.expected_mode = IEEE80211_CONN_MODE_HT,
++		.vht_basic_mcs_5_8_set = 1,
++		.vht_basic_mcs_5_8 = 0xFE, /* require 5th stream */
++		.strict = true,
++	}, {
++		.desc = "all zero VHT basic rates are ignored (many APs broken)",
++		.conn_mode = IEEE80211_CONN_MODE_VHT,
++		.expected_mode = IEEE80211_CONN_MODE_VHT,
++		.vht_basic_mcs_1_4_set = 1,
++		.vht_basic_mcs_5_8_set = 1,
++	}, {
++		.desc = "AP requires 3 HE streams but client only has two",
++		.conn_mode = IEEE80211_CONN_MODE_EHT,
++		.expected_mode = IEEE80211_CONN_MODE_VHT,
++		.he_basic_mcs_1_4 = 0b11001010,
++		.he_basic_mcs_1_4_set = 1,
++	}, {
++		.desc = "all zero HE basic rates are ignored (iPhone workaround)",
++		.conn_mode = IEEE80211_CONN_MODE_HE,
++		.expected_mode = IEEE80211_CONN_MODE_HE,
++		.he_basic_mcs_1_4_set = 1,
++		.he_basic_mcs_5_8_set = 1,
++	}, {
++		.desc = "AP requires too many RX streams with EHT MCS 7",
++		.conn_mode = IEEE80211_CONN_MODE_EHT,
++		.expected_mode = IEEE80211_CONN_MODE_HE,
++		.eht_mcs7_min_nss = 0x15,
++	}, {
++		.desc = "AP requires too many TX streams with EHT MCS 7",
++		.conn_mode = IEEE80211_CONN_MODE_EHT,
++		.expected_mode = IEEE80211_CONN_MODE_HE,
++		.eht_mcs7_min_nss = 0x51,
++	}, {
++		.desc = "AP requires too many RX streams with EHT MCS 7 and EHT is required",
++		.extra_supp_rate = 0x80 | BSS_MEMBERSHIP_SELECTOR_EHT_PHY,
++		.conn_mode = IEEE80211_CONN_MODE_EHT,
++		.eht_mcs7_min_nss = 0x15,
++		.error = EINVAL,
++	}
++};
++KUNIT_ARRAY_PARAM_DESC(determine_chan_mode, determine_chan_mode_cases, desc)
++
++static void test_determine_chan_mode(struct kunit *test)
++{
++	const struct determine_chan_mode_case *params = test->param_value;
++	struct t_sdata *t_sdata = T_SDATA(test);
++	struct ieee80211_conn_settings conn = {
++		.mode = params->conn_mode,
++		.bw_limit = IEEE80211_CONN_BW_LIMIT_20,
++	};
++	struct cfg80211_bss cbss = {
++		.channel = &t_sdata->band_5ghz.channels[0],
++	};
++	unsigned long userspace_selectors[BITS_TO_LONGS(128)] = {};
++	u8 bss_ies[] = {
++		/* Supported Rates */
++		WLAN_EID_SUPP_RATES, 0x08,
++		0x82, 0x84, 0x8b, 0x96, 0xc, 0x12, 0x18, 0x24,
++		/* Extended Supported Rates */
++		WLAN_EID_EXT_SUPP_RATES, 0x05,
++		0x30, 0x48, 0x60, 0x6c, params->extra_supp_rate,
++		/* HT Capabilities */
++		WLAN_EID_HT_CAPABILITY, 0x1a,
++		0x0c, 0x00, 0x1b, 0xff, 0xff, 0x00, 0x00, 0x00,
++		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
++		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++		0x00, 0x00,
++		/* HT Information (0xff for 1 stream) */
++		WLAN_EID_HT_OPERATION, 0x16,
++		0x24, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x00,
++		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++		0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++		/* VHT Capabilities */
++		WLAN_EID_VHT_CAPABILITY, 0xc,
++		0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00,
++		0xff, 0xff, 0x00, 0x00,
++		/* VHT Operation */
++		WLAN_EID_VHT_OPERATION, 0x05,
++		0x00, 0x00, 0x00,
++		params->vht_basic_mcs_1_4_set ?
++			params->vht_basic_mcs_1_4 :
++			le16_get_bits(t_sdata->band_5ghz.vht_cap.vht_mcs.rx_mcs_map, 0xff),
++		params->vht_basic_mcs_5_8_set ?
++			params->vht_basic_mcs_5_8 :
++			le16_get_bits(t_sdata->band_5ghz.vht_cap.vht_mcs.rx_mcs_map, 0xff00),
++		/* HE Capabilities */
++		WLAN_EID_EXTENSION, 0x16, WLAN_EID_EXT_HE_CAPABILITY,
++		0x01, 0x78, 0xc8, 0x1a, 0x40, 0x00, 0x00, 0xbf,
++		0xce, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++		0x00, 0xfa, 0xff, 0xfa, 0xff,
++		/* HE Operation (permit overriding values) */
++		WLAN_EID_EXTENSION, 0x07, WLAN_EID_EXT_HE_OPERATION,
++		0xf0, 0x3f, 0x00, 0xb0,
++		params->he_basic_mcs_1_4_set ? params->he_basic_mcs_1_4 : 0xfc,
++		params->he_basic_mcs_5_8_set ? params->he_basic_mcs_5_8 : 0xff,
++		/* EHT Capabilities */
++		WLAN_EID_EXTENSION, 0x12, WLAN_EID_EXT_EHT_CAPABILITY,
++		0x07, 0x00, 0x1c, 0x00, 0x00, 0xfe, 0xff, 0xff,
++		0x7f, 0x01, 0x00, 0x88, 0x88, 0x88, 0x00, 0x00,
++		0x00,
++		/* EHT Operation */
++		WLAN_EID_EXTENSION, 0x09, WLAN_EID_EXT_EHT_OPERATION,
++		0x01, params->eht_mcs7_min_nss ? params->eht_mcs7_min_nss : 0x11,
++		0x00, 0x00, 0x00, 0x00, 0x24, 0x00,
++	};
++	struct ieee80211_chan_req chanreq = {};
++	struct cfg80211_chan_def ap_chandef = {};
++	struct ieee802_11_elems *elems;
++
++	if (params->strict)
++		set_bit(IEEE80211_HW_STRICT, t_sdata->local.hw.flags);
++	else
++		clear_bit(IEEE80211_HW_STRICT, t_sdata->local.hw.flags);
++
++	t_sdata->sdata->u.mgd.ht_capa_mask = params->ht_capa_mask;
++	t_sdata->sdata->u.mgd.vht_capa = params->vht_capa;
++	t_sdata->sdata->u.mgd.vht_capa_mask = params->vht_capa_mask;
++
++	if (params->userspace_selector)
++		set_bit(params->userspace_selector, userspace_selectors);
++
++	rcu_assign_pointer(cbss.ies,
++			   kunit_kzalloc(test,
++					 sizeof(cbss) + sizeof(bss_ies),
++					 GFP_KERNEL));
++	KUNIT_ASSERT_NOT_NULL(test, rcu_access_pointer(cbss.ies));
++	((struct cfg80211_bss_ies *)rcu_access_pointer(cbss.ies))->len = sizeof(bss_ies);
++
++	memcpy((void *)rcu_access_pointer(cbss.ies)->data, bss_ies,
++	       sizeof(bss_ies));
++
++	rcu_read_lock();
++	elems = ieee80211_determine_chan_mode(t_sdata->sdata, &conn, &cbss,
++					      0, &chanreq, &ap_chandef,
++					      userspace_selectors);
++	rcu_read_unlock();
++
++	/* We do not need elems, free them if they are valid. */
++	if (!IS_ERR_OR_NULL(elems))
++		kfree(elems);
++
++	if (params->error) {
++		KUNIT_ASSERT_TRUE(test, IS_ERR(elems));
++		KUNIT_ASSERT_EQ(test, PTR_ERR(elems), -params->error);
++	} else {
++		KUNIT_ASSERT_NOT_ERR_OR_NULL(test, elems);
++		KUNIT_ASSERT_EQ(test, conn.mode, params->expected_mode);
++	}
++}
++
++static struct kunit_case chan_mode_cases[] = {
++	KUNIT_CASE_PARAM(test_determine_chan_mode,
++			 determine_chan_mode_gen_params),
++	{}
++};
++
++static struct kunit_suite chan_mode = {
++	.name = "mac80211-mlme-chan-mode",
++	.test_cases = chan_mode_cases,
++};
++
++kunit_test_suite(chan_mode);
+diff --git a/net/mac80211/tests/util.c b/net/mac80211/tests/util.c
+index 0936a73e..9c2d63a5 100644
+--- a/net/mac80211/tests/util.c
++++ b/net/mac80211/tests/util.c
+@@ -266,11 +266,7 @@ int t_sdata_init(struct kunit_resource *resource, void *ctx)
+ 				cpu_to_le16(IEEE80211_VHT_MCS_SUPPORT_0_9 << 0 |
+ 					    IEEE80211_VHT_MCS_SUPPORT_0_9 << 2 |
+ 					    IEEE80211_VHT_MCS_SUPPORT_0_9 << 4 |
+-					    IEEE80211_VHT_MCS_SUPPORT_0_9 << 6 |
+-					    IEEE80211_VHT_MCS_SUPPORT_0_9 << 8 |
+-					    IEEE80211_VHT_MCS_SUPPORT_0_9 << 10 |
+-					    IEEE80211_VHT_MCS_SUPPORT_0_9 << 12 |
+-					    IEEE80211_VHT_MCS_SUPPORT_0_9 << 14);
++					    IEEE80211_VHT_MCS_SUPPORT_0_9 << 6);
+ 			sband->vht_cap.vht_mcs.tx_mcs_map =
+ 				sband->vht_cap.vht_mcs.rx_mcs_map;
+ 			break;
+diff --git a/net/mac80211/tx.c b/net/mac80211/tx.c
+index 7e0ac9b7..68fe6f26 100644
+--- a/net/mac80211/tx.c
++++ b/net/mac80211/tx.c
+@@ -1182,7 +1182,8 @@ void ieee80211_aggr_check(struct ieee80211_sub_if_data *sdata,
+ 	if (!ref || !(ref->ops->capa & RATE_CTRL_CAPA_AMPDU_TRIGGER))
+ 		return;
+ 
+-	if (!sta || !sta->sta.deflink.ht_cap.ht_supported ||
++	if (!sta ||
++	    (!sta->sta.valid_links && !sta->sta.deflink.ht_cap.ht_supported) ||
+ 	    !sta->sta.wme || skb_get_queue_mapping(skb) == IEEE80211_AC_VO ||
+ 	    skb->protocol == sdata->control_port_protocol)
+ 		return;
+@@ -5617,7 +5618,7 @@ struct sk_buff *ieee80211_beacon_get_tim(struct ieee80211_hw *hw,
+ 	if (!copy)
+ 		return bcn;
+ 
+-	ieee80211_tx_monitor(hw_to_local(hw), copy, 1, false, NULL);
++	ieee80211_tx_monitor(hw_to_local(hw), copy, 1, NULL);
+ 
+ 	return bcn;
+ }
+diff --git a/net/mac80211/util.c b/net/mac80211/util.c
+index fdda14c0..dec6e16b 100644
+--- a/net/mac80211/util.c
++++ b/net/mac80211/util.c
+@@ -2156,7 +2156,8 @@ int ieee80211_reconfig(struct ieee80211_local *local)
+ 
+  wake_up:
+ 
+-	if (local->monitors == local->open_count && local->monitors > 0)
++	if (local->virt_monitors > 0 &&
++	    local->virt_monitors == local->open_count)
+ 		ieee80211_add_virtual_monitor(local);
+ 
+ 	/*
+diff --git a/net/mac80211/wbrf.c b/net/mac80211/wbrf.c
+index 3a861230..478b34b8 100644
+--- a/net/mac80211/wbrf.c
++++ b/net/mac80211/wbrf.c
+@@ -2,6 +2,7 @@
+ /*
+  * Wifi Band Exclusion Interface for WLAN
+  * Copyright (C) 2023 Advanced Micro Devices
++ * Copyright (C) 2025 Intel Corporation
+  *
+  */
+ 
+@@ -45,7 +46,7 @@ static void get_ranges_from_chandef(struct cfg80211_chan_def *chandef,
+ 	u64 start_freq2, end_freq2;
+ 	int bandwidth;
+ 
+-	bandwidth = nl80211_chan_width_to_mhz(chandef->width);
++	bandwidth = cfg80211_chandef_get_width(chandef);
+ 
+ 	get_chan_freq_boundary(chandef->center_freq1, bandwidth, &start_freq1, &end_freq1);
+ 
+diff --git a/net/wireless/chan.c b/net/wireless/chan.c
+index 1fbe6530..bdb1dcb9 100644
+--- a/net/wireless/chan.c
++++ b/net/wireless/chan.c
+@@ -6,7 +6,7 @@
+  *
+  * Copyright 2009	Johannes Berg <johannes@sipsolutions.net>
+  * Copyright 2013-2014  Intel Mobile Communications GmbH
+- * Copyright 2018-2024	Intel Corporation
++ * Copyright 2018-2025	Intel Corporation
+  */
+ 
+ #include <linux/export.h>
+@@ -55,11 +55,6 @@ void cfg80211_chandef_create(struct cfg80211_chan_def *chandef,
+ }
+ EXPORT_SYMBOL(cfg80211_chandef_create);
+ 
+-static int cfg80211_chandef_get_width(const struct cfg80211_chan_def *c)
+-{
+-	return nl80211_chan_width_to_mhz(c->width);
+-}
+-
+ static u32 cfg80211_get_start_freq(const struct cfg80211_chan_def *chandef,
+ 				   u32 cf)
+ {
+@@ -1497,6 +1492,12 @@ bool cfg80211_reg_check_beaconing(struct wiphy *wiphy,
+ 	if (cfg->reg_power == IEEE80211_REG_VLP_AP)
+ 		permitting_flags |= IEEE80211_CHAN_ALLOW_6GHZ_VLP_AP;
+ 
++	if ((cfg->iftype == NL80211_IFTYPE_P2P_GO ||
++	     cfg->iftype == NL80211_IFTYPE_AP) &&
++	    (chandef->width == NL80211_CHAN_WIDTH_20_NOHT ||
++	     chandef->width == NL80211_CHAN_WIDTH_20))
++		permitting_flags |= IEEE80211_CHAN_ALLOW_20MHZ_ACTIVITY;
++
+ 	return _cfg80211_reg_can_beacon(wiphy, chandef, cfg->iftype,
+ 					check_no_ir ? IEEE80211_CHAN_NO_IR : 0,
+ 					permitting_flags);
+diff --git a/net/wireless/core.c b/net/wireless/core.c
+index aeb621b7..f49c7938 100644
+--- a/net/wireless/core.c
++++ b/net/wireless/core.c
+@@ -5,7 +5,7 @@
+  * Copyright 2006-2010		Johannes Berg <johannes@sipsolutions.net>
+  * Copyright 2013-2014  Intel Mobile Communications GmbH
+  * Copyright 2015-2017	Intel Deutschland GmbH
+- * Copyright (C) 2018-2024 Intel Corporation
++ * Copyright (C) 2018-2025 Intel Corporation
+  */
+ 
+ #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+@@ -162,11 +162,11 @@ int cfg80211_switch_netns(struct cfg80211_registered_device *rdev,
+ 	list_for_each_entry(wdev, &rdev->wiphy.wdev_list, list) {
+ 		if (!wdev->netdev)
+ 			continue;
+-		wdev->netdev->netns_local = false;
++		backports_clear_netns_immutable(wdev);
+ 		err = dev_change_net_namespace(wdev->netdev, net, "wlan%d");
+ 		if (err)
+ 			break;
+-		wdev->netdev->netns_local = true;
++		backports_set_netns_immutable(wdev);
+ 	}
+ 
+ 	if (err) {
+@@ -178,11 +178,11 @@ int cfg80211_switch_netns(struct cfg80211_registered_device *rdev,
+ 						     list) {
+ 			if (!wdev->netdev)
+ 				continue;
+-			wdev->netdev->netns_local = false;
++			backports_clear_netns_immutable(wdev);
+ 			err = dev_change_net_namespace(wdev->netdev, net,
+ 							"wlan%d");
+ 			WARN_ON(err);
+-			wdev->netdev->netns_local = true;
++			backports_set_netns_immutable(wdev);
+ 		}
+ 
+ 		return err;
+@@ -448,6 +448,17 @@ struct wiphy *wiphy_new_nm(const struct cfg80211_ops *ops, int sizeof_priv,
+ 	struct cfg80211_registered_device *rdev;
+ 	int alloc_size;
+ 
++	/*
++	 * Make sure the padding is >= the rest of the struct so that we
++	 * always keep it large enough to pad out the entire original
++	 * kernel's struct. We really only need to make sure it's larger
++	 * than the kernel compat is compiled against, but since it'll
++	 * only increase in size make sure it's larger than the current
++	 * version of it. Subtract since it's included.
++	 */
++	BUILD_BUG_ON(WIPHY_COMPAT_PAD_SIZE <
++		     sizeof(struct wiphy) - WIPHY_COMPAT_PAD_SIZE);
++
+ 	WARN_ON(ops->add_key && (!ops->del_key || !ops->set_default_key));
+ 	WARN_ON(ops->auth && (!ops->assoc || !ops->deauth || !ops->disassoc));
+ 	WARN_ON(ops->connect && !ops->disconnect);
+@@ -542,6 +553,9 @@ use_default_name:
+ 	INIT_WORK(&rdev->mgmt_registrations_update_wk,
+ 		  cfg80211_mgmt_registrations_update_wk);
+ 	spin_lock_init(&rdev->mgmt_registrations_lock);
++	INIT_WORK(&rdev->wiphy_work, cfg80211_wiphy_work);
++	INIT_LIST_HEAD(&rdev->wiphy_work_list);
++	spin_lock_init(&rdev->wiphy_work_lock);
+ 
+ #ifdef CPTCFG_CFG80211_DEFAULT_PS
+ 	rdev->wiphy.flags |= WIPHY_FLAG_PS_ON_BY_DEFAULT;
+@@ -559,9 +573,6 @@ use_default_name:
+ 		return NULL;
+ 	}
+ 
+-	INIT_WORK(&rdev->wiphy_work, cfg80211_wiphy_work);
+-	INIT_LIST_HEAD(&rdev->wiphy_work_list);
+-	spin_lock_init(&rdev->wiphy_work_lock);
+ 	INIT_WORK(&rdev->rfkill_block, cfg80211_rfkill_block_work);
+ 	INIT_WORK(&rdev->conn_work, cfg80211_conn_work);
+ 	INIT_WORK(&rdev->event_work, cfg80211_event_work);
+@@ -789,6 +800,7 @@ int wiphy_register(struct wiphy *wiphy)
+ 				  BIT(NL80211_CHAN_WIDTH_80) |
+ 				  BIT(NL80211_CHAN_WIDTH_80P80) |
+ 				  BIT(NL80211_CHAN_WIDTH_160) |
++				  BIT(NL80211_CHAN_WIDTH_320) |
+ 				  BIT(NL80211_CHAN_WIDTH_5) |
+ 				  BIT(NL80211_CHAN_WIDTH_10))))
+ 			return -EINVAL;
+@@ -1520,7 +1532,7 @@ static int cfg80211_netdev_notifier_call(struct notifier_block *nb,
+ 		SET_NETDEV_DEVTYPE(dev, &wiphy_type);
+ 		wdev->netdev = dev;
+ 		/* can only change netns with wiphy */
+-		dev->netns_local = true;
++		backports_set_netns_immutable(wdev);
+ 
+ 		cfg80211_init_wdev(wdev);
+ 		break;
+diff --git a/net/wireless/core.h b/net/wireless/core.h
+index 9b9e6cd5..59bd9bc4 100644
+--- a/net/wireless/core.h
++++ b/net/wireless/core.h
+@@ -3,7 +3,7 @@
+  * Wireless configuration interface internals.
+  *
+  * Copyright 2006-2010	Johannes Berg <johannes@sipsolutions.net>
+- * Copyright (C) 2018-2024 Intel Corporation
++ * Copyright (C) 2018-2025 Intel Corporation
+  */
+ #ifndef __NET_WIRELESS_CORE_H
+ #define __NET_WIRELESS_CORE_H
+@@ -180,7 +180,6 @@ struct cfg80211_internal_bss {
+ 	struct list_head list;
+ 	struct list_head hidden_list;
+ 	struct rb_node rbn;
+-	u64 ts_boottime;
+ 	unsigned long ts;
+ 	unsigned long refcount;
+ 	atomic_t hold;
+@@ -569,8 +568,8 @@ void cfg80211_wdev_release_link_bsses(struct wireless_dev *wdev, u16 link_mask);
+ 
+ int cfg80211_assoc_ml_reconf(struct cfg80211_registered_device *rdev,
+ 			     struct net_device *dev,
+-			     struct cfg80211_assoc_link *links,
+-			     u16 rem_links);
++			     struct cfg80211_ml_reconf_req *req);
++
+ /**
+  * struct cfg80211_colocated_ap - colocated AP information
+  *
+diff --git a/net/wireless/mlme.c b/net/wireless/mlme.c
+index ac2a97a9..1a9f486b 100644
+--- a/net/wireless/mlme.c
++++ b/net/wireless/mlme.c
+@@ -4,7 +4,7 @@
+  *
+  * Copyright (c) 2009, Jouni Malinen <j@w1.fi>
+  * Copyright (c) 2015		Intel Deutschland GmbH
+- * Copyright (C) 2019-2020, 2022-2024 Intel Corporation
++ * Copyright (C) 2019-2020, 2022-2025 Intel Corporation
+  */
+ 
+ #include <linux/kernel.h>
+@@ -1297,25 +1297,24 @@ void cfg80211_stop_background_radar_detection(struct wireless_dev *wdev)
+ 
+ int cfg80211_assoc_ml_reconf(struct cfg80211_registered_device *rdev,
+ 			     struct net_device *dev,
+-			     struct cfg80211_assoc_link *links,
+-			     u16 rem_links)
++			     struct cfg80211_ml_reconf_req *req)
+ {
+ 	struct wireless_dev *wdev = dev->ieee80211_ptr;
+ 	int err;
+ 
+ 	lockdep_assert_wiphy(wdev->wiphy);
+ 
+-	err = rdev_assoc_ml_reconf(rdev, dev, links, rem_links);
++	err = rdev_assoc_ml_reconf(rdev, dev, req);
+ 	if (!err) {
+ 		int link_id;
+ 
+ 		for (link_id = 0; link_id < IEEE80211_MLD_MAX_NUM_LINKS;
+ 		     link_id++) {
+-			if (!links[link_id].bss)
++			if (!req->add_links[link_id].bss)
+ 				continue;
+ 
+-			cfg80211_ref_bss(&rdev->wiphy, links[link_id].bss);
+-			cfg80211_hold_bss(bss_from_pub(links[link_id].bss));
++			cfg80211_ref_bss(&rdev->wiphy, req->add_links[link_id].bss);
++			cfg80211_hold_bss(bss_from_pub(req->add_links[link_id].bss));
+ 		}
+ 	}
+ 
+@@ -1361,6 +1360,10 @@ void cfg80211_mlo_reconf_add_done(struct net_device *dev,
+ 		if (data->added_links & BIT(link_id)) {
+ 			wdev->links[link_id].client.current_bss =
+ 				bss_from_pub(bss);
++
++			memcpy(wdev->links[link_id].addr,
++			       data->links[link_id].addr,
++			       ETH_ALEN);
+ 		} else {
+ 			cfg80211_unhold_bss(bss_from_pub(bss));
+ 			cfg80211_put_bss(wiphy, bss);
+diff --git a/net/wireless/nl80211.c b/net/wireless/nl80211.c
+index 7fc806f4..eb68ccfc 100644
+--- a/net/wireless/nl80211.c
++++ b/net/wireless/nl80211.c
+@@ -5,7 +5,7 @@
+  * Copyright 2006-2010	Johannes Berg <johannes@sipsolutions.net>
+  * Copyright 2013-2014  Intel Mobile Communications GmbH
+  * Copyright 2015-2017	Intel Deutschland GmbH
+- * Copyright (C) 2018-2024 Intel Corporation
++ * Copyright (C) 2018-2025 Intel Corporation
+  */
+ 
+ #include <linux/if.h>
+@@ -436,10 +436,13 @@ static const struct nla_policy
+ nl80211_fils_discovery_policy[NL80211_FILS_DISCOVERY_ATTR_MAX + 1] = {
+ 	[NL80211_FILS_DISCOVERY_ATTR_INT_MIN] = NLA_POLICY_MAX(NLA_U32, 10000),
+ 	[NL80211_FILS_DISCOVERY_ATTR_INT_MAX] = NLA_POLICY_MAX(NLA_U32, 10000),
++#if LINUX_VERSION_IS_GEQ(5,10,0)
+ 	[NL80211_FILS_DISCOVERY_ATTR_TMPL] =
+-			NLA_POLICY_RANGE(NLA_BINARY,
+-					 NL80211_FILS_DISCOVERY_TMPL_MIN_LEN,
+-					 IEEE80211_MAX_DATA_LEN),
++			NLA_POLICY_BINARY_RANGE(NL80211_FILS_DISCOVERY_TMPL_MIN_LEN, IEEE80211_MAX_DATA_LEN),
++#else
++	[NL80211_FILS_DISCOVERY_ATTR_TMPL] = { .type = NLA_BINARY,
++					       .len = IEEE80211_MAX_DATA_LEN },
++#endif
+ };
+ 
+ static const struct nla_policy
+@@ -477,14 +480,18 @@ nl80211_sta_wme_policy[NL80211_STA_WME_MAX + 1] = {
+ 	[NL80211_STA_WME_MAX_SP] = { .type = NLA_U8 },
+ };
+ 
++#if LINUX_VERSION_IS_GEQ(5,8,0)
+ static const struct netlink_range_validation nl80211_punct_bitmap_range = {
+ 	.min = 0,
+ 	.max = 0xffff,
+ };
++#endif
+ 
++#if LINUX_VERSION_IS_GEQ(5,10,0)
+ static const struct netlink_range_validation q_range = {
+ 	.max = INT_MAX,
+ };
++#endif
+ 
+ static const struct nla_policy nl80211_policy[NUM_NL80211_ATTR] = {
+ 	[0] = { .strict_start_type = NL80211_ATTR_HE_OBSS_PD },
+@@ -559,7 +566,11 @@ static const struct nla_policy nl80211_policy[NUM_NL80211_ATTR] = {
+ 	[NL80211_ATTR_MPATH_NEXT_HOP] = NLA_POLICY_ETH_ADDR_COMPAT,
+ 
+ 	/* allow 3 for NUL-termination, we used to declare this NLA_STRING */
+-	[NL80211_ATTR_REG_ALPHA2] = NLA_POLICY_RANGE(NLA_BINARY, 2, 3),
++#if LINUX_VERSION_IS_GEQ(5,10,0)
++	[NL80211_ATTR_REG_ALPHA2] = NLA_POLICY_BINARY_RANGE(2, 3),
++#else
++	[NL80211_ATTR_REG_ALPHA2] = { .type = NLA_STRING, .len = 2 },
++#endif
+ 	[NL80211_ATTR_REG_RULES] = { .type = NLA_NESTED },
+ 
+ 	[NL80211_ATTR_BSS_CTS_PROT] = { .type = NLA_U8 },
+@@ -709,16 +720,24 @@ static const struct nla_policy nl80211_policy[NUM_NL80211_ATTR] = {
+ 	 * The value of the Length field of the Supported Operating
+ 	 * Classes element is between 2 and 253.
+ 	 */
++#if LINUX_VERSION_IS_GEQ(5,10,0)
+ 	[NL80211_ATTR_STA_SUPPORTED_OPER_CLASSES] =
+-		NLA_POLICY_RANGE(NLA_BINARY, 2, 253),
++		NLA_POLICY_BINARY_RANGE(2, 253),
++#else
++	[NL80211_ATTR_STA_SUPPORTED_OPER_CLASSES] =
++		{ .type = NLA_BINARY },
++#endif
+ 	[NL80211_ATTR_HANDLE_DFS] = { .type = NLA_FLAG },
+ 	[NL80211_ATTR_OPMODE_NOTIF] = { .type = NLA_U8 },
+ 	[NL80211_ATTR_VENDOR_ID] = { .type = NLA_U32 },
+ 	[NL80211_ATTR_VENDOR_SUBCMD] = { .type = NLA_U32 },
+ 	[NL80211_ATTR_VENDOR_DATA] = { .type = NLA_BINARY },
+-	[NL80211_ATTR_QOS_MAP] = NLA_POLICY_RANGE(NLA_BINARY,
+-						  IEEE80211_QOS_MAP_LEN_MIN,
+-						  IEEE80211_QOS_MAP_LEN_MAX),
++#if LINUX_VERSION_IS_GEQ(5,10,0)
++	[NL80211_ATTR_QOS_MAP] = NLA_POLICY_BINARY_RANGE(IEEE80211_QOS_MAP_LEN_MIN, IEEE80211_QOS_MAP_LEN_MAX),
++#else
++	[NL80211_ATTR_QOS_MAP] = { .type = NLA_BINARY,
++				   .len = IEEE80211_QOS_MAP_LEN_MAX },
++#endif
+ 	[NL80211_ATTR_MAC_HINT] = NLA_POLICY_EXACT_LEN_WARN(ETH_ALEN),
+ 	[NL80211_ATTR_WIPHY_FREQ_HINT] = { .type = NLA_U32 },
+ 	[NL80211_ATTR_TDLS_PEER_CAPABILITY] = { .type = NLA_U32 },
+@@ -772,7 +791,11 @@ static const struct nla_policy nl80211_policy[NUM_NL80211_ATTR] = {
+ 
+ 	[NL80211_ATTR_TXQ_LIMIT] = { .type = NLA_U32 },
+ 	[NL80211_ATTR_TXQ_MEMORY_LIMIT] = { .type = NLA_U32 },
++#if LINUX_VERSION_IS_GEQ(5,10,0)
+ 	[NL80211_ATTR_TXQ_QUANTUM] = NLA_POLICY_FULL_RANGE(NLA_U32, &q_range),
++#else
++	[NL80211_ATTR_TXQ_QUANTUM] = { .type = NLA_U32 },
++#endif
+ 	[NL80211_ATTR_HE_CAPABILITY] =
+ 		NLA_POLICY_VALIDATE_FN(NLA_BINARY, validate_he_capa,
+ 				       NL80211_HE_MAX_CAPABILITY_LEN),
+@@ -822,11 +845,9 @@ static const struct nla_policy nl80211_policy[NUM_NL80211_ATTR] = {
+ 	[NL80211_ATTR_RADAR_BACKGROUND] = { .type = NLA_FLAG },
+ 	[NL80211_ATTR_AP_SETTINGS_FLAGS] = { .type = NLA_U32 },
+ 	[NL80211_ATTR_EHT_CAPABILITY] =
+-		NLA_POLICY_RANGE(NLA_BINARY,
+-				 NL80211_EHT_MIN_CAPABILITY_LEN,
+-				 NL80211_EHT_MAX_CAPABILITY_LEN),
+-	[NL80211_ATTR_DISABLE_EHT] = { .type = NLA_FLAG },
+-	[NL80211_ATTR_MLO_LINKS] =
++		NLA_POLICY_BINARY_RANGE(NL80211_EHT_MIN_CAPABILITY_LEN, NL80211_EHT_MAX_CAPABILITY_LEN),
++		[NL80211_ATTR_DISABLE_EHT] = { .type = NLA_FLAG },
++		[NL80211_ATTR_MLO_LINKS] =
+ 		NLA_POLICY_NESTED_ARRAY(nl80211_policy),
+ 	[NL80211_ATTR_MLO_LINK_ID] =
+ 		NLA_POLICY_RANGE(NLA_U8, 0, IEEE80211_MLD_MAX_NUM_LINKS - 1),
+@@ -834,7 +855,11 @@ static const struct nla_policy nl80211_policy[NUM_NL80211_ATTR] = {
+ 	[NL80211_ATTR_MLO_SUPPORT] = { .type = NLA_FLAG },
+ 	[NL80211_ATTR_MAX_NUM_AKM_SUITES] = { .type = NLA_REJECT },
+ 	[NL80211_ATTR_PUNCT_BITMAP] =
++#if LINUX_VERSION_IS_GEQ(5,8,0)
+ 		NLA_POLICY_FULL_RANGE(NLA_U32, &nl80211_punct_bitmap_range),
++#else
++		{ .type = NLA_U32 },
++#endif
+ 
+ 	[NL80211_ATTR_MAX_HW_TIMESTAMP_PEERS] = { .type = NLA_U16 },
+ 	[NL80211_ATTR_HW_TIMESTAMP_ENABLED] = { .type = NLA_FLAG },
+@@ -850,6 +875,7 @@ static const struct nla_policy nl80211_policy[NUM_NL80211_ATTR] = {
+ 				       NL80211_MAX_SUPP_SELECTORS),
+ 	[NL80211_ATTR_MLO_RECONF_REM_LINKS] = { .type = NLA_U16 },
+ 	[NL80211_ATTR_EPCS] = { .type = NLA_FLAG },
++	[NL80211_ATTR_ASSOC_MLD_EXT_CAPA_OPS] = { .type = NLA_U16 },
+ };
+ 
+ /* policy for the key attributes */
+@@ -1234,6 +1260,10 @@ static int nl80211_msg_put_channel(struct sk_buff *msg, struct wiphy *wiphy,
+ 		if ((chan->flags & IEEE80211_CHAN_ALLOW_6GHZ_VLP_AP) &&
+ 		    nla_put_flag(msg, NL80211_FREQUENCY_ATTR_ALLOW_6GHZ_VLP_AP))
+ 			goto nla_put_failure;
++		if ((chan->flags & IEEE80211_CHAN_ALLOW_20MHZ_ACTIVITY) &&
++		    nla_put_flag(msg,
++				 NL80211_FREQUENCY_ATTR_ALLOW_20MHZ_ACTIVITY))
++			goto nla_put_failure;
+ 	}
+ 
+ 	if (nla_put_u32(msg, NL80211_FREQUENCY_ATTR_MAX_TX_POWER,
+@@ -2768,6 +2798,7 @@ static int nl80211_send_wiphy(struct cfg80211_registered_device *rdev,
+ 			CMD(update_ft_ies, UPDATE_FT_IES);
+ 			if (rdev->wiphy.sar_capa)
+ 				CMD(set_sar_specs, SET_SAR_SPECS);
++			CMD(assoc_ml_reconf, ASSOC_MLO_RECONF);
+ 		}
+ #undef CMD
+ 
+@@ -4250,6 +4281,10 @@ static int nl80211_parse_mon_options(struct cfg80211_registered_device *rdev,
+ 		change = true;
+ 	}
+ 
++	/* MONITOR_FLAG_COOK_FRAMES is deprecated, refuse cooperation */
++	if (params->flags & MONITOR_FLAG_COOK_FRAMES)
++		return -EOPNOTSUPP;
++
+ 	if (params->flags & MONITOR_FLAG_ACTIVE &&
+ 	    !(rdev->wiphy.features & NL80211_FEATURE_ACTIVE_MONITOR))
+ 		return -EOPNOTSUPP;
+@@ -6751,9 +6786,6 @@ static int nl80211_send_station(struct sk_buff *msg, u32 cmd, u32 portid,
+ 
+ 	PUT_SINFO_U64(RX_BYTES64, rx_bytes);
+ 	PUT_SINFO_U64(TX_BYTES64, tx_bytes);
+-	PUT_SINFO(LLID, llid, u16);
+-	PUT_SINFO(PLID, plid, u16);
+-	PUT_SINFO(PLINK_STATE, plink_state, u8);
+ 	PUT_SINFO_U64(RX_DURATION, rx_duration);
+ 	PUT_SINFO_U64(TX_DURATION, tx_duration);
+ 
+@@ -6797,13 +6829,18 @@ static int nl80211_send_station(struct sk_buff *msg, u32 cmd, u32 portid,
+ 	PUT_SINFO(TX_RETRIES, tx_retries, u32);
+ 	PUT_SINFO(TX_FAILED, tx_failed, u32);
+ 	PUT_SINFO(EXPECTED_THROUGHPUT, expected_throughput, u32);
+-	PUT_SINFO(AIRTIME_LINK_METRIC, airtime_link_metric, u32);
+ 	PUT_SINFO(BEACON_LOSS, beacon_loss_count, u32);
++
++	PUT_SINFO(LLID, llid, u16);
++	PUT_SINFO(PLID, plid, u16);
++	PUT_SINFO(PLINK_STATE, plink_state, u8);
++	PUT_SINFO(AIRTIME_LINK_METRIC, airtime_link_metric, u32);
+ 	PUT_SINFO(LOCAL_PM, local_pm, u32);
+ 	PUT_SINFO(PEER_PM, peer_pm, u32);
+ 	PUT_SINFO(NONPEER_PM, nonpeer_pm, u32);
+ 	PUT_SINFO(CONNECTED_TO_GATE, connected_to_gate, u8);
+ 	PUT_SINFO(CONNECTED_TO_AS, connected_to_as, u8);
++	PUT_SINFO_U64(T_OFFSET, t_offset);
+ 
+ 	if (sinfo->filled & BIT_ULL(NL80211_STA_INFO_BSS_PARAM)) {
+ 		bss_param = nla_nest_start_noflag(msg,
+@@ -6831,7 +6868,6 @@ static int nl80211_send_station(struct sk_buff *msg, u32 cmd, u32 portid,
+ 		    &sinfo->sta_flags))
+ 		goto nla_put_failure;
+ 
+-	PUT_SINFO_U64(T_OFFSET, t_offset);
+ 	PUT_SINFO_U64(RX_DROP_MISC, rx_dropped_misc);
+ 	PUT_SINFO_U64(BEACON_RX, rx_beacon);
+ 	PUT_SINFO(BEACON_SIGNAL_AVG, rx_beacon_signal_avg, u8);
+@@ -10172,7 +10208,7 @@ static int nl80211_start_radar_detection(struct sk_buff *skb,
+ 	switch (wdev->iftype) {
+ 	case NL80211_IFTYPE_AP:
+ 	case NL80211_IFTYPE_P2P_GO:
+-		wdev->links[0].ap.chandef = chandef;
++		wdev->links[link_id].ap.chandef = chandef;
+ 		break;
+ 	case NL80211_IFTYPE_ADHOC:
+ 		wdev->u.ibss.chandef = chandef;
+@@ -10520,9 +10556,9 @@ static int nl80211_send_bss(struct sk_buff *msg, struct netlink_callback *cb,
+ 		     intbss->parent_bssid)))
+ 		goto nla_put_failure;
+ 
+-	if (intbss->ts_boottime &&
++	if (res->ts_boottime &&
+ 	    nla_put_u64_64bit(msg, NL80211_BSS_LAST_SEEN_BOOTTIME,
+-			      intbss->ts_boottime, NL80211_BSS_PAD))
++			      res->ts_boottime, NL80211_BSS_PAD))
+ 		goto nla_put_failure;
+ 
+ 	if (!nl80211_put_signal(msg, intbss->pub.chains,
+@@ -11374,6 +11410,10 @@ static int nl80211_associate(struct sk_buff *skb, struct genl_info *info)
+ 			err = -EINVAL;
+ 			goto free;
+ 		}
++
++		if (info->attrs[NL80211_ATTR_ASSOC_MLD_EXT_CAPA_OPS])
++			req.ext_mld_capa_ops =
++				nla_get_u16(info->attrs[NL80211_ATTR_ASSOC_MLD_EXT_CAPA_OPS]);
+ 	} else {
+ 		if (req.link_id >= 0)
+ 			return -EINVAL;
+@@ -11383,6 +11423,9 @@ static int nl80211_associate(struct sk_buff *skb, struct genl_info *info)
+ 		if (IS_ERR(req.bss))
+ 			return PTR_ERR(req.bss);
+ 		ap_addr = req.bss->bssid;
++
++		if (info->attrs[NL80211_ATTR_ASSOC_MLD_EXT_CAPA_OPS])
++			return -EINVAL;
+ 	}
+ 
+ 	err = nl80211_crypto_settings(rdev, info, &req.crypto, 1);
+@@ -15284,7 +15327,7 @@ static int nl80211_prepare_vendor_dump(struct sk_buff *skb,
+ 		err = nl80211_vendor_check_policy(
+ 				&(*rdev)->wiphy.vendor_commands[vcmd_idx],
+ 				attrbuf[NL80211_ATTR_VENDOR_DATA],
+-				cb->extack);
++				genl_callback_extack(cb));
+ 		if (err)
+ 			goto out;
+ 	}
+@@ -16489,9 +16532,9 @@ static int nl80211_assoc_ml_reconf(struct sk_buff *skb, struct genl_info *info)
+ 	struct cfg80211_registered_device *rdev = info->user_ptr[0];
+ 	struct net_device *dev = info->user_ptr[1];
+ 	struct wireless_dev *wdev = dev->ieee80211_ptr;
+-	struct cfg80211_assoc_link links[IEEE80211_MLD_MAX_NUM_LINKS] = {};
++	struct cfg80211_ml_reconf_req req = {};
+ 	unsigned int link_id;
+-	u16 add_links, rem_links;
++	u16 add_links;
+ 	int err;
+ 
+ 	if (!wdev->valid_links)
+@@ -16507,7 +16550,7 @@ static int nl80211_assoc_ml_reconf(struct sk_buff *skb, struct genl_info *info)
+ 
+ 	add_links = 0;
+ 	if (info->attrs[NL80211_ATTR_MLO_LINKS]) {
+-		err = nl80211_process_links(rdev, links,
++		err = nl80211_process_links(rdev, req.add_links,
+ 					    /* mark as MLO, but not assoc */
+ 					    IEEE80211_MLD_MAX_NUM_LINKS,
+ 					    NULL, 0, info);
+@@ -16516,33 +16559,35 @@ static int nl80211_assoc_ml_reconf(struct sk_buff *skb, struct genl_info *info)
+ 
+ 		for (link_id = 0; link_id < IEEE80211_MLD_MAX_NUM_LINKS;
+ 		     link_id++) {
+-			if (!links[link_id].bss)
++			if (!req.add_links[link_id].bss)
+ 				continue;
+ 			add_links |= BIT(link_id);
+ 		}
+ 	}
+ 
+ 	if (info->attrs[NL80211_ATTR_MLO_RECONF_REM_LINKS])
+-		rem_links =
++		req.rem_links =
+ 			nla_get_u16(info->attrs[NL80211_ATTR_MLO_RECONF_REM_LINKS]);
+-	else
+-		rem_links = 0;
+ 
+ 	/* Validate that existing links are not added, removed links are valid
+ 	 * and don't allow adding and removing the same links
+ 	 */
+-	if ((add_links & rem_links) || !(add_links | rem_links) ||
++	if ((add_links & req.rem_links) || !(add_links | req.rem_links) ||
+ 	    (wdev->valid_links & add_links) ||
+-	    ((wdev->valid_links & rem_links) != rem_links)) {
++	    ((wdev->valid_links & req.rem_links) != req.rem_links)) {
+ 		err = -EINVAL;
+ 		goto out;
+ 	}
+ 
+-	err = -EOPNOTSUPP;
++	if (info->attrs[NL80211_ATTR_ASSOC_MLD_EXT_CAPA_OPS])
++		req.ext_mld_capa_ops =
++			nla_get_u16(info->attrs[NL80211_ATTR_ASSOC_MLD_EXT_CAPA_OPS]);
++
++	err = cfg80211_assoc_ml_reconf(rdev, dev, &req);
+ 
+ out:
+-	for (link_id = 0; link_id < ARRAY_SIZE(links); link_id++)
+-		cfg80211_put_bss(&rdev->wiphy, links[link_id].bss);
++	for (link_id = 0; link_id < ARRAY_SIZE(req.add_links); link_id++)
++		cfg80211_put_bss(&rdev->wiphy, req.add_links[link_id].bss);
+ 
+ 	return err;
+ }
+@@ -16655,9 +16700,15 @@ static u32 nl80211_internal_flags[] = {
+ #undef SELECTOR
+ };
+ 
++#if LINUX_VERSION_IS_LESS(6,2,0)
++static int nl80211_pre_doit(const struct genl_ops *ops,
++			    struct sk_buff *skb,
++			    struct genl_info *info)
++#else
+ static int nl80211_pre_doit(const struct genl_split_ops *ops,
+ 			    struct sk_buff *skb,
+ 			    struct genl_info *info)
++#endif
+ {
+ 	struct cfg80211_registered_device *rdev = NULL;
+ 	struct wireless_dev *wdev = NULL;
+@@ -16757,9 +16808,15 @@ out_unlock:
+ 	return err;
+ }
+ 
++#if LINUX_VERSION_IS_LESS(6,2,0)
++static void nl80211_post_doit(const struct genl_ops *ops,
++			      struct sk_buff *skb,
++			      struct genl_info *info)
++#else
+ static void nl80211_post_doit(const struct genl_split_ops *ops,
+ 			      struct sk_buff *skb,
+ 			      struct genl_info *info)
++#endif
+ {
+ 	u32 internal_flags = nl80211_internal_flags[ops->internal_flags];
+ 
+@@ -16915,9 +16972,11 @@ static const struct genl_ops nl80211_ops[] = {
+ 		/* can be retrieved by unprivileged users */
+ 		.internal_flags = IFLAGS(NL80211_FLAG_NEED_WIPHY),
+ 	},
++#if LINUX_VERSION_IS_GEQ(5,10,0)
+ };
+ 
+ static const struct genl_small_ops nl80211_small_ops[] = {
++#endif
+ 	{
+ 		.cmd = NL80211_CMD_SET_WIPHY,
+ 		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
+@@ -17785,8 +17844,10 @@ static struct genl_family nl80211_fam __ro_after_init = {
+ 	.module = THIS_MODULE,
+ 	.ops = nl80211_ops,
+ 	.n_ops = ARRAY_SIZE(nl80211_ops),
++#if LINUX_VERSION_IS_GEQ(5,10,0)
+ 	.small_ops = nl80211_small_ops,
+ 	.n_small_ops = ARRAY_SIZE(nl80211_small_ops),
++#endif
+ #if LINUX_VERSION_IS_GEQ(6,1,0)
+ 	.resv_start_op = NL80211_CMD_REMOVE_LINK_STA + 1,
+ #endif
+diff --git a/net/wireless/rdev-ops.h b/net/wireless/rdev-ops.h
+index 8d6b461e..963afb60 100644
+--- a/net/wireless/rdev-ops.h
++++ b/net/wireless/rdev-ops.h
+@@ -2,7 +2,7 @@
+ /*
+  * Portions of this file
+  * Copyright(c) 2016-2017 Intel Deutschland GmbH
+- * Copyright (C) 2018, 2021-2024 Intel Corporation
++ * Copyright (C) 2018, 2021-2025 Intel Corporation
+  */
+ #ifndef __CFG80211_RDEV_OPS
+ #define __CFG80211_RDEV_OPS
+@@ -1551,16 +1551,14 @@ rdev_get_radio_mask(struct cfg80211_registered_device *rdev,
+ static inline int
+ rdev_assoc_ml_reconf(struct cfg80211_registered_device *rdev,
+ 		     struct net_device *dev,
+-		     struct cfg80211_assoc_link *add_links,
+-		     u16 rem_links)
++		     struct cfg80211_ml_reconf_req *req)
+ {
+ 	struct wiphy *wiphy = &rdev->wiphy;
+ 	int ret = -EOPNOTSUPP;
+ 
+-	trace_rdev_assoc_ml_reconf(wiphy, dev, add_links, rem_links);
++	trace_rdev_assoc_ml_reconf(wiphy, dev, req);
+ 	if (rdev->ops->assoc_ml_reconf)
+-		ret = rdev->ops->assoc_ml_reconf(wiphy, dev, add_links,
+-						 rem_links);
++		ret = rdev->ops->assoc_ml_reconf(wiphy, dev, req);
+ 	trace_rdev_return_int(wiphy, ret);
+ 
+ 	return ret;
+diff --git a/net/wireless/reg.c b/net/wireless/reg.c
+index 6a947579..6afbdaf2 100644
+--- a/net/wireless/reg.c
++++ b/net/wireless/reg.c
+@@ -5,7 +5,7 @@
+  * Copyright 2008-2011	Luis R. Rodriguez <mcgrof@qca.qualcomm.com>
+  * Copyright 2013-2014  Intel Mobile Communications GmbH
+  * Copyright      2017  Intel Deutschland GmbH
+- * Copyright (C) 2018 - 2024 Intel Corporation
++ * Copyright (C) 2018 - 2025 Intel Corporation
+  *
+  * Permission to use, copy, modify, and/or distribute this software for any
+  * purpose with or without fee is hereby granted, provided that the above
+@@ -58,6 +58,7 @@
+ #include <linux/moduleparam.h>
+ #include <linux/firmware.h>
+ #include <linux/units.h>
++#include <linux/module.h>
+ 
+ #include <net/cfg80211.h>
+ #include "core.h"
+@@ -1603,6 +1604,8 @@ static u32 map_regdom_flags(u32 rd_flags)
+ 		channel_flags |= IEEE80211_CHAN_PSD;
+ 	if (rd_flags & NL80211_RRF_ALLOW_6GHZ_VLP_AP)
+ 		channel_flags |= IEEE80211_CHAN_ALLOW_6GHZ_VLP_AP;
++	if (rd_flags & NL80211_RRF_ALLOW_20MHZ_ACTIVITY)
++		channel_flags |= IEEE80211_CHAN_ALLOW_20MHZ_ACTIVITY;
+ 	return channel_flags;
+ }
+ 
+diff --git a/net/wireless/scan.c b/net/wireless/scan.c
+index 4aae51a9..21c0b06a 100644
+--- a/net/wireless/scan.c
++++ b/net/wireless/scan.c
+@@ -5,7 +5,7 @@
+  * Copyright 2008 Johannes Berg <johannes@sipsolutions.net>
+  * Copyright 2013-2014  Intel Mobile Communications GmbH
+  * Copyright 2016	Intel Deutschland GmbH
+- * Copyright (C) 2018-2024 Intel Corporation
++ * Copyright (C) 2018-2025 Intel Corporation
+  */
+ #include <linux/kernel.h>
+ #include <linux/slab.h>
+@@ -1365,7 +1365,7 @@ void cfg80211_bss_age(struct cfg80211_registered_device *rdev,
+                       unsigned long age_secs)
+ {
+ 	struct cfg80211_internal_bss *bss;
+-	unsigned long age_jiffies = msecs_to_jiffies(age_secs * MSEC_PER_SEC);
++	unsigned long age_jiffies = secs_to_jiffies(age_secs);
+ 
+ 	spin_lock_bh(&rdev->bss_lock);
+ 	list_for_each_entry(bss, &rdev->bss_list, list)
+@@ -1934,7 +1934,7 @@ cfg80211_update_known_bss(struct cfg80211_registered_device *rdev,
+ 		known->pub.signal = new->pub.signal;
+ 	known->pub.capability = new->pub.capability;
+ 	known->ts = new->ts;
+-	known->ts_boottime = new->ts_boottime;
++	known->pub.ts_boottime = new->pub.ts_boottime;
+ 	known->parent_tsf = new->parent_tsf;
+ 	known->pub.chains = new->pub.chains;
+ 	memcpy(known->pub.chain_signal, new->pub.chain_signal,
+@@ -2291,7 +2291,7 @@ cfg80211_inform_single_bss_data(struct wiphy *wiphy,
+ 		tmp.pub.signal = 0;
+ 	tmp.pub.beacon_interval = data->beacon_interval;
+ 	tmp.pub.capability = data->capability;
+-	tmp.ts_boottime = drv_data->boottime_ns;
++	tmp.pub.ts_boottime = drv_data->boottime_ns;
+ 	tmp.parent_tsf = drv_data->parent_tsf;
+ 	ether_addr_copy(tmp.parent_bssid, drv_data->parent_bssid);
+ 	tmp.pub.chains = drv_data->chains;
+diff --git a/net/wireless/sysfs.c b/net/wireless/sysfs.c
+index 62f26618..4f855bf4 100644
+--- a/net/wireless/sysfs.c
++++ b/net/wireless/sysfs.c
+@@ -154,7 +154,11 @@ static SIMPLE_DEV_PM_OPS(wiphy_pm_ops, wiphy_suspend, wiphy_resume);
+ #define WIPHY_PM_OPS NULL
+ #endif
+ 
++#if LINUX_VERSION_IS_GEQ(6,2,0)
+ static const void *wiphy_namespace(const struct device *d)
++#else
++static const void *wiphy_namespace(struct device *d)
++#endif
+ {
+ 	struct wiphy *wiphy = container_of(d, struct wiphy, dev);
+ 
+diff --git a/net/wireless/trace.h b/net/wireless/trace.h
+index 5badab1a..b462abf6 100644
+--- a/net/wireless/trace.h
++++ b/net/wireless/trace.h
+@@ -2,7 +2,7 @@
+ /*
+  * Portions of this file
+  * Copyright(c) 2016-2017 Intel Deutschland GmbH
+- * Copyright (C) 2018, 2020-2024 Intel Corporation
++ * Copyright (C) 2018, 2020-2025 Intel Corporation
+  */
+ #undef TRACE_SYSTEM
+ #define TRACE_SYSTEM cfg80211
+@@ -1378,6 +1378,7 @@ TRACE_EVENT(rdev_assoc,
+ 		__dynamic_array(u8, fils_kek, req->fils_kek_len)
+ 		__dynamic_array(u8, fils_nonces,
+ 				req->fils_nonces ? 2 * FILS_NONCE_LEN : 0)
++		__field(u16, ext_mld_capa_ops)
+ 	),
+ 	TP_fast_assign(
+ 		WIPHY_ASSIGN;
+@@ -1404,6 +1405,7 @@ TRACE_EVENT(rdev_assoc,
+ 		if (req->fils_nonces)
+ 			memcpy(__get_dynamic_array(fils_nonces),
+ 			       req->fils_nonces, 2 * FILS_NONCE_LEN);
++		__entry->ext_mld_capa_ops = req->ext_mld_capa_ops;
+ 	),
+ 	TP_printk(WIPHY_PR_FMT ", " NETDEV_PR_FMT ", bssid: %pM"
+ 		  ", previous bssid: %pM, use mfp: %s, flags: 0x%x",
+@@ -4118,7 +4120,7 @@ TRACE_EVENT(cfg80211_links_removed,
+ 		NETDEV_ASSIGN;
+ 		__entry->link_mask = link_mask;
+ 	),
+-	TP_printk(NETDEV_PR_FMT ", link_mask:%u", NETDEV_PR_ARG,
++	TP_printk(NETDEV_PR_FMT ", link_mask:0x%x", NETDEV_PR_ARG,
+ 		  __entry->link_mask)
+ );
+ 
+@@ -4142,14 +4144,14 @@ TRACE_EVENT(cfg80211_mlo_reconf_add_done,
+ 
+ TRACE_EVENT(rdev_assoc_ml_reconf,
+ 	TP_PROTO(struct wiphy *wiphy, struct net_device *netdev,
+-		 struct cfg80211_assoc_link *add_links,
+-		 u16 rem_links),
+-	TP_ARGS(wiphy, netdev, add_links, rem_links),
++		 struct cfg80211_ml_reconf_req *req),
++	TP_ARGS(wiphy, netdev, req),
+ 	TP_STRUCT__entry(
+ 		WIPHY_ENTRY
+ 		NETDEV_ENTRY
+ 		__field(u16, add_links)
+ 		__field(u16, rem_links)
++		__field(u16, ext_mld_capa_ops)
+ 	),
+ 	TP_fast_assign(
+ 		WIPHY_ASSIGN;
+@@ -4157,10 +4159,11 @@ TRACE_EVENT(rdev_assoc_ml_reconf,
+ 		u32 i;
+ 
+ 		__entry->add_links = 0;
+-		__entry->rem_links = rem_links;
+-		for (i = 0; add_links && i < IEEE80211_MLD_MAX_NUM_LINKS; i++)
+-			if (add_links[i].bss)
++		__entry->rem_links = req->rem_links;
++		for (i = 0; i < IEEE80211_MLD_MAX_NUM_LINKS; i++)
++			if (req->add_links[i].bss)
+ 				__entry->add_links |= BIT(i);
++		__entry->ext_mld_capa_ops = req->ext_mld_capa_ops;
+ 	),
+ 	TP_printk(WIPHY_PR_FMT ", " NETDEV_PR_FMT ", add_links=0x%x, rem_links=0x%x",
+ 		  WIPHY_PR_ARG, NETDEV_PR_ARG,
+diff --git a/net/wireless/util.c b/net/wireless/util.c
+index 60157943..ed868c0f 100644
+--- a/net/wireless/util.c
++++ b/net/wireless/util.c
+@@ -5,7 +5,7 @@
+  * Copyright 2007-2009	Johannes Berg <johannes@sipsolutions.net>
+  * Copyright 2013-2014  Intel Mobile Communications GmbH
+  * Copyright 2017	Intel Deutschland GmbH
+- * Copyright (C) 2018-2023 Intel Corporation
++ * Copyright (C) 2018-2023, 2025 Intel Corporation
+  */
+ #include <linux/export.h>
+ #include <linux/bitops.h>
+@@ -2908,7 +2908,7 @@ bool cfg80211_radio_chandef_valid(const struct wiphy_radio *radio,
+ 	u32 freq, width;
+ 
+ 	freq = ieee80211_chandef_to_khz(chandef);
+-	width = nl80211_chan_width_to_mhz(chandef->width);
++	width = cfg80211_chandef_get_width(chandef);
+ 	if (!ieee80211_radio_freq_range_valid(radio, freq, width))
+ 		return false;
+ 
+diff --git a/versions b/versions
+index e1bd473f..d9c19bd4 100644
+--- a/versions
++++ b/versions
+@@ -1,3 +1,3 @@
+-BACKPORTS_VERSION="v6.1.110-1-42-g5033ad4eb143"
+-BACKPORTED_KERNEL_VERSION="v6.14-rc7-0-g4701f33a1070"
++BACKPORTS_VERSION="a8086f9c"
++BACKPORTED_KERNEL_VERSION="wireless-next-2025-03-20-0-g1794d7ab34d2"
+ BACKPORTED_KERNEL_NAME="Linux"
+-- 
+2.45.2
+

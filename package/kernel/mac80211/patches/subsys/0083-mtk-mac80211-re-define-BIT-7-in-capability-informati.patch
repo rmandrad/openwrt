@@ -1,0 +1,27 @@
+From 4bd4731cae36cd8a668a9641388e9d0e369d31a5 Mon Sep 17 00:00:00 2001
+From: Michael-CY Lee <michael-cy.lee@mediatek.com>
+Date: Wed, 25 Dec 2024 17:47:41 +0800
+Subject: [PATCH 083/101] mtk: mac80211: re-define BIT 7 in capability
+ information
+
+Signed-off-by: Michael-CY Lee <michael-cy.lee@mediatek.com>
+---
+ include/linux/ieee80211.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/linux/ieee80211.h b/include/linux/ieee80211.h
+index 2d28089d..7b883c56 100644
+--- a/include/linux/ieee80211.h
++++ b/include/linux/ieee80211.h
+@@ -3383,7 +3383,7 @@ ieee80211_bandwidth_indication_size_ok(const u8 *data, u8 len)
+ #define WLAN_CAPABILITY_PRIVACY		(1<<4)
+ #define WLAN_CAPABILITY_SHORT_PREAMBLE	(1<<5)
+ #define WLAN_CAPABILITY_PBCC		(1<<6)
+-#define WLAN_CAPABILITY_CHANNEL_AGILITY	(1<<7)
++#define WLAN_CAPABILITY_NON_TX_BSSID_CU	(1<<7)
+ 
+ /* 802.11h */
+ #define WLAN_CAPABILITY_SPECTRUM_MGMT	(1<<8)
+-- 
+2.45.2
+

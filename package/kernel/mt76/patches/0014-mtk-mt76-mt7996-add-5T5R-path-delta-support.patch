@@ -1,0 +1,103 @@
+From c770f0cbe4298e1aba33bef32d5cff35f33969d5 Mon Sep 17 00:00:00 2001
+From: Shayne Chen <shayne.chen@mediatek.com>
+Date: Thu, 12 Dec 2024 10:46:47 +0800
+Subject: [PATCH 14/92] mtk: mt76: mt7996: add 5T5R path delta support
+
+Add 5T5R (mt7992 BE7200 ifem, 4SS) path delta support
+Rename nss_delta to path_delta since the value is based
+on the number of TX path instead of the number of spatial stream.
+(path delta [0.5dBm] = 10 * log(path number) [dBm] * 2)
+
+Signed-off-by: StanleyYP Wang <StanleyYP.Wang@mediatek.com>
+Signed-off-by: Shayne Chen <shayne.chen@mediatek.com>
+---
+ mac80211.c    |  2 +-
+ mt76.h        |  8 ++++----
+ mt7996/init.c |  6 +++---
+ mt7996/mcu.h  | 12 ++++++++++++
+ 4 files changed, 20 insertions(+), 8 deletions(-)
+
+diff --git a/mac80211.c b/mac80211.c
+index c2c464d3..91219b82 100644
+--- a/mac80211.c
++++ b/mac80211.c
+@@ -1711,7 +1711,7 @@ int mt76_get_txpower(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+ 		return -EINVAL;
+ 
+ 	n_chains = hweight16(phy->chainmask);
+-	delta = mt76_tx_power_nss_delta(n_chains);
++	delta = mt76_tx_power_path_delta(n_chains);
+ 	*dbm = DIV_ROUND_UP(phy->txpower_cur + delta, 2);
+ 
+ 	return 0;
+diff --git a/mt76.h b/mt76.h
+index cc03bc56..710a7912 100644
+--- a/mt76.h
++++ b/mt76.h
+@@ -1391,12 +1391,12 @@ static inline bool mt76_is_skb_pktid(u8 pktid)
+ 	return pktid >= MT_PACKET_ID_FIRST;
+ }
+ 
+-static inline u8 mt76_tx_power_nss_delta(u8 nss)
++static inline u8 mt76_tx_power_path_delta(u8 path)
+ {
+-	static const u8 nss_delta[4] = { 0, 6, 9, 12 };
+-	u8 idx = nss - 1;
++	static const u8 path_delta[5] = { 0, 6, 9, 12, 14};
++	u8 idx = path - 1;
+ 
+-	return (idx < ARRAY_SIZE(nss_delta)) ? nss_delta[idx] : 0;
++	return (idx < ARRAY_SIZE(path_delta)) ? path_delta[idx] : 0;
+ }
+ 
+ static inline bool mt76_testmode_enabled(struct mt76_phy *phy)
+diff --git a/mt7996/init.c b/mt7996/init.c
+index 9df9fb92..62c882cd 100644
+--- a/mt7996/init.c
++++ b/mt7996/init.c
+@@ -317,8 +317,8 @@ static void __mt7996_init_txpower(struct mt7996_phy *phy,
+ 				  struct ieee80211_supported_band *sband)
+ {
+ 	struct mt7996_dev *dev = phy->dev;
+-	int i, nss = hweight16(phy->mt76->chainmask);
+-	int nss_delta = mt76_tx_power_nss_delta(nss);
++	int i, path = hweight16(phy->mt76->chainmask);
++	int path_delta = mt76_tx_power_path_delta(path);
+ 	int pwr_delta = mt7996_eeprom_get_power_delta(dev, sband->band);
+ 	struct mt76_power_limits limits;
+ 
+@@ -330,7 +330,7 @@ static void __mt7996_init_txpower(struct mt7996_phy *phy,
+ 		target_power = mt76_get_rate_power_limits(phy->mt76, chan,
+ 							  &limits,
+ 							  target_power);
+-		target_power += nss_delta;
++		target_power += path_delta;
+ 		target_power = DIV_ROUND_UP(target_power, 2);
+ 		chan->max_power = min_t(int, chan->max_reg_power,
+ 					target_power);
+diff --git a/mt7996/mcu.h b/mt7996/mcu.h
+index b89f8b49..c9271882 100644
+--- a/mt7996/mcu.h
++++ b/mt7996/mcu.h
+@@ -841,6 +841,18 @@ enum {
+ #define MT7996_MAX_BEACON_SIZE		(MT7996_MAX_BSS_OFFLOAD_SIZE - \
+ 					 MT7996_BEACON_UPDATE_SIZE)
+ 
++static inline s8
++mt7996_get_power_bound(struct mt7996_phy *phy, s8 txpower)
++{
++	struct mt76_phy *mphy = phy->mt76;
++	int n_chains = hweight16(mphy->chainmask);
++
++	txpower = mt76_get_sar_power(mphy, mphy->chandef.chan, txpower * 2);
++	txpower -= mt76_tx_power_path_delta(n_chains);
++
++	return txpower;
++}
++
+ enum {
+ 	UNI_BAND_CONFIG_RADIO_ENABLE,
+ 	UNI_BAND_CONFIG_RTS_THRESHOLD = 0x08,
+-- 
+2.45.2
+

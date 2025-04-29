@@ -8,9 +8,9 @@ PKG_LICENSE_FILES:=
 
 PKG_SOURCE_URL:=https://github.com/openwrt/mt76
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_DATE:=2025-02-14
-PKG_SOURCE_VERSION:=e5fef138524e63314cb96ff8314048d175294e95
-PKG_MIRROR_HASH:=4d6ea8669b3034c97f5b341a5473facf4fe21262a2fde71257b57c4d1c86be5e
+PKG_SOURCE_DATE:=2025-04-11
+PKG_SOURCE_VERSION:=be28ef77e330fdee28054214c798f028ddfbbc02
+PKG_MIRROR_HASH:=e2451ac77b77f4c7a8330cd28d1906b13754e5d2af45352d236ebaf5c9f3deaf
 
 PKG_MAINTAINER:=Felix Fietkau <nbd@nbd.name>
 PKG_USE_NINJA:=0
@@ -317,11 +317,12 @@ endef
 
 define KernelPackage/mt7996e
   $(KernelPackage/mt76-default)
-  TITLE:=MediaTek MT7996E wireless driver
+  TITLE:=MediaTek MT7996/MT7992/MT7990 wireless driver
   DEPENDS+=@PCI_SUPPORT +kmod-mt76-connac +kmod-hwmon-core +@DRIVER_11AX_SUPPORT \
   	   +@KERNEL_RELAY +@DRIVER_11BE_SUPPORT
   FILES:= $(PKG_BUILD_DIR)/mt7996/mt7996e.ko
   AUTOLOAD:=$(call AutoProbe,mt7996e)
+  MODPARAMS.mt7996e:=wed_enable=1
 endef
 
 define KernelPackage/mt7992-firmware
@@ -358,6 +359,12 @@ define KernelPackage/mt7925-firmware
   $(KernelPackage/mt76-default)
   TITLE:=MediaTek MT7925 firmware
   DEPENDS+=+kmod-mt7925e
+endef
+
+define KernelPackage/mt7990-firmware
+  $(KernelPackage/mt76-default)
+  TITLE:=MediaTek MT7990 firmware
+  DEPENDS+=+kmod-mt7996e
 endef
 
 define KernelPackage/mt7925-common
@@ -405,6 +412,11 @@ NOSTDINC_FLAGS := \
 
 ifdef CONFIG_PACKAGE_MAC80211_MESH
   NOSTDINC_FLAGS += -DCONFIG_MAC80211_MESH
+endif
+
+ifdef CONFIG_PACKAGE_MAC80211_DEBUGFS
+  NOSTDINC_FLAGS += -DCONFIG_MAC80211_DEBUGFS
+  PKG_MAKE_FLAGS += CONFIG_MAC80211_DEBUGFS=y
 endif
 
 ifdef CONFIG_PACKAGE_CFG80211_TESTMODE
@@ -505,11 +517,17 @@ ifdef CONFIG_PACKAGE_kmod-mt7925e
   PKG_MAKE_FLAGS += CONFIG_MT7925E=m
 endif
 
+PKG_YEAR:=$(shell echo $(PKG_SOURCE_DATE) | cut -d'-' -f1 | cut -c3-4)
+PKG_MONTH:=$(shell echo $(PKG_SOURCE_DATE) | cut -d'-' -f2)
+ADDITIONAL_CFLAGS=-DPKG_YEAR=$(PKG_YEAR) -DPKG_MONTH=$(PKG_MONTH)
+
 define Build/Compile
-	+$(KERNEL_MAKE) $(PKG_JOBS) \
+	+$(MAKE) $(PKG_JOBS) -C "$(LINUX_DIR)" \
+		$(KERNEL_MAKE_FLAGS) \
 		$(PKG_MAKE_FLAGS) \
 		M="$(PKG_BUILD_DIR)" \
 		NOSTDINC_FLAGS="$(NOSTDINC_FLAGS)" \
+		ADDITIONAL_CFLAGS="$(ADDITIONAL_CFLAGS)" \
 		modules
 	$(MAKE) -C $(PKG_BUILD_DIR)/tools
 endef
@@ -665,6 +683,7 @@ define KernelPackage/mt7992-firmware/install
 		$(PKG_BUILD_DIR)/firmware/mt7996/mt7992_rom_patch.bin \
 		$(PKG_BUILD_DIR)/firmware/mt7996/mt7992_wa.bin \
 		$(PKG_BUILD_DIR)/firmware/mt7996/mt7992_wm.bin \
+		$(PKG_BUILD_DIR)/firmware/mt7996/mt7992_wm_tm.bin \
 		$(1)/lib/firmware/mediatek/mt7996
 endef
 
@@ -677,6 +696,7 @@ define KernelPackage/mt7992-23-firmware/install
 		$(PKG_BUILD_DIR)/firmware/mt7996/mt7992_rom_patch_23.bin \
 		$(PKG_BUILD_DIR)/firmware/mt7996/mt7992_wa_23.bin \
 		$(PKG_BUILD_DIR)/firmware/mt7996/mt7992_wm_23.bin \
+		$(PKG_BUILD_DIR)/firmware/mt7996/mt7992_wm_tm_23.bin \
 		$(1)/lib/firmware/mediatek/mt7996
 endef
 
@@ -695,6 +715,7 @@ define KernelPackage/mt7996-firmware/install
 		$(PKG_BUILD_DIR)/firmware/mt7996/mt7996_rom_patch.bin \
 		$(PKG_BUILD_DIR)/firmware/mt7996/mt7996_wa.bin \
 		$(PKG_BUILD_DIR)/firmware/mt7996/mt7996_wm.bin \
+		$(PKG_BUILD_DIR)/firmware/mt7996/mt7996_wm_tm.bin \
 		$(1)/lib/firmware/mediatek/mt7996
 endef
 
@@ -706,6 +727,18 @@ define KernelPackage/mt7996-233-firmware/install
 		$(PKG_BUILD_DIR)/firmware/mt7996/mt7996_rom_patch_233.bin \
 		$(PKG_BUILD_DIR)/firmware/mt7996/mt7996_wa_233.bin \
 		$(PKG_BUILD_DIR)/firmware/mt7996/mt7996_wm_233.bin \
+		$(PKG_BUILD_DIR)/firmware/mt7996/mt7996_wm_tm_233.bin \
+		$(1)/lib/firmware/mediatek/mt7996
+endef
+
+define KernelPackage/mt7990-firmware/install
+	$(INSTALL_DIR) $(1)/lib/firmware/mediatek/mt7996
+	cp \
+		$(PKG_BUILD_DIR)/firmware/mt7996/mt7990_rom_patch.bin \
+		$(PKG_BUILD_DIR)/firmware/mt7996/mt7990_wm.bin \
+		$(PKG_BUILD_DIR)/firmware/mt7996/mt7990_wm_tm.bin \
+		$(PKG_BUILD_DIR)/firmware/mt7996/mt7990_eeprom.bin \
+		$(PKG_BUILD_DIR)/firmware/mt7996/mt7990_eeprom_2i5i.bin \
 		$(1)/lib/firmware/mediatek/mt7996
 endef
 
@@ -764,5 +797,6 @@ $(eval $(call KernelPackage,mt7992-23-firmware))
 $(eval $(call KernelPackage,mt7996-firmware-common))
 $(eval $(call KernelPackage,mt7996-firmware))
 $(eval $(call KernelPackage,mt7996-233-firmware))
+$(eval $(call KernelPackage,mt7990-firmware))
 $(eval $(call KernelPackage,mt76))
 $(eval $(call BuildPackage,mt76-test))

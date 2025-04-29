@@ -1,0 +1,28 @@
+From 2b3661ef5a4c48ef7e3dbf52599623e401c789a6 Mon Sep 17 00:00:00 2001
+From: Michael-CY Lee <michael-cy.lee@mediatek.com>
+Date: Wed, 19 Mar 2025 09:53:33 +0800
+Subject: [PATCH 193/210] mtk: hostapd: prevent repeatly adding link to MLD
+
+Chage "active_links" to "valid_links"
+
+Signed-off-by: Michael-CY Lee <michael-cy.lee@mediatek.com>
+---
+ src/ap/hostapd.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/ap/hostapd.c b/src/ap/hostapd.c
+index 59dcd8460..16ac4e134 100644
+--- a/src/ap/hostapd.c
++++ b/src/ap/hostapd.c
+@@ -5612,7 +5612,7 @@ int hostapd_mld_add_link(struct hostapd_data *hapd)
+ {
+ 	struct hostapd_mld *mld = hapd->mld;
+ 
+-	if (!hapd->conf->mld_ap)
++	if (!hapd->conf->mld_ap || (mld->valid_links & BIT(hapd->mld_link_id)))
+ 		return 0;
+ 
+ 	/* Should not happen */
+-- 
+2.45.2
+

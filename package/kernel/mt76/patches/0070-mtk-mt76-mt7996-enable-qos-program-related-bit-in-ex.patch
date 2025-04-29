@@ -1,0 +1,33 @@
+From 736f268c72af1b5fc73c3ff6ff4a8b3658b780a4 Mon Sep 17 00:00:00 2001
+From: Howard Hsu <howard-yh.hsu@mediatek.com>
+Date: Thu, 5 Dec 2024 17:38:02 +0800
+Subject: [PATCH 70/92] mtk: mt76: mt7996: enable qos program related bit in
+ extended capabilities
+
+Enable QoS Map information bit and mirrored scs bit in extended
+capabilities for ap mode.
+
+Signed-off-by: Howard Hsu <howard-yh.hsu@mediatek.com>
+
+---
+ mt7996/init.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/mt7996/init.c b/mt7996/init.c
+index 71e23129..38de383e 100644
+--- a/mt7996/init.c
++++ b/mt7996/init.c
+@@ -81,8 +81,10 @@ static const struct ieee80211_iface_combination if_comb_7992 = {
+ static const u8 mt7996_if_types_ext_capa_ap[] = {
+ 	[0] = WLAN_EXT_CAPA1_EXT_CHANNEL_SWITCHING,
+ 	[2] = WLAN_EXT_CAPA3_MULTI_BSSID_SUPPORT,
++	[4] = WLAN_EXT_CAPA5_QOS_MAP,
+ 	[6] = WLAN_EXT_CAPA7_SCS_SUPPORT,
+ 	[7] = WLAN_EXT_CAPA8_OPMODE_NOTIF,
++	[10] = WLAN_EXT_CAPA11_MIRRORED_SCS_SUPPORT,
+ };
+ 
+ static const u8 mt7996_if_types_ext_capa_sta[] = {
+-- 
+2.45.2
+

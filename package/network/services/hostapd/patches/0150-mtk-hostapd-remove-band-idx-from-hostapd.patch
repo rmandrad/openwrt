@@ -1,0 +1,73 @@
+From 959778acbf38de0c7ee5a086a613dec9c43fef56 Mon Sep 17 00:00:00 2001
+From: StanleyYP Wang <StanleyYP.Wang@mediatek.com>
+Date: Thu, 19 Dec 2024 09:59:21 +0800
+Subject: [PATCH 150/210] mtk: hostapd: remove band idx from hostapd
+
+Remove band idx from hostapd.
+
+Signed-off-by: StanleyYP Wang <StanleyYP.Wang@mediatek.com>
+---
+ hostapd/config_file.c | 9 ---------
+ src/ap/ap_config.c    | 6 ------
+ src/ap/ap_config.h    | 1 -
+ 3 files changed, 16 deletions(-)
+
+diff --git a/hostapd/config_file.c b/hostapd/config_file.c
+index e0de8c7f4..dff019614 100644
+--- a/hostapd/config_file.c
++++ b/hostapd/config_file.c
+@@ -5583,15 +5583,6 @@ static int hostapd_config_fill(struct hostapd_config *conf,
+ 			return 1;
+ 		}
+ 		conf->pp_mode = (u8) val;
+-	} else if (os_strcmp(buf, "band_idx") == 0) {
+-		int val = atoi(pos);
+-
+-		if (val < 0) {
+-			wpa_printf(MSG_ERROR, "Line %d: invalid band_idx value",
+-				   line);
+-			return 1;
+-		}
+-		conf->band_idx = (u8) val;
+ 	} else if (os_strcmp(buf, "lpi_psd") == 0) {
+ 		u8 en = strtol(pos, NULL, 10);
+ 		conf->lpi_psd = !!en;
+diff --git a/src/ap/ap_config.c b/src/ap/ap_config.c
+index a5ae03f1d..380b3ad0d 100644
+--- a/src/ap/ap_config.c
++++ b/src/ap/ap_config.c
+@@ -314,7 +314,6 @@ struct hostapd_config * hostapd_config_defaults(void)
+ 	conf->ibf_enable = IBF_DEFAULT_ENABLE;
+ 	conf->amsdu = 1;
+ 	conf->pp_mode = PP_FW_MODE;
+-	conf->band_idx = 255;
+ 
+ 	conf->lpi_psd = 0;
+ 	conf->sku_idx = 0;
+@@ -1668,11 +1667,6 @@ int hostapd_config_check(struct hostapd_config *conf, int full_config)
+ 		return -1;
+ 	}
+ 
+-	if (full_config && conf->band_idx == 255) {
+-		wpa_printf(MSG_ERROR, "band_idx is required");
+-		return -1;
+-	}
+-
+ 	for (i = 0; i < conf->num_bss; i++) {
+ 		if (hostapd_config_check_bss(conf->bss[i], conf, full_config))
+ 			return -1;
+diff --git a/src/ap/ap_config.h b/src/ap/ap_config.h
+index c18d9eced..3268b77bc 100644
+--- a/src/ap/ap_config.h
++++ b/src/ap/ap_config.h
+@@ -1367,7 +1367,6 @@ struct hostapd_config {
+ 	u8 amsdu;
+ 	void *muru_config;
+ 	u8 pp_mode;
+-	u8 band_idx;
+ 	u8 lpi_psd;
+ 	u8 sku_idx;
+ 	u8 lpi_sku_idx;
+-- 
+2.45.2
+

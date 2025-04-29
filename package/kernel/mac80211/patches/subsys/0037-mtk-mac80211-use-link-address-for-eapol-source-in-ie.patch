@@ -1,0 +1,30 @@
+From 661bffb4d4d1969e2df2cbd047fa91637646b04b Mon Sep 17 00:00:00 2001
+From: Shayne Chen <shayne.chen@mediatek.com>
+Date: Tue, 19 Dec 2023 17:42:56 +0800
+Subject: [PATCH 037/101] mtk: mac80211: use link address for eapol source in
+ ieee80211_tx_control_port()
+
+Signed-off-by: Shayne Chen <shayne.chen@mediatek.com>
+---
+ net/mac80211/tx.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/net/mac80211/tx.c b/net/mac80211/tx.c
+index 5036f26e..27ec6487 100644
+--- a/net/mac80211/tx.c
++++ b/net/mac80211/tx.c
+@@ -6247,9 +6247,10 @@ int ieee80211_tx_control_port(struct wiphy *wiphy, struct net_device *dev,
+ 		 * for MLO STA, the SA should be the AP MLD address, but
+ 		 * the link ID has been selected already
+ 		 */
+-		if (sta && sta->sta.mlo)
++		if (sta && sta->sta.mlo && link_id == IEEE80211_LINK_UNSPECIFIED)
+ 			memcpy(ehdr->h_source, sdata->vif.addr, ETH_ALEN);
+ 	}
++
+ 	rcu_read_unlock();
+ 
+ start_xmit:
+-- 
+2.45.2
+

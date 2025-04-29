@@ -1,0 +1,41 @@
+From 77656c28d98d041de0c03d268196c84ecbd7c47c Mon Sep 17 00:00:00 2001
+From: Michael-CY Lee <michael-cy.lee@mediatek.com>
+Date: Mon, 6 May 2024 18:20:52 +0800
+Subject: [PATCH 079/210] mtk: hostapd: always do ML probe request before
+ authentication
+
+The scan result might contain old information of an AP MLD, so a ML
+probe might be necessary to update the scan result before the
+authentication.
+
+Signed-off-by: Michael-CY Lee <michael-cy.lee@mediatek.com>
+---
+ wpa_supplicant/events.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/wpa_supplicant/events.c b/wpa_supplicant/events.c
+index d502008ee..5c459c5d7 100644
+--- a/wpa_supplicant/events.c
++++ b/wpa_supplicant/events.c
+@@ -1925,15 +1925,16 @@ static int wpa_supplicant_connect_ml_missing(struct wpa_supplicant *wpa_s,
+ 
+ 	if (wpa_bss_parse_basic_ml_element(wpa_s, selected, NULL,
+ 					   &missing_links, ssid,
+-					   &ap_mld_id) ||
+-	    !missing_links)
++					   &ap_mld_id))
+ 		return 0;
+ 
+ 	removed_links = wpa_bss_parse_reconf_ml_element(wpa_s, selected);
+ 	missing_links &= ~removed_links;
+ 
++	/* FIXME Always do ML probe for the sake of stability.
+ 	if (!missing_links)
+ 		return 0;
++	*/
+ 
+ 	wpa_dbg(wpa_s, MSG_DEBUG,
+ 		"MLD: Doing an ML probe for missing links 0x%04x",
+-- 
+2.45.2
+

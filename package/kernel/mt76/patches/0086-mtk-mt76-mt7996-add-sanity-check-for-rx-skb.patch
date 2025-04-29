@@ -1,0 +1,74 @@
+From 980fc08706f3846d801a085fb67b65c296207411 Mon Sep 17 00:00:00 2001
+From: StanleyYP Wang <StanleyYP.Wang@mediatek.com>
+Date: Fri, 21 Mar 2025 08:33:59 +0800
+Subject: [PATCH 86/92] mtk: mt76: mt7996: add sanity check for rx skb
+
+Add sanity check for rx skb to prevent kernel crash
+If the RXD is corrupted for an SKB, then drop it directly and record
+the rx drop in band 0 (the band info in rxd cannot be trusted).
+For mt7992, in testmode, an SKB with a corrupted RXD (the payload is
+correct) might be sent by the firmware when fast calibration is enabled.
+The actual root cause should be further investigated.
+
+Signed-off-by: StanleyYP Wang <StanleyYP.Wang@mediatek.com>
+---
+ mt7996/mac.c | 28 ++++++++++++++++++++--------
+ 1 file changed, 20 insertions(+), 8 deletions(-)
+
+diff --git a/mt7996/mac.c b/mt7996/mac.c
+index 612ee96c..a3731ee1 100644
+--- a/mt7996/mac.c
++++ b/mt7996/mac.c
+@@ -1368,6 +1368,9 @@ mt7996_mac_tx_free(struct mt7996_dev *dev, void *data, int len)
+ 			u16 idx;
+ 
+ 			idx = FIELD_GET(MT_TXFREE_INFO_WLAN_ID, info);
++			if (idx >= mt7996_wtbl_size(dev))
++				return;
++
+ 			wcid = rcu_dereference(dev->mt76.wcid[idx]);
+ 			sta = wcid_to_sta(wcid);
+ 			if (!sta)
+@@ -1602,7 +1605,13 @@ void mt7996_queue_rx_skb(struct mt76_dev *mdev, enum mt76_rxq_id q,
+ 	__le32 *rxd = (__le32 *)skb->data;
+ 	__le32 *end = (__le32 *)&skb->data[skb->len];
+ 	enum rx_pkt_type type;
+-	u8 band_idx;
++	u8 band_idx = 0;
++	int len;
++
++	/* drop the skb when rxd is corrupted */
++	len = le32_get_bits(rxd[0], MT_RXD0_LENGTH);
++	if (unlikely(len != skb->len))
++		goto drop;
+ 
+ 	type = le32_get_bits(rxd[0], MT_RXD0_PKT_TYPE);
+ 	if (type != PKT_TYPE_NORMAL) {
+@@ -1649,14 +1658,17 @@ void mt7996_queue_rx_skb(struct mt76_dev *mdev, enum mt76_rxq_id q,
+ 		}
+ 		fallthrough;
+ 	default:
+-		band_idx = le32_get_bits(rxd[1], MT_RXD1_NORMAL_BAND_IDX);
+-		phy = mt76_dev_phy(mdev, band_idx);
+-		spin_lock_bh(&phy->rx_dbg_stats.lock);
+-		phy->rx_dbg_stats.rx_drop[MT_RX_DROP_RXD_ERR]++;
+-		spin_unlock_bh(&phy->rx_dbg_stats.lock);
+-		dev_kfree_skb(skb);
+-		break;
++		goto drop;
+ 	}
++
++	return;
++
++drop:
++	phy = mt76_dev_phy(mdev, band_idx);
++	spin_lock_bh(&phy->rx_dbg_stats.lock);
++	phy->rx_dbg_stats.rx_drop[MT_RX_DROP_RXD_ERR]++;
++	spin_unlock_bh(&phy->rx_dbg_stats.lock);
++	dev_kfree_skb(skb);
+ }
+ 
+ static struct mt7996_msdu_pg_addr *
+-- 
+2.45.2
+

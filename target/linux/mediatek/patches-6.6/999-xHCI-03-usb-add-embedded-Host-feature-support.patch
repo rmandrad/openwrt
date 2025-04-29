@@ -1,0 +1,80 @@
+From fd4d75138887dfd72b5707a4739a0aa3af43e5e3 Mon Sep 17 00:00:00 2001
+From: Zhanyong Wang <zhanyong.wang@mediatek.com>
+Date: Fri, 2 Jun 2023 13:06:27 +0800
+Subject: [PATCH 3/3] 999-xHCI-03-usb-add-embedded-Host-feature-support.patch
+
+---
+ drivers/usb/core/hub.c             | 6 +++++-
+ drivers/usb/core/otg_productlist.h | 9 +++++++++
+ drivers/usb/host/xhci-mtk.c        | 4 ++++
+ 3 files changed, 18 insertions(+), 1 deletion(-)
+
+--- a/drivers/usb/core/hub.c
++++ b/drivers/usb/core/hub.c
+@@ -2491,6 +2491,8 @@ static int usb_enumerate_device(struct u
+ 			if (err < 0)
+ 				dev_dbg(&udev->dev, "HNP fail, %d\n", err);
+ 		}
++
++		dev_info(&udev->dev, "Unsupported Device!\n");
+ 		return -ENOTSUPP;
+ 	}
+ 
+@@ -4997,9 +4999,11 @@ hub_port_init(struct usb_hub *hub, struc
+ 				goto fail;
+ 			}
+ 			if (maxp0 < 0) {
+-				if (maxp0 != -ENODEV)
++				if (maxp0 != -ENODEV) {
+ 					dev_err(&udev->dev, "device descriptor read/64, error %d\n",
+ 							maxp0);
++					dev_info(&udev->dev, "Device No Respond\n");
++				}
+ 				retval = maxp0;
+ 				continue;
+ 			}
+--- a/drivers/usb/core/otg_productlist.h
++++ b/drivers/usb/core/otg_productlist.h
+@@ -35,6 +35,15 @@ static struct usb_device_id productlist_
+ { USB_DEVICE(0x0525, 0xa4a0), },
+ #endif
+ 
++/* xhci-mtk usb3 root-hub */
++{ USB_DEVICE(0x1d6b, 0x0003), },
++
++/* xhci-mtk usb2 root-hub */
++{ USB_DEVICE(0x1d6b, 0x0002), },
++
++/* MASS STORAGE */
++{ USB_INTERFACE_INFO(USB_CLASS_MASS_STORAGE, 0, 0) },
++
+ { }	/* Terminating entry */
+ };
+ 
+--- a/drivers/usb/host/xhci-mtk.c
++++ b/drivers/usb/host/xhci-mtk.c
+@@ -20,6 +20,7 @@
+ #include <linux/regmap.h>
+ #include <linux/regulator/consumer.h>
+ #include <linux/reset.h>
++#include <linux/usb/of.h>
+ 
+ #include "xhci.h"
+ #include "xhci-mtk.h"
+@@ -662,6 +663,7 @@ static int xhci_mtk_probe(struct platfor
+ 	if (ret)
+ 		goto disable_device_wakeup;
+ 
++	hcd->tpl_support = of_usb_host_tpl_support(node);
+ 	if (!xhci_has_one_roothub(xhci)) {
+ 		xhci->shared_hcd = usb_create_shared_hcd(driver, dev,
+ 							 dev_name(dev), hcd);
+@@ -669,6 +671,8 @@ static int xhci_mtk_probe(struct platfor
+ 			ret = -ENOMEM;
+ 			goto dealloc_usb2_hcd;
+ 		}
++
++		xhci->shared_hcd->tpl_support = hcd->tpl_support;
+ 	}
+ 
+ 	usb3_hcd = xhci_get_usb3_hcd(xhci);

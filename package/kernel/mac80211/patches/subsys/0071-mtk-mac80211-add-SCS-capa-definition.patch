@@ -1,0 +1,29 @@
+From f94e7fd9d3cb89185a9ef753bb7cfec9f9ab0162 Mon Sep 17 00:00:00 2001
+From: Howard Hsu <howard-yh.hsu@mediatek.com>
+Date: Fri, 5 Jul 2024 09:42:46 +0800
+Subject: [PATCH 071/101] mtk: mac80211: add SCS capa definition
+
+Add scs capabilities definition in extended capabilities ie.
+
+Signed-off-by: Howard Hsu <howard-yh.hsu@mediatek.com>
+
+---
+ include/linux/ieee80211.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/include/linux/ieee80211.h b/include/linux/ieee80211.h
+index 508d466d..a1cf0947 100644
+--- a/include/linux/ieee80211.h
++++ b/include/linux/ieee80211.h
+@@ -4060,6 +4060,8 @@ enum ieee80211_tdls_actioncode {
+ #define WLAN_EXT_CAPA5_TDLS_PROHIBITED	BIT(6)
+ #define WLAN_EXT_CAPA5_TDLS_CH_SW_PROHIBITED	BIT(7)
+ 
++#define WLAN_EXT_CAPA7_SCS_SUPPORT 	BIT(6)
++
+ #define WLAN_EXT_CAPA8_TDLS_WIDE_BW_ENABLED	BIT(5)
+ #define WLAN_EXT_CAPA8_OPMODE_NOTIF	BIT(6)
+ 
+-- 
+2.45.2
+

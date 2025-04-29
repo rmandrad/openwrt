@@ -1,0 +1,31 @@
+From 8faefec5ea84a1253aef1fa4e9b54e09022fcc0a Mon Sep 17 00:00:00 2001
+From: Shayne Chen <shayne.chen@mediatek.com>
+Date: Mon, 29 Jan 2024 11:24:28 +0800
+Subject: [PATCH 056/210] mtk: hostapd: fix mld_assoc_link_id
+
+Signed-off-by: Shayne Chen <shayne.chen@mediatek.com>
+---
+ src/ap/hostapd.c | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/src/ap/hostapd.c b/src/ap/hostapd.c
+index b079b88b3..f32d3be9c 100644
+--- a/src/ap/hostapd.c
++++ b/src/ap/hostapd.c
+@@ -4168,11 +4168,9 @@ void hostapd_new_assoc_sta(struct hostapd_data *hapd, struct sta_info *sta,
+ 
+ #ifdef CONFIG_IEEE80211BE
+ 	if (ap_sta_is_mld(hapd, sta)) {
+-		if (sta->mld_assoc_link_id == hapd->mld_link_id) {
+-			mld_assoc_link_id = sta->mld_assoc_link_id;
+-		} else {
++		if (sta->mld_assoc_link_id != hapd->mld_link_id)
+ 			return;
+-		}
++		mld_assoc_link_id = sta->mld_assoc_link_id;
+ 	}
+ #endif /* CONFIG_IEEE80211BE */
+         if (mld_assoc_link_id != -2)
+-- 
+2.45.2
+

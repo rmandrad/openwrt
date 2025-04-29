@@ -1,0 +1,23 @@
+menuconfig MTK_SECURE_BOOT
+	bool "Enable Secure Boot"
+	select PACKAGE_dmsetup
+	select PACKAGE_cryptsetup
+	default n
+	help
+	  Select mtk secure boot
+
+if MTK_SECURE_BOOT
+
+config SBC_KEY_DIR
+	string "secure boot key directory"
+	default "../../keys"
+
+config FIT_SIGN_KEY
+	string "FIT sign key"
+	default "fit_key.key"
+
+config FIT_SIGN_ALG
+	string "FIT sign algorithm"
+	default "sha256,rsa2048"
+
+endif # MTK_SECURE_BOOT

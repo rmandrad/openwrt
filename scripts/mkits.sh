@@ -36,6 +36,8 @@ usage() {
 	printf "\n\t-o ==> create output file 'its_file'"
 	printf "\n\t-O ==> create config with dt overlay 'name:dtb'"
 	printf "\n\t-s ==> set FDT load address to 'addr' (hex)"
+	printf "\n\t-S ==> add signature at configurations with hint 'sign_key_name'"
+	printf "\n\t-b ==> set signature algorithm to 'sign_algo'"
 	printf "\n\t\t(can be specified more than once)\n"
 	exit 1
 }
@@ -49,7 +51,7 @@ LOADABLES=
 DTOVERLAY=
 DTADDR=
 
-while getopts ":A:a:c:C:D:d:e:f:i:k:l:n:o:O:v:r:s:H:" OPTION
+while getopts ":A:a:c:C:D:d:e:f:i:k:l:n:o:O:v:r:s:H:S:b:" OPTION
 do
 	case $OPTION in
 		A ) ARCH=$OPTARG;;
@@ -70,6 +72,8 @@ do
 		s ) FDTADDR=$OPTARG;;
 		H ) HASH=$OPTARG;;
 		v ) VERSION=$OPTARG;;
+		S ) SIGN_KEY_NAME=$OPTARG;;
+		b ) SIGN_ALG=$OPTARG;;
 		* ) echo "Invalid option passed to '$0' (options:$*)"
 		usage;;
 	esac
@@ -156,6 +160,49 @@ if [ -n "${ROOTFS}" ]; then
 	LOADABLES="${LOADABLES:+$LOADABLES, }\"rootfs${REFERENCE_CHAR}${ROOTFSNUM}\""
 fi
 
+# Conditionally create signature information
+if [ -n "${SIGN_KEY_NAME}" ]; then
+	if [ -z "${SIGN_ALG}" ]; then
+		SIGN_ALG="sha256,rsa2048"
+	fi
+
+	if echo "${SIGN_ALG}" | grep -q "offline"; then
+		SIGN_ALG=$(echo "${SIGN_ALG}" | sed "s/\(.*\),.*/\1/g")
+	fi
+
+	SIGN_IMAGES="sign-images = \"fdt\", \"kernel\""
+	if [ -n "${INITRD}" ]; then
+		SIGN_IMAGES="${SIGN_IMAGES}, \"ramdisk\""
+	fi
+
+	if [ -n "${ROOTFS}" ]; then
+		SIGN_IMAGES="${SIGN_IMAGES}, \"loadables\""
+	fi
+	SIGN_IMAGES="${SIGN_IMAGES};"
+
+	SIGNATURE="
+			signature {
+				algo = \"${SIGN_ALG}\";
+				padding = \"pss\";
+				key-name-hint = \"${SIGN_KEY_NAME}\";
+				${SIGN_IMAGES}
+			};
+"
+
+	if [ -n "${DTOVERLAY}" ]; then
+		OVSIGN_IMAGES="sign-images = \"fdt\";"
+
+		OVSIGNATURE="
+			signature {
+				algo = \"${SIGN_ALG}\";
+				padding = \"pss\";
+				key-name-hint = \"${SIGN_KEY_NAME}\";
+				${OVSIGN_IMAGES}
+			};
+"
+	fi
+fi
+
 # add DT overlay blobs
 FDTOVERLAY_NODE=""
 OVCONFIGS=""
@@ -188,6 +235,7 @@ OVCONFIGS=""
 			description = \"OpenWrt ${DEVICE} overlay $ovname\";
 			fdt = \"$ovnode\";
 			${COMPATIBLE_PROP}
+			${OVSIGNATURE}
 		};
 	"
 done
@@ -231,6 +279,7 @@ ${ROOTFS_NODE}
 			${LOADABLES:+loadables = ${LOADABLES};}
 			${COMPATIBLE_PROP}
 			${INITRD_PROP}
+			${SIGNATURE}
 		};
 		${OVCONFIGS}
 	};

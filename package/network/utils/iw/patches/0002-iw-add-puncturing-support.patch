@@ -1,0 +1,89 @@
+From b29da202bdcbdc75cd75db37175261fb22d1e13b Mon Sep 17 00:00:00 2001
+From: Johannes Berg <johannes.berg@intel.com>
+Date: Fri, 17 May 2024 12:12:10 +0200
+Subject: [PATCH 02/22] iw: add puncturing support
+
+Parse and pass the puncturing bitmap to the kernel in any
+chandef (except S1G), the kernel will check validity.
+
+Reviewed-by: Miriam Rachel Korenblit <miriam.rachel.korenblit@intel.com>
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+---
+ iw.h   |  7 ++++---
+ util.c | 15 ++++++++++++++-
+ 2 files changed, 18 insertions(+), 4 deletions(-)
+
+diff --git a/iw.h b/iw.h
+index 82eee7c..f416d6d 100644
+--- a/iw.h
++++ b/iw.h
+@@ -106,6 +106,7 @@ struct chandef {
+ 	unsigned int center_freq1;
+ 	unsigned int center_freq1_offset;
+ 	unsigned int center_freq2;
++	unsigned int punctured;
+ };
+ 
+ #define ARRAY_SIZE(ar) (sizeof(ar)/sizeof(ar[0]))
+@@ -210,8 +211,8 @@ unsigned char *parse_hex(char *hex, size_t *outlen);
+ 
+ int parse_keys(struct nl_msg *msg, char **argv[], int *argc);
+ 
+-#define _PARSE_FREQ_ARGS_OPT1 "<freq> [NOHT|HT20|HT40+|HT40-|5MHz|10MHz|80MHz|160MHz|320MHz]"
+-#define _PARSE_FREQ_ARGS_OPT2 "<control freq> [5|10|20|40|80|80+80|160|320] [<center1_freq> [<center2_freq>]]"
++#define _PARSE_FREQ_ARGS_OPT1 "<freq> [NOHT|HT20|HT40+|HT40-|5MHz|10MHz|80MHz|160MHz|320MHz] [punct <bitmap>]"
++#define _PARSE_FREQ_ARGS_OPT2 "<control freq> [5|10|20|40|80|80+80|160|320] [<center1_freq> [<center2_freq>]] [punct <bitmap>]"
+ #define PARSE_FREQ_ARGS(pfx, sfx) \
+ 	pfx _PARSE_FREQ_ARGS_OPT1 sfx "\n" \
+ 	pfx _PARSE_FREQ_ARGS_OPT2 sfx
+@@ -221,7 +222,7 @@ int parse_keys(struct nl_msg *msg, char **argv[], int *argc);
+ 	pfx _PARSE_FREQ_KHZ_ARGS_OPT1 sfx "\n" \
+ 	pfx _PARSE_FREQ_KHZ_ARGS_OPT2 sfx
+ #define PARSE_CHAN_ARGS(pfx) \
+-	pfx "<channel> [NOHT|HT20|HT40+|HT40-|5MHz|10MHz|80MHz|160MHz|320MHz]"
++	pfx "<channel> [NOHT|HT20|HT40+|HT40-|5MHz|10MHz|80MHz|160MHz|320MHz] [punct <bitmap>]"
+ int parse_freqchan(struct chandef *chandef, bool chan, int argc, char **argv,
+ 		    int *parsed, bool freq_in_khz);
+ enum nl80211_chan_width str_to_bw(const char *str);
+diff --git a/util.c b/util.c
+index f358317..e43d590 100644
+--- a/util.c
++++ b/util.c
+@@ -735,13 +735,23 @@ int parse_freqchan(struct chandef *chandef, bool chan, int argc, char **argv,
+ 		goto out;
+ 	}
+ 
+-	/* This was a only a channel definition, nothing further may follow. */
++	/* This was a only a channel definition, only puncturing may follow */
+ 	if (chan)
+ 		goto out;
+ 
+ 	res = parse_freqs(chandef, argc - 1, argv + 1, &_parsed, freq_in_khz);
+ 
+  out:
++	if (!freq_in_khz && argc > _parsed && strcmp(argv[_parsed], "punct") == 0) {
++		_parsed++;
++		if (argc <= _parsed)
++			return 1;
++		chandef->punctured = strtoul(argv[_parsed], &end, 10);
++		if (*end)
++			return 1;
++		_parsed++;
++	}
++
+ 	/* Error out if parsed is NULL. */
+ 	if (!parsed && _parsed != argc)
+ 		return 1;
+@@ -800,6 +810,9 @@ int put_chandef(struct nl_msg *msg, struct chandef *chandef)
+ 			    NL80211_ATTR_CENTER_FREQ2,
+ 			    chandef->center_freq2);
+ 
++	if (chandef->punctured)
++		NLA_PUT_U32(msg, NL80211_ATTR_PUNCT_BITMAP, chandef->punctured);
++
+ 	return 0;
+ 
+  nla_put_failure:
+-- 
+2.45.2
+

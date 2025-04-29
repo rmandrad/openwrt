@@ -1,0 +1,316 @@
+From e2d36a9775f9f6f03a782e791a031bb38ac54604 Mon Sep 17 00:00:00 2001
+From: Shayne Chen <shayne.chen@mediatek.com>
+Date: Wed, 16 Apr 2025 22:38:13 +0800
+Subject: [PATCH 22/22] sync nl80211.h
+
+Sync nl80211.h to wireless-next-2025-03-20 tag.
+
+Signed-off-by: Shayne Chen <shayne.chen@mediatek.com>
+---
+ nl80211.h | 188 ++++++++++++++++++++++++++++++++++++++++++++++--------
+ 1 file changed, 162 insertions(+), 26 deletions(-)
+
+diff --git a/nl80211.h b/nl80211.h
+index 6d11437..6fa52eb 100644
+--- a/nl80211.h
++++ b/nl80211.h
+@@ -11,7 +11,7 @@
+  * Copyright 2008 Jouni Malinen <jouni.malinen@atheros.com>
+  * Copyright 2008 Colin McCabe <colin@cozybit.com>
+  * Copyright 2015-2017	Intel Deutschland GmbH
+- * Copyright (C) 2018-2024 Intel Corporation
++ * Copyright (C) 2018-2025 Intel Corporation
+  *
+  * Permission to use, copy, modify, and/or distribute this software for any
+  * purpose with or without fee is hereby granted, provided that the above
+@@ -1329,6 +1329,16 @@
+  *      %NL80211_ATTR_MLO_TTLM_ULINK attributes are used to specify the
+  *      TID to Link mapping for downlink/uplink traffic.
+  *
++ * @NL80211_CMD_ASSOC_MLO_RECONF: For a non-AP MLD station, request to
++ *      add/remove links to/from the association.
++ *
++ * @NL80211_CMD_EPCS_CFG: EPCS configuration for a station. Used by userland to
++ *	control EPCS configuration. Used to notify userland on the current state
++ *	of EPCS.
++ *
++ * @NL80211_CMD_NOTIFY_CRIT_UPDATE: Notify the userspace that the status of a
++ *	critical update event was changed.
++ *
+  * @NL80211_CMD_MAX: highest used command number
+  * @__NL80211_CMD_AFTER_LAST: internal use
+  */
+@@ -1586,8 +1596,18 @@ enum nl80211_commands {
+ 
+ 	NL80211_CMD_SET_TID_TO_LINK_MAPPING,
+ 
++	NL80211_CMD_ASSOC_MLO_RECONF,
++	NL80211_CMD_EPCS_CFG,
++
+ 	/* add new commands above here */
+ 
++	/* MTK internal */
++	NL80211_CMD_ATTLM_EVENT,
++	NL80211_CMD_SET_ATTLM,
++	NL80211_CMD_SET_STA_TTLM,
++	NL80211_CMD_NOTIFY_CRIT_UPDATE,
++	NL80211_CMD_TSF_OFFSET_EVENT,
++
+ 	/* used to define NL80211_CMD_MAX below */
+ 	__NL80211_CMD_AFTER_LAST,
+ 	NL80211_CMD_MAX = __NL80211_CMD_AFTER_LAST - 1
+@@ -2870,6 +2890,46 @@ enum nl80211_commands {
+  *
+  * @NL80211_ATTR_VIF_RADIO_MASK: Bitmask of allowed radios (u32).
+  *	A value of 0 means all radios.
++ * @NL80211_ATTR_CNTDWN_OFFS_STA_PROF: An array of offsets (u16) to the channel
++ *	switch or color change counters in the per-STA profile corresponding to
++ *	the affected AP.
++ *
++ * @NL80211_ATTR_SUPPORTED_SELECTORS: supported BSS Membership Selectors, array
++ *	of supported selectors as defined by IEEE Std 802.11-2020 9.4.2.3 but
++ *	without the length restriction (at most %NL80211_MAX_SUPP_SELECTORS).
++ *	This can be used to provide a list of selectors that are implemented
++ *	by the supplicant. If not given, support for SAE_H2E is assumed.
++ *
++ * @NL80211_ATTR_MLO_RECONF_REM_LINKS: (u16) A bitmask of the links requested
++ *      to be removed from the MLO association.
++ *
++ * @NL80211_ATTR_EPCS: Flag attribute indicating that EPCS is enabled for a
++ *	station interface.
++ *
++ * @NL80211_ATTR_ASSOC_MLD_EXT_CAPA_OPS: Extended MLD capabilities and
++ *	operations that userspace implements to use during association/ML
++ *	link reconfig, currently only "BTM MLD Recommendation For Multiple
++ *	APs Support". Drivers may set additional flags that they support
++ *	in the kernel or device.
++ *
++ * @NL80211_ATTR_MLO_LINK_DISABLED_BMP: u16 bitmap of A-TTLM disabled links for
++ * 	the %NL80211_CMD_SET_ATTLM.
++ *
++ * @NL80211_ATTR_MLO_ATTLM_SWITCH_TIME: u16 attribute specifying the time for
++ * 	how long the Adv-TTLM is established.
++ *
++ * @NL80211_ATTR_MLO_ATTLM_DURATION: u32 attribute specifying the duration
++ * 	of the Adv-TTLM.
++ *
++ * @NL80211_ATTR_MLO_ATTLM_EVENT: Type of Adv-TTLM event for notification to
++ * 	userspace, contains a value of enum nl80211_attlm_event (u32).
++ *
++ * @NL80211_ATTR_MLO_ATTLM_SWITCH_TIME_TSF_TU: u16 attribute reported by the
++ * 	driver to speciffy the switch time in TU at which the Adv-TTLM is
++ * 	established.
++ *
++ * @NL80211_ATTR_CRTI_UPDATE_EVENT: Type of critical update event for notification
++ *	to userspace, contains a value of enum nl80211_crit_update_event (u8).
+  *
+  * @NUM_NL80211_ATTR: total number of nl80211_attrs available
+  * @NL80211_ATTR_MAX: highest attribute number currently defined
+@@ -3421,8 +3481,28 @@ enum nl80211_attrs {
+ 
+ 	NL80211_ATTR_VIF_RADIO_MASK,
+ 
++	NL80211_ATTR_SUPPORTED_SELECTORS,
++
++	NL80211_ATTR_MLO_RECONF_REM_LINKS,
++	NL80211_ATTR_EPCS,
++
++	NL80211_ATTR_ASSOC_MLD_EXT_CAPA_OPS,
++
+ 	/* add attributes here, update the policy in nl80211.c */
+ 
++	/* MTK internal */
++	NL80211_ATTR_CNTDWN_OFFS_STA_PROF,
++
++	NL80211_ATTR_MLO_LINK_DISABLED_BMP,
++	NL80211_ATTR_MLO_ATTLM_SWITCH_TIME,
++	NL80211_ATTR_MLO_ATTLM_DURATION,
++	NL80211_ATTR_MLO_ATTLM_EVENT,
++	NL80211_ATTR_MLO_ATTLM_SWITCH_TIME_TSF_TU,
++
++	NL80211_ATTR_CRTI_UPDATE_EVENT,
++
++	NL80211_ATTR_MLO_TSF_OFFSET_VAL,
++
+ 	__NL80211_ATTR_AFTER_LAST,
+ 	NUM_NL80211_ATTR = __NL80211_ATTR_AFTER_LAST,
+ 	NL80211_ATTR_MAX = __NL80211_ATTR_AFTER_LAST - 1
+@@ -3435,6 +3515,7 @@ enum nl80211_attrs {
+ #define NL80211_ATTR_SAE_DATA NL80211_ATTR_AUTH_DATA
+ #define NL80211_ATTR_CSA_C_OFF_BEACON NL80211_ATTR_CNTDWN_OFFS_BEACON
+ #define NL80211_ATTR_CSA_C_OFF_PRESP NL80211_ATTR_CNTDWN_OFFS_PRESP
++#define NL80211_ATTR_CSA_C_OFF_STA_PROF NL80211_ATTR_CNTDWN_OFFS_STA_PROF
+ 
+ /*
+  * Allow user space programs to use #ifdef on new attributes by defining them
+@@ -3465,6 +3546,7 @@ enum nl80211_attrs {
+ #define NL80211_WIPHY_NAME_MAXLEN		64
+ 
+ #define NL80211_MAX_SUPP_RATES			32
++#define NL80211_MAX_SUPP_SELECTORS		128
+ #define NL80211_MAX_SUPP_HT_RATES		77
+ #define NL80211_MAX_SUPP_REG_RULES		128
+ #define NL80211_TKIP_DATA_OFFSET_ENCR_KEY	0
+@@ -4299,6 +4381,8 @@ enum nl80211_wmm_rule {
+  *	otherwise completely disabled.
+  * @NL80211_FREQUENCY_ATTR_ALLOW_6GHZ_VLP_AP: This channel can be used for a
+  *	very low power (VLP) AP, despite being NO_IR.
++ * @NL80211_FREQUENCY_ATTR_ALLOW_20MHZ_ACTIVITY: This channel can be active in
++ *	20 MHz bandwidth, despite being NO_IR.
+  * @NL80211_FREQUENCY_ATTR_MAX: highest frequency attribute number
+  *	currently defined
+  * @__NL80211_FREQUENCY_ATTR_AFTER_LAST: internal use
+@@ -4343,6 +4427,7 @@ enum nl80211_frequency_attr {
+ 	NL80211_FREQUENCY_ATTR_NO_6GHZ_AFC_CLIENT,
+ 	NL80211_FREQUENCY_ATTR_CAN_MONITOR,
+ 	NL80211_FREQUENCY_ATTR_ALLOW_6GHZ_VLP_AP,
++	NL80211_FREQUENCY_ATTR_ALLOW_20MHZ_ACTIVITY,
+ 
+ 	/* keep last */
+ 	__NL80211_FREQUENCY_ATTR_AFTER_LAST,
+@@ -4554,31 +4639,34 @@ enum nl80211_sched_scan_match_attr {
+  * @NL80211_RRF_NO_6GHZ_AFC_CLIENT: Client connection to AFC AP not allowed
+  * @NL80211_RRF_ALLOW_6GHZ_VLP_AP: Very low power (VLP) AP can be permitted
+  *	despite NO_IR configuration.
++ * @NL80211_RRF_ALLOW_20MHZ_ACTIVITY: Allow activity in 20 MHz bandwidth,
++ *	despite NO_IR configuration.
+  */
+ enum nl80211_reg_rule_flags {
+-	NL80211_RRF_NO_OFDM		= 1<<0,
+-	NL80211_RRF_NO_CCK		= 1<<1,
+-	NL80211_RRF_NO_INDOOR		= 1<<2,
+-	NL80211_RRF_NO_OUTDOOR		= 1<<3,
+-	NL80211_RRF_DFS			= 1<<4,
+-	NL80211_RRF_PTP_ONLY		= 1<<5,
+-	NL80211_RRF_PTMP_ONLY		= 1<<6,
+-	NL80211_RRF_NO_IR		= 1<<7,
+-	__NL80211_RRF_NO_IBSS		= 1<<8,
+-	NL80211_RRF_AUTO_BW		= 1<<11,
+-	NL80211_RRF_IR_CONCURRENT	= 1<<12,
+-	NL80211_RRF_NO_HT40MINUS	= 1<<13,
+-	NL80211_RRF_NO_HT40PLUS		= 1<<14,
+-	NL80211_RRF_NO_80MHZ		= 1<<15,
+-	NL80211_RRF_NO_160MHZ		= 1<<16,
+-	NL80211_RRF_NO_HE		= 1<<17,
+-	NL80211_RRF_NO_320MHZ		= 1<<18,
+-	NL80211_RRF_NO_EHT		= 1<<19,
+-	NL80211_RRF_PSD			= 1<<20,
+-	NL80211_RRF_DFS_CONCURRENT	= 1<<21,
+-	NL80211_RRF_NO_6GHZ_VLP_CLIENT	= 1<<22,
+-	NL80211_RRF_NO_6GHZ_AFC_CLIENT	= 1<<23,
+-	NL80211_RRF_ALLOW_6GHZ_VLP_AP	= 1<<24,
++	NL80211_RRF_NO_OFDM                 = 1 << 0,
++	NL80211_RRF_NO_CCK                  = 1 << 1,
++	NL80211_RRF_NO_INDOOR               = 1 << 2,
++	NL80211_RRF_NO_OUTDOOR              = 1 << 3,
++	NL80211_RRF_DFS                     = 1 << 4,
++	NL80211_RRF_PTP_ONLY                = 1 << 5,
++	NL80211_RRF_PTMP_ONLY               = 1 << 6,
++	NL80211_RRF_NO_IR                   = 1 << 7,
++	__NL80211_RRF_NO_IBSS               = 1 << 8,
++	NL80211_RRF_AUTO_BW                 = 1 << 11,
++	NL80211_RRF_IR_CONCURRENT           = 1 << 12,
++	NL80211_RRF_NO_HT40MINUS            = 1 << 13,
++	NL80211_RRF_NO_HT40PLUS             = 1 << 14,
++	NL80211_RRF_NO_80MHZ                = 1 << 15,
++	NL80211_RRF_NO_160MHZ               = 1 << 16,
++	NL80211_RRF_NO_HE                   = 1 << 17,
++	NL80211_RRF_NO_320MHZ               = 1 << 18,
++	NL80211_RRF_NO_EHT                  = 1 << 19,
++	NL80211_RRF_PSD                     = 1 << 20,
++	NL80211_RRF_DFS_CONCURRENT          = 1 << 21,
++	NL80211_RRF_NO_6GHZ_VLP_CLIENT      = 1 << 22,
++	NL80211_RRF_NO_6GHZ_AFC_CLIENT      = 1 << 23,
++	NL80211_RRF_ALLOW_6GHZ_VLP_AP       = 1 << 24,
++	NL80211_RRF_ALLOW_20MHZ_ACTIVITY    = 1 << 25,
+ };
+ 
+ #define NL80211_RRF_PASSIVE_SCAN	NL80211_RRF_NO_IR
+@@ -4699,8 +4787,8 @@ enum nl80211_survey_info {
+  * @NL80211_MNTR_FLAG_PLCPFAIL: pass frames with bad PLCP
+  * @NL80211_MNTR_FLAG_CONTROL: pass control frames
+  * @NL80211_MNTR_FLAG_OTHER_BSS: disable BSSID filtering
+- * @NL80211_MNTR_FLAG_COOK_FRAMES: report frames after processing.
+- *	overrides all other flags.
++ * @NL80211_MNTR_FLAG_COOK_FRAMES: deprecated
++ *	will unconditionally be refused
+  * @NL80211_MNTR_FLAG_ACTIVE: use the configured MAC address
+  *	and ACK incoming unicast packets.
+  * @NL80211_MNTR_FLAG_SKIP_TX: do not pass local tx packets
+@@ -6648,6 +6736,7 @@ enum nl80211_ext_feature_index {
+ 	NL80211_EXT_FEATURE_OWE_OFFLOAD_AP,
+ 	NL80211_EXT_FEATURE_DFS_CONCURRENT,
+ 	NL80211_EXT_FEATURE_SPP_AMSDU_SUPPORT,
++	NL80211_EXT_FEATURE_STAS_COUNT,
+ 
+ 	/* add new features before the definition below */
+ 	NUM_NL80211_EXT_FEATURES,
+@@ -6850,6 +6939,14 @@ enum nl80211_smps_mode {
+  *	applicable for ETSI dfs domain where pre-CAC is valid for ever.
+  * @NL80211_RADAR_CAC_STARTED: Channel Availability Check has been started,
+  *	should be generated by HW if NL80211_EXT_FEATURE_DFS_OFFLOAD is enabled.
++ * @NL80211_RADAR_BACKGROUND_CHAN_UPDATE: background channel is updated by the
++ *	driver.
++ * @NL80211_RADAR_BACKGROUND_CHAN_EXPAND: background channel is updated by the
++ *	driver and required to expand main operating channel.
++ * @NL80211_RADAR_STA_CAC_SKIPPED: STA set the DFS state to available
++ *	when receiving CSA/assoc resp
++ * @NL80211_RADAR_STA_CAC_EXPIRED: STA set the DFS state to usable
++ *	when STA is disconnected or leaving the channel
+  */
+ enum nl80211_radar_event {
+ 	NL80211_RADAR_DETECTED,
+@@ -6858,6 +6955,10 @@ enum nl80211_radar_event {
+ 	NL80211_RADAR_NOP_FINISHED,
+ 	NL80211_RADAR_PRE_CAC_EXPIRED,
+ 	NL80211_RADAR_CAC_STARTED,
++	NL80211_RADAR_BACKGROUND_CHAN_UPDATE,
++	NL80211_RADAR_BACKGROUND_CHAN_EXPAND,
++	NL80211_RADAR_STA_CAC_SKIPPED,
++	NL80211_RADAR_STA_CAC_EXPIRED,
+ };
+ 
+ /**
+@@ -8080,4 +8181,39 @@ enum nl80211_wiphy_radio_freq_range {
+ 	NL80211_WIPHY_RADIO_FREQ_ATTR_MAX = __NL80211_WIPHY_RADIO_FREQ_ATTR_LAST - 1,
+ };
+ 
++/**
++ * enum nl80211_attlm_event - type of events for Advertised Tid-to-Link
++ * Mapping operations
++ *
++ * @NL80211_ATTLM_STARTED: A A-TTLM request has been set and start to count down.
++ * @NL80211_ATTLM_SWITCH_TIME_EXPIRED: The switch time of A-TTLM has expired.
++ * @NL80211ATTLM_END: The A-TTLM has been done.
++ */
++enum nl80211_attlm_event {
++	NL80211_ATTLM_STARTED,
++	NL80211_ATTLM_SWITCH_TIME_EXPIRED,
++	NL80211_ATTLM_END,
++};
++
++/**
++ * enum nl80211_crit_update_event - type of critical update event
++ *
++ * Type of event to be used with NL80211_ATTR_CRTI_UPDATE_EVENT to inform userspace
++ * about the status of the current critical update flag.
++ *
++ * @NL80211_CRIT_UPDATE_NONE: clear the critical update flag.
++ * @NL80211_CRIT_UPDATE_SINGLE: update the BPCC of a single BSS and
++ *	set the critical update flag of the BSS.
++ * @NL80211_CRIT_UPDATE_ALL: update the BPCC of all the BSSes and
++ *	set the critical update flag of all the BSSes.
++ * @NL80211_CRIT_UPDATE_FLAG: set the critical update flag without updating BPCC.
++ */
++
++enum nl80211_crit_update_event {
++	NL80211_CRIT_UPDATE_NONE,
++	NL80211_CRIT_UPDATE_SINGLE,
++	NL80211_CRIT_UPDATE_ALL,
++	NL80211_CRIT_UPDATE_FLAG
++};
++
+ #endif /* __LINUX_NL80211_H */
+-- 
+2.45.2
+

@@ -1,0 +1,146 @@
+From 3e23e6c9740d442b91f6b731ded0e306c3d53b91 Mon Sep 17 00:00:00 2001
+From: Allen Ye <allen.ye@mediatek.com>
+Date: Tue, 2 Jul 2024 10:38:49 +0800
+Subject: [PATCH 109/210] mtk: hostapd: Add bandwidth indication IE
+
+Move punct_bitmap from csa_settings to hostapd_freq_params for
+filling bandwidth indication IE while channel switch occurs.
+Handle bitmap change in hostapd_set_freq_params.
+
+Signed-off-by: Allen Ye <allen.ye@mediatek.com>
+---
+ hostapd/ctrl_iface.c   | 12 ++++++------
+ src/ap/dfs.c           |  1 -
+ src/ap/drv_callbacks.c |  1 -
+ src/ap/hostapd.c       |  6 ------
+ src/ap/ieee802_11.c    |  2 --
+ 5 files changed, 6 insertions(+), 16 deletions(-)
+
+diff --git a/hostapd/ctrl_iface.c b/hostapd/ctrl_iface.c
+index db2b038d6..85d678d57 100644
+--- a/hostapd/ctrl_iface.c
++++ b/hostapd/ctrl_iface.c
+@@ -2698,14 +2698,14 @@ static int hostapd_ctrl_check_freq_params(struct hostapd_freq_params *params,
+ 		if (params->center_freq2 || params->sec_channel_offset)
+ 			return -1;
+ 
+-		if (punct_bitmap)
++		if (params->punct_bitmap)
+ 			return -1;
+ 		break;
+ 	case 40:
+ 		if (params->center_freq2 || !params->sec_channel_offset)
+ 			return -1;
+ 
+-		if (punct_bitmap)
++		if (params->punct_bitmap)
+ 			return -1;
+ 
+ 		if (!params->center_freq1)
+@@ -2742,7 +2742,7 @@ static int hostapd_ctrl_check_freq_params(struct hostapd_freq_params *params,
+ 			return -1;
+ 		}
+ 
+-		if (params->center_freq2 && punct_bitmap)
++		if (params->center_freq2 && params->punct_bitmap)
+ 			return -1;
+ 
+ 		/* Adjacent and overlapped are not allowed for 80+80 */
+@@ -2809,7 +2809,7 @@ static int hostapd_ctrl_check_freq_params(struct hostapd_freq_params *params,
+ 		return -1;
+ 	}
+ 
+-	if (!punct_bitmap)
++	if (!params->punct_bitmap)
+ 		return 0;
+ 
+ 	if (!params->eht_enabled) {
+@@ -2827,7 +2827,7 @@ static int hostapd_ctrl_check_freq_params(struct hostapd_freq_params *params,
+ 	start_freq = params->center_freq1 - (params->bandwidth / 2);
+ 	if (!is_punct_bitmap_valid(params->bandwidth,
+ 				   (params->freq - start_freq) / 20,
+-				   punct_bitmap)) {
++				   params->punct_bitmap)) {
+ 		wpa_printf(MSG_ERROR, "Invalid preamble puncturing bitmap");
+ 		return -1;
+ 	}
+@@ -2950,7 +2950,7 @@ static int hostapd_ctrl_iface_chan_switch(struct hostapd_iface *iface,
+ 
+ #ifdef CONFIG_IEEE80211BE
+ 	hapd = iface->bss[0];
+-	if (hapd->iconf->punct_bitmap != settings.punct_bitmap &&
++	if (hapd->iconf->punct_bitmap != settings.freq_params.punct_bitmap &&
+ 	    hapd->iconf->pp_mode != PP_USR_MODE) {
+ 		hapd->iconf->pp_mode = PP_USR_MODE;
+ 		ret = hostapd_drv_pp_mode_set(hapd);
+diff --git a/src/ap/dfs.c b/src/ap/dfs.c
+index da2a556b2..a5f54f6b0 100644
+--- a/src/ap/dfs.c
++++ b/src/ap/dfs.c
+@@ -1097,7 +1097,6 @@ static int hostapd_dfs_request_channel_switch(struct hostapd_iface *iface,
+ 	os_memset(&csa_settings, 0, sizeof(csa_settings));
+ 	csa_settings.cs_count = 5;
+ 	csa_settings.block_tx = 1;
+-	csa_settings.punct_bitmap = hostapd_get_punct_bitmap(iface->bss[0]);
+ 	csa_settings.link_id = -1;
+ #ifdef CONFIG_IEEE80211BE
+ 	if (iface->bss[0]->conf->mld_ap)
+diff --git a/src/ap/drv_callbacks.c b/src/ap/drv_callbacks.c
+index 483b4d6e6..e1a9de4c8 100644
+--- a/src/ap/drv_callbacks.c
++++ b/src/ap/drv_callbacks.c
+@@ -2602,7 +2602,6 @@ static void hostapd_event_pp_bitmap_update(struct hostapd_data *hapd,
+ 	os_memset(&csa_settings, 0, sizeof(csa_settings));
+ 	csa_settings.cs_count = 5;
+ 	csa_settings.block_tx = 0;
+-	csa_settings.punct_bitmap = ch_switch->punct_bitmap;
+ 	csa_settings.link_id = ch_switch->link_id;
+ 
+ 	err = hostapd_set_freq_params(&csa_settings.freq_params,
+diff --git a/src/ap/hostapd.c b/src/ap/hostapd.c
+index 50a3e86c0..6e0e6d380 100644
+--- a/src/ap/hostapd.c
++++ b/src/ap/hostapd.c
+@@ -4638,11 +4638,6 @@ static int hostapd_fill_csa_settings(struct hostapd_data *hapd,
+ 	if (ret)
+ 		return ret;
+ 
+-#ifdef CONFIG_IEEE80211BE
+-	old_punct_bitmap = iface->conf->punct_bitmap;
+-	iface->conf->punct_bitmap = settings->punct_bitmap;
+-#endif /* CONFIG_IEEE80211BE */
+-
+ 	/* Another CU in the new channel due to OP element modification */
+ 	ieee802_11_set_bss_critical_update(hapd, BSS_CRIT_UPDATE_EVENT_EHT_OPERATION);
+ 	ret = hostapd_build_beacon_data(hapd, &settings->beacon_after);
+@@ -4833,7 +4828,6 @@ int hostapd_update_aff_link_beacon(struct hostapd_data *hapd, u8 cs_count)
+ 		settings.link_id = cs_link_id;
+ 		settings.freq_params.link_id = link_id;
+ 		settings.cs_count = cs_count;
+-		settings.punct_bitmap = conf->punct_bitmap;
+ 		ret = hostapd_drv_switch_channel(h, &settings);
+ 		free_beacon_data(&settings.beacon_csa);
+ 		free_beacon_data(&settings.beacon_after);
+diff --git a/src/ap/ieee802_11.c b/src/ap/ieee802_11.c
+index e5c57a67c..9037f8c04 100644
+--- a/src/ap/ieee802_11.c
++++ b/src/ap/ieee802_11.c
+@@ -7533,7 +7533,6 @@ u8 * hostapd_eid_txpower_envelope(struct hostapd_data *hapd, u8 *eid)
+ 				    tx_pwr);
+ }
+ 
+-
+ /* Wide Bandwidth Channel Switch subelement */
+ static u8 * hostapd_eid_wb_channel_switch(struct hostapd_data *hapd, u8 *eid,
+ 					  u8 chan1, u8 chan2)
+@@ -7597,7 +7596,6 @@ static u8 * hostapd_eid_wb_channel_switch(struct hostapd_data *hapd, u8 *eid,
+ 	return eid;
+ }
+ 
+-
+ #ifdef CONFIG_IEEE80211BE
+ /* Bandwidth Indication element that is also used as the Bandwidth Indication
+  * For Channel Switch subelement within a Channel Switch Wrapper element. */
+-- 
+2.45.2
+

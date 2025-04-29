@@ -70,6 +70,7 @@ tools-y += util-linux
 tools-y += xz
 tools-y += zip
 tools-y += zlib
+tools-y += fdt-patch-dm-verify
 tools-$(if $(CONFIG_BUILD_ALL_HOST_TOOLS),y) += liblzo
 tools-$(if $(CONFIG_BUILD_ALL_HOST_TOOLS)$(BUILD_B43_TOOLS),y) += b43-tools
 tools-$(if $(CONFIG_BUILD_ALL_HOST_TOOLS)$(BUILD_BZIP2_TOOLS),y) += bzip2

@@ -1,0 +1,188 @@
+From b05ce5a3dc9933c103332eda7648cdfc6717412d Mon Sep 17 00:00:00 2001
+From: MeiChia Chiu <MeiChia.Chiu@mediatek.com>
+Date: Fri, 6 Sep 2024 17:22:37 +0800
+Subject: [PATCH 133/210] mtk: hostapd: Add support for TSF offset
+
+To add support for handling TSF offset event, and
+populate the TSF offset in the per-station profile
+within the beacon
+
+Signed-off-by: MeiChia Chiu <MeiChia.Chiu@mediatek.com>
+---
+ src/ap/drv_callbacks.c             | 19 +++++++++++++++++++
+ src/ap/hostapd.h                   |  4 +++-
+ src/ap/ieee802_11_eht.c            |  2 +-
+ src/drivers/driver.h               | 10 ++++++++++
+ src/drivers/driver_nl80211_event.c | 20 ++++++++++++++++++++
+ src/drivers/nl80211_copy.h         |  3 +++
+ 6 files changed, 56 insertions(+), 2 deletions(-)
+
+diff --git a/src/ap/drv_callbacks.c b/src/ap/drv_callbacks.c
+index 7ea6b56bc..cc51504a3 100644
+--- a/src/ap/drv_callbacks.c
++++ b/src/ap/drv_callbacks.c
+@@ -1547,6 +1547,17 @@ static void hostapd_event_update_crit_update_flag(struct hostapd_data *hapd, u8
+ 		   type, hapd->eht_mld_bss_param_change, hapd->mld->name,
+ 		   hapd->mld_link_id);
+ }
++
++void hostapd_event_tsf_offset(struct hostapd_data *hapd, s64 *tsf_offset)
++{
++	struct hostapd_mld *mld = hapd->mld;
++
++	if (!hapd->conf->mld_ap || !mld)
++		return;
++
++	os_memcpy(hapd->tsf_offset, tsf_offset, sizeof(hapd->tsf_offset));
++}
++
+ #endif /* CONFIG_IEEE80211BE */
+ 
+ 
+@@ -2978,6 +2989,14 @@ void hostapd_wpa_event(void *ctx, enum wpa_event_type event,
+ 	case EVENT_ATTLM:
+ #ifdef CONFIG_IEEE80211BE
+ 		hostapd_event_attlm(hapd, &data->attlm_event);
++#endif /* CONFIG_IEEE80211BE */
++		break;
++	case EVENT_TSF_OFFSET:
++#ifdef CONFIG_IEEE80211BE
++		if (!data)
++			break;
++		hapd = switch_link_hapd(hapd, data->tsf_event.link_id);
++		hostapd_event_tsf_offset(hapd, &data->tsf_event.tsf_offset);
+ #endif /* CONFIG_IEEE80211BE */
+ 		break;
+ 	case EVENT_CONNECT_FAILED_REASON:
+diff --git a/src/ap/hostapd.h b/src/ap/hostapd.h
+index 701764af4..d7112abc4 100644
+--- a/src/ap/hostapd.h
++++ b/src/ap/hostapd.h
+@@ -536,6 +536,8 @@ struct hostapd_data {
+ 	 * total, additional 7 characters required. */
+ 	char ctrl_sock_iface[IFNAMSIZ + 7 + 1];
+ 
++	s64 tsf_offset[MAX_NUM_MLD_LINKS];
++
+ #ifdef CONFIG_TESTING_OPTIONS
+ 	u8 eht_mld_link_removal_count;
+ #endif /* CONFIG_TESTING_OPTIONS */
+@@ -1037,7 +1039,7 @@ int hostapd_fill_cca_settings(struct hostapd_data *hapd,
+ #ifdef CONFIG_IEEE80211BE
+ 
+ void hostapd_event_attlm(struct hostapd_data *hapd, struct attlm_event *attlm_event);
+-
++void hostapd_event_tsf_offset(struct hostapd_data *hapd, s64 *tsf_offset);
+ bool hostapd_mld_is_first_bss(struct hostapd_data *hapd);
+ void hostapd_mld_interface_freed(struct hostapd_data *hapd);
+ 
+diff --git a/src/ap/ieee802_11_eht.c b/src/ap/ieee802_11_eht.c
+index febf24d0a..6df0dee25 100644
+--- a/src/ap/ieee802_11_eht.c
++++ b/src/ap/ieee802_11_eht.c
+@@ -664,7 +664,7 @@ static u8 * hostapd_eid_eht_basic_ml_common(struct hostapd_data *hapd,
+ 		 * TODO: Currently setting TSF offset to zero. However, this
+ 		 * information needs to come from the driver.
+ 		 */
+-		wpabuf_put_le64(buf, 0);
++		wpabuf_put_le64(buf, link_bss->tsf_offset[hapd->mld_link_id]);
+ 
+ 		/* DTIM Info */
+ 		wpabuf_put_u8(buf, 0); /* DTIM Count */
+diff --git a/src/drivers/driver.h b/src/drivers/driver.h
+index a02fca795..306db297b 100644
+--- a/src/drivers/driver.h
++++ b/src/drivers/driver.h
+@@ -6323,6 +6323,11 @@ enum wpa_event_type {
+ 	 */
+ 	EVENT_ATTLM,
+ 
++	/**
++	 * EVENT_TSF_OFFSET - TSF OFFSET VALUE FROM DRIVER
++	 */
++	EVENT_TSF_OFFSET,
++
+ 	/**
+ 	 * EVENT_TID_LINK_MAP - MLD event to set TID-to-link mapping
+ 	 *
+@@ -7157,6 +7162,11 @@ union wpa_event_data {
+ 		u16 switch_time_tsf_tu;
+ 	} attlm_event;
+ 
++	struct tsf_event {
++		s64 tsf_offset[MAX_NUM_MLD_LINKS];
++		u8 link_id;
++	} tsf_event;
++
+ 	/**
+ 	 * struct connect_failed - Data for EVENT_CONNECT_FAILED_REASON
+ 	 * @addr: Remote client address
+diff --git a/src/drivers/driver_nl80211_event.c b/src/drivers/driver_nl80211_event.c
+index 117356513..6f9c6d040 100644
+--- a/src/drivers/driver_nl80211_event.c
++++ b/src/drivers/driver_nl80211_event.c
+@@ -192,6 +192,7 @@ static const char * nl80211_command_to_string(enum nl80211_commands cmd)
+ 	C2S(NL80211_CMD_EPCS_CFG)
+ 	C2S(NL80211_CMD_ATTLM_EVENT)
+ 	C2S(NL80211_CMD_SET_ATTLM)
++	C2S(NL80211_CMD_TSF_OFFSET_EVENT)
+ 	C2S(NL80211_CMD_NOTIFY_CRIT_UPDATE)
+ 	C2S(__NL80211_CMD_AFTER_LAST)
+ 	}
+@@ -1376,6 +1377,20 @@ static void mlme_event_attlm(struct wpa_driver_nl80211_data *drv,
+ }
+ 
+ 
++static void mlme_event_tsf_offset(struct wpa_driver_nl80211_data *drv,
++				  struct nlattr *link_id,
++				  struct nlattr *tsf_offset)
++{
++	union wpa_event_data event;
++
++	os_memset(&event, 0, sizeof(event));
++	event.tsf_event.link_id = nla_get_u8(link_id);
++	os_memcpy(event.tsf_event.tsf_offset, nla_data(tsf_offset), nla_len(tsf_offset));
++
++	wpa_supplicant_event(drv->ctx, EVENT_TSF_OFFSET, &event);
++}
++
++
+ static void mlme_timeout_event(struct wpa_driver_nl80211_data *drv,
+ 			       enum nl80211_commands cmd, struct nlattr *addr)
+ {
+@@ -4330,6 +4345,11 @@ static void do_process_drv_event(struct i802_bss *bss, int cmd,
+ 				 tb[NL80211_ATTR_MLO_ATTLM_EVENT],
+ 				 tb[NL80211_ATTR_MLO_ATTLM_SWITCH_TIME_TSF_TU]);
+ 		break;
++	case NL80211_CMD_TSF_OFFSET_EVENT:
++		mlme_event_tsf_offset(drv,
++				      tb[NL80211_ATTR_MLO_LINK_ID],
++				      tb[NL80211_ATTR_MLO_TSF_OFFSET_VAL]);
++		break;
+ 	case NL80211_CMD_DISCONNECT:
+ 		mlme_event_disconnect(drv, tb[NL80211_ATTR_REASON_CODE],
+ 				      tb[NL80211_ATTR_MAC],
+diff --git a/src/drivers/nl80211_copy.h b/src/drivers/nl80211_copy.h
+index 881257228..752b63d11 100644
+--- a/src/drivers/nl80211_copy.h
++++ b/src/drivers/nl80211_copy.h
+@@ -1605,6 +1605,7 @@ enum nl80211_commands {
+ 	NL80211_CMD_ATTLM_EVENT,
+ 	NL80211_CMD_SET_ATTLM,
+ 	NL80211_CMD_NOTIFY_CRIT_UPDATE,
++	NL80211_CMD_TSF_OFFSET_EVENT,
+ 
+ 	/* used to define NL80211_CMD_MAX below */
+ 	__NL80211_CMD_AFTER_LAST,
+@@ -3492,6 +3493,8 @@ enum nl80211_attrs {
+ 
+ 	NL80211_ATTR_CRTI_UPDATE_EVENT,
+ 
++	NL80211_ATTR_MLO_TSF_OFFSET_VAL,
++
+ 	__NL80211_ATTR_AFTER_LAST,
+ 	NUM_NL80211_ATTR = __NL80211_ATTR_AFTER_LAST,
+ 	NL80211_ATTR_MAX = __NL80211_ATTR_AFTER_LAST - 1
+-- 
+2.45.2
+

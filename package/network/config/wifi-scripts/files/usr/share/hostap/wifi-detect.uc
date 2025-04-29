@@ -150,14 +150,19 @@ function wiphy_detect() {
 				band_info.he = true;
 				he_phy_cap |= ift.he_cap_phy[0];
 
-				if (!ift.eht_cap_phy)
-					continue;
+				/* if (!ift.eht_cap_phy) */
+				/*	continue; */
 
+				/* TODO: EHT */
+				/* FIXME: hardcode */
 				band_info.eht = true;
-				eht_phy_cap |= ift.eht_cap_phy[0];
+				eht_phy_cap = 2;
+				/* eht_phy_cap |= ift.eht_cap_phy[0]; */
 			}
 
-			if (band_name != "2G" &&
+			if (band_name == "6G" && band_info.eht)
+				band_info.max_width = 320;
+			else if (band_name != "2G" &&
 			    (he_phy_cap & 0x18) || ((band.vht_capa >> 2) & 0x3))
 				band_info.max_width = 160;
 			else if (band_name != "2G" &&

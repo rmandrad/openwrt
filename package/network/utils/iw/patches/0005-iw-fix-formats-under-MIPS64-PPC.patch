@@ -1,0 +1,30 @@
+From 73231dd05c3112f703c6d791a4eabd8d999147ce Mon Sep 17 00:00:00 2001
+From: Rosen Penev <rosenp@gmail.com>
+Date: Tue, 2 Jul 2024 12:35:44 -0700
+Subject: [PATCH 05/22] iw: fix formats under MIPS64/PPC
+
+__SANE_USERSPACE_TYPES__ needs to be defined to get consistent 64-bit
+type defines and to fix -Wformat warnings.
+
+Signed-off-by: Rosen Penev <rosenp@gmail.com>
+Link: https://lore.kernel.org/r/20240702193544.5984-1-rosenp@gmail.com
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+---
+ Makefile | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Makefile b/Makefile
+index 17be33f..2652fac 100644
+--- a/Makefile
++++ b/Makefile
+@@ -17,6 +17,7 @@ CFLAGS ?= -O2 -g
+ CFLAGS += -Wall -Wextra -Wundef -Wstrict-prototypes -Wno-trigraphs -fno-strict-aliasing -fno-common
+ CFLAGS += -Werror-implicit-function-declaration -Wsign-compare -Wno-unused-parameter
+ CFLAGS += -Wdeclaration-after-statement
++CFLAGS += -D__SANE_USERSPACE_TYPES__
+ CFLAGS += $(CFLAGS_EVAL)
+ CFLAGS += $(EXTRA_CFLAGS)
+ 
+-- 
+2.45.2
+

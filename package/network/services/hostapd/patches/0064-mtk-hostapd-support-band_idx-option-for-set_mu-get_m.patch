@@ -1,0 +1,312 @@
+From 719ca2f50a7e7e27362b2a2b72b7bcc8733c546e Mon Sep 17 00:00:00 2001
+From: Howard Hsu <howard-yh.hsu@mediatek.com>
+Date: Thu, 29 Feb 2024 19:55:34 +0800
+Subject: [PATCH 064/210] mtk: hostapd: support band_idx option for
+ set_mu/get_mu vendor command
+
+Support band_idx for set_mu and get_mu vendor command. The usage shows
+as below:
+1. get_mu: $ hostapd_cli -i <intf> get_mu <band_idx>
+2. set_mu: $ hostapd_cli -i <intf> set_mu <mu_onff>:<band_idx>
+
+Also, make 'band_idx' a mandatory configuration option.
+
+Signed-off-by: Howard Hsu <howard-yh.hsu@mediatek.com>
+Signed-off-by: Michael-CY Lee <michael-cy.lee@mediatek.com>
+---
+ hostapd/config_file.c        |  9 +++++
+ hostapd/ctrl_iface.c         | 78 ++++++++++++++++++++++++++++--------
+ hostapd/hostapd_cli.c        |  2 +-
+ src/ap/ap_config.c           |  6 +++
+ src/ap/ap_config.h           |  1 +
+ src/ap/ap_drv_ops.c          |  2 +-
+ src/common/mtk_vendor.h      |  1 +
+ src/drivers/driver.h         |  2 +-
+ src/drivers/driver_nl80211.c | 15 +++----
+ 9 files changed, 88 insertions(+), 28 deletions(-)
+
+diff --git a/hostapd/config_file.c b/hostapd/config_file.c
+index d48353cd6..daf9103f1 100644
+--- a/hostapd/config_file.c
++++ b/hostapd/config_file.c
+@@ -5569,6 +5569,15 @@ static int hostapd_config_fill(struct hostapd_config *conf,
+ 			return 1;
+ 		}
+ 		conf->pp_mode = (u8) val;
++	} else if (os_strcmp(buf, "band_idx") == 0) {
++		int val = atoi(pos);
++
++		if (val < 0) {
++			wpa_printf(MSG_ERROR, "Line %d: invalid band_idx value",
++				   line);
++			return 1;
++		}
++		conf->band_idx = (u8) val;
+ 	} else {
+ 		wpa_printf(MSG_ERROR,
+ 			   "Line %d: unknown configuration item '%s'",
+diff --git a/hostapd/ctrl_iface.c b/hostapd/ctrl_iface.c
+index 343013f36..18f8bcda1 100644
+--- a/hostapd/ctrl_iface.c
++++ b/hostapd/ctrl_iface.c
+@@ -4385,17 +4385,42 @@ hostapd_ctrl_iface_set_mu(struct hostapd_data *hapd, char *cmd,
+ 	value = pos;
+ 
+ 	if (os_strcmp(config, "onoff") == 0) {
+-		int mu = atoi(value);
+-		if (mu < 0 || mu > 15) {
+-			wpa_printf(MSG_ERROR, "Invalid value for mu");
+-			return -1;
++		cnt = hostapd_parse_argument_helper(value, &val);
++		if (cnt == -1)
++			goto fail;
++		if (cnt < 1 || val[0] > 15)
++			goto para_fail;
++
++		if (hostapd_is_mld_ap(hapd)) {
++			u8 band_idx;
++
++			if (cnt != 2)
++				goto para_fail;
++
++			band_idx = val[1];
++
++			for (i = 0; i < hapd->iface->interfaces->count; i++) {
++				struct hostapd_iface *iface;
++
++				iface = hapd->iface->interfaces->iface[i];
++				if (!iface || !iface->conf)
++					continue;
++
++				if (iface->conf->band_idx == band_idx) {
++					hapd = iface->bss[0];
++					break;
++				}
++			}
++			if (hapd->iface->conf->band_idx != band_idx)
++				goto para_fail;
+ 		}
+-		hapd->iconf->mu_onoff = (u8) mu;
+ 
+-		if (hostapd_drv_mu_ctrl(hapd, MU_CTRL_ONOFF) == 0)
+-			return os_snprintf(buf, buflen, "OK\n");
+-		else
++		hapd->iconf->mu_onoff = val[0];
++		os_free(val);
++		if (hostapd_drv_mu_ctrl(hapd, MU_CTRL_ONOFF) != 0)
+ 			goto fail;
++
++		return os_snprintf(buf, buflen, "OK\n");
+ 	}
+ 
+ 	if (hapd->iconf->muru_config == NULL)
+@@ -4407,6 +4432,7 @@ hostapd_ctrl_iface_set_mu(struct hostapd_data *hapd, char *cmd,
+ 	comm = &muru->comm;
+ 
+ 	if (os_strncmp(config, "update", 6) == 0) {
++		// [ToDo] "update" needs to support band_idx argument
+ 		ret = hostapd_drv_mu_ctrl(hapd, MU_CTRL_UPDATE);
+ 
+ 		os_free(hapd->iconf->muru_config);
+@@ -4552,15 +4578,14 @@ hostapd_ctrl_iface_set_mu(struct hostapd_data *hapd, char *cmd,
+ 
+ para_fail:
+ 	os_free(val);
+-	wpa_printf(MSG_ERROR, "Incorrect input number\n");
++	wpa_printf(MSG_ERROR, "Input number or value is incorrect\n");
+ fail:
+ 	return os_snprintf(buf, buflen, "FAIL\n");
+ }
+ 
+-
+ static int
+-hostapd_ctrl_iface_get_mu(struct hostapd_data *hapd, char *buf,
+-					 size_t buflen)
++hostapd_ctrl_iface_get_mu(struct hostapd_data *hapd, char *input, char *buf,
++			  size_t buflen)
+ {
+ 	u8 mu_onoff;
+ 	char *pos, *end;
+@@ -4568,14 +4593,35 @@ hostapd_ctrl_iface_get_mu(struct hostapd_data *hapd, char *buf,
+ 	pos = buf;
+ 	end = buf + buflen;
+ 
++	if (hostapd_is_mld_ap(hapd)) {
++		u8 band_idx, i;
++
++		band_idx = (u8)atoi(input);
++
++		for (i = 0; i < hapd->iface->interfaces->count; i++) {
++			struct hostapd_iface *iface;
++
++			iface = hapd->iface->interfaces->iface[i];
++			if (!iface || !iface->conf)
++				continue;
++
++			if (iface->conf->band_idx == band_idx) {
++				hapd = iface->bss[0];
++				break;
++			}
++		}
++		if (hapd->iface->conf->band_idx != band_idx)
++			return os_snprintf(pos, end - pos, "Invalid band idx to get_mu\n");
++	}
++
+ 	if (hapd->iface->state != HAPD_IFACE_ENABLED)
+ 		return os_snprintf(pos, end - pos, "Not allowed to get_mu when current state is %s\n",
+ 				   hostapd_state_text(hapd->iface->state));
+ 
+ 	if (hostapd_drv_mu_dump(hapd, &mu_onoff) == 0) {
+ 		hapd->iconf->mu_onoff = mu_onoff;
+-		return os_snprintf(pos, end - pos, "[hostapd_cli] = UL MU-MIMO: %d, DL MU-MIMO: %d, UL OFDMA: %d, DL OFDMA: %d\n",
+-			!!(mu_onoff&BIT(3)), !!(mu_onoff&BIT(2)), !!(mu_onoff&BIT(1)), !!(mu_onoff&BIT(0)));
++		return os_snprintf(pos, end - pos, "Band idx %u: UL MU-MIMO: %d, DL MU-MIMO: %d, UL OFDMA: %d, DL OFDMA: %d\n",
++			hapd->iconf->band_idx, !!(mu_onoff&BIT(3)), !!(mu_onoff&BIT(2)), !!(mu_onoff&BIT(1)), !!(mu_onoff&BIT(0)));
+ 	} else {
+ 		wpa_printf(MSG_INFO, "ctrl iface failed to call");
+ 		return -1;
+@@ -5635,8 +5681,8 @@ static int hostapd_ctrl_iface_receive_process(struct hostapd_data *hapd,
+ 							  reply_size);
+ 	} else if (os_strncmp(buf, "SET_MU ", 7) == 0) {
+ 		reply_len = hostapd_ctrl_iface_set_mu(hapd, buf + 7, reply, reply_size);
+-	} else if (os_strncmp(buf, "GET_MU", 6) == 0) {
+-		reply_len = hostapd_ctrl_iface_get_mu(hapd, reply, reply_size);
++	} else if (os_strncmp(buf, "GET_MU ", 7) == 0) {
++		reply_len = hostapd_ctrl_iface_get_mu(hapd, buf + 7, reply, reply_size);
+ 	} else if (os_strncmp(buf, "GET_IBF", 7) == 0) {
+ 		reply_len = hostapd_ctrl_iface_get_ibf(hapd, reply, reply_size);
+ 	} else if (os_strncmp(buf, "DFS_DETECT_MODE ", 16) == 0) {
+diff --git a/hostapd/hostapd_cli.c b/hostapd/hostapd_cli.c
+index e4bd1eac4..ca0abca33 100644
+--- a/hostapd/hostapd_cli.c
++++ b/hostapd/hostapd_cli.c
+@@ -1478,7 +1478,7 @@ static int hostapd_cli_cmd_set_mu(struct wpa_ctrl *ctrl, int argc,
+ static int hostapd_cli_cmd_get_mu(struct wpa_ctrl *ctrl, int argc,
+ 					   char *argv[])
+ {
+-	return hostapd_cli_cmd(ctrl, "GET_MU", 0, NULL, NULL);
++	return hostapd_cli_cmd(ctrl, "GET_MU", 0, argc, argv);
+ }
+ 
+ static int hostapd_cli_cmd_disable_beacon(struct wpa_ctrl *ctrl, int argc,
+diff --git a/src/ap/ap_config.c b/src/ap/ap_config.c
+index 2560725f2..1c53f2228 100644
+--- a/src/ap/ap_config.c
++++ b/src/ap/ap_config.c
+@@ -313,6 +313,7 @@ struct hostapd_config * hostapd_config_defaults(void)
+ 	conf->ibf_enable = IBF_DEFAULT_ENABLE;
+ 	conf->amsdu = 1;
+ 	conf->pp_mode = PP_DISABLE;
++	conf->band_idx = 255;
+ 
+ 	hostapd_set_and_check_bw320_offset(conf, 0);
+ 
+@@ -1653,6 +1654,11 @@ int hostapd_config_check(struct hostapd_config *conf, int full_config)
+ 		return -1;
+ 	}
+ 
++	if (full_config && conf->band_idx == 255) {
++		wpa_printf(MSG_ERROR, "band_idx is required");
++		return -1;
++	}
++
+ 	for (i = 0; i < conf->num_bss; i++) {
+ 		if (hostapd_config_check_bss(conf->bss[i], conf, full_config))
+ 			return -1;
+diff --git a/src/ap/ap_config.h b/src/ap/ap_config.h
+index 2335b9ef4..3c323903f 100644
+--- a/src/ap/ap_config.h
++++ b/src/ap/ap_config.h
+@@ -1358,6 +1358,7 @@ struct hostapd_config {
+ 	u8 amsdu;
+ 	void *muru_config;
+ 	u8 pp_mode;
++	u8 band_idx;
+ };
+ 
+ enum three_wire_mode {
+diff --git a/src/ap/ap_drv_ops.c b/src/ap/ap_drv_ops.c
+index a972b4c49..5de1139b5 100644
+--- a/src/ap/ap_drv_ops.c
++++ b/src/ap/ap_drv_ops.c
+@@ -1429,7 +1429,7 @@ int hostapd_drv_mu_dump(struct hostapd_data *hapd, u8 *mu_onoff)
+ {
+ 	if (!hapd->driver || !hapd->driver->mu_dump)
+ 		return 0;
+-	return hapd->driver->mu_dump(hapd->drv_priv, mu_onoff);
++	return hapd->driver->mu_dump(hapd->drv_priv, mu_onoff, hapd->iconf->band_idx);
+ }
+ 
+ int hostapd_drv_three_wire_ctrl(struct hostapd_data *hapd)
+diff --git a/src/common/mtk_vendor.h b/src/common/mtk_vendor.h
+index 261994b8a..9b054ef43 100644
+--- a/src/common/mtk_vendor.h
++++ b/src/common/mtk_vendor.h
+@@ -210,6 +210,7 @@ enum mtk_vendor_attr_mu_ctrl {
+ 	 * above data structure.
+ 	 */
+ 	MTK_VENDOR_ATTR_MU_CTRL_STRUCT,
++	MTK_VENDOR_ATTR_MU_CTRL_BAND_IDX,
+ 
+ 	/* keep last */
+ 	NUM_MTK_VENDOR_ATTRS_MU_CTRL,
+diff --git a/src/drivers/driver.h b/src/drivers/driver.h
+index aea4b808b..748437cd3 100644
+--- a/src/drivers/driver.h
++++ b/src/drivers/driver.h
+@@ -5486,7 +5486,7 @@ struct wpa_driver_ops {
+ 	 *
+ 	 */
+ 	 int (*mu_ctrl)(void *priv, u8 mode, void *config);
+-	 int (*mu_dump)(void *priv, u8 *mu_onoff);
++	 int (*mu_dump)(void *priv, u8 *mu_onoff, u8 band_idx);
+ 
+ 	/**
+ 	 * beacon_ctrl - ctrl on off for beacon
+diff --git a/src/drivers/driver_nl80211.c b/src/drivers/driver_nl80211.c
+index 635ab88ff..1b6ba501c 100644
+--- a/src/drivers/driver_nl80211.c
++++ b/src/drivers/driver_nl80211.c
+@@ -14611,7 +14611,8 @@ static int nl80211_mu_ctrl(void *priv, u8 mode, void *config)
+ 
+ 	switch (mode) {
+ 	case MU_CTRL_ONOFF:
+-		if (nla_put_u8(msg, MTK_VENDOR_ATTR_MU_CTRL_ONOFF, cfg->mu_onoff))
++		if (nla_put_u8(msg, MTK_VENDOR_ATTR_MU_CTRL_ONOFF, cfg->mu_onoff) ||
++		    nla_put_u8(msg, MTK_VENDOR_ATTR_MU_CTRL_BAND_IDX, cfg->band_idx))
+ 			goto fail;
+ 		break;
+ 	case MU_CTRL_UPDATE:
+@@ -14675,7 +14676,7 @@ static int mu_dump_handler(struct nl_msg *msg, void *arg)
+ 	return 0;
+ }
+ 
+-static int nl80211_mu_dump(void *priv, u8 *mu_onoff)
++static int nl80211_mu_dump(void *priv, u8 *mu_onoff, u8 band_idx)
+ {
+ 	struct i802_bss *bss = priv;
+ 	struct wpa_driver_nl80211_data *drv = bss->drv;
+@@ -14691,17 +14692,13 @@ static int nl80211_mu_dump(void *priv, u8 *mu_onoff)
+ 
+ 	if (!(msg = nl80211_drv_msg(drv, NLM_F_DUMP, NL80211_CMD_VENDOR)) ||
+ 		nla_put_u32(msg, NL80211_ATTR_VENDOR_ID, OUI_MTK) ||
+-		nla_put_u32(msg, NL80211_ATTR_VENDOR_SUBCMD, MTK_NL80211_VENDOR_SUBCMD_MU_CTRL)) {
++		nla_put_u32(msg, NL80211_ATTR_VENDOR_SUBCMD, MTK_NL80211_VENDOR_SUBCMD_MU_CTRL) ||
++		!(attr = nla_nest_start(msg, NL80211_ATTR_VENDOR_DATA)) ||
++		nla_put_u8(msg, MTK_VENDOR_ATTR_MU_CTRL_BAND_IDX, band_idx)) {
+ 		nlmsg_free(msg);
+ 		return -ENOBUFS;
+ 	}
+ 
+-  attr = nla_nest_start(msg, NL80211_ATTR_VENDOR_DATA);
+-	if (!attr) {
+-		nlmsg_free(msg);
+-		return -1;
+-	}
+-
+ 	nla_nest_end(msg, attr);
+ 
+ 	ret = send_and_recv_resp(drv, msg, mu_dump_handler, mu_onoff);
+-- 
+2.45.2
+

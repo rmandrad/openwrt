@@ -1,0 +1,139 @@
+From 8c8f7406eb9953a5166dabfd0675f8c7a4cba0dd Mon Sep 17 00:00:00 2001
+From: Peter Chiu <chui-hao.chiu@mediatek.com>
+Date: Tue, 11 Jun 2024 11:18:41 +0800
+Subject: [PATCH 18/22] mtk: wifi: iw: dump links information in station dump
+
+Parse and show the following link information
+1. link address
+2. Rssi
+3. Tx rate
+4. Rx rate
+5. dtim period
+4. beacon interval
+
+Signed-off-by: Peter Chiu <chui-hao.chiu@mediatek.com>
+---
+ station.c | 100 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 100 insertions(+)
+
+diff --git a/station.c b/station.c
+index bf7c0f5..520c25a 100644
+--- a/station.c
++++ b/station.c
+@@ -329,6 +329,7 @@ static int print_sta_handler(struct nl_msg *msg, void *arg)
+ 		[NL80211_STA_INFO_TX_PACKETS] = { .type = NLA_U32 },
+ 		[NL80211_STA_INFO_BEACON_RX] = { .type = NLA_U64},
+ 		[NL80211_STA_INFO_SIGNAL] = { .type = NLA_U8 },
++		[NL80211_STA_INFO_SIGNAL_AVG] = { .type = NLA_U8 },
+ 		[NL80211_STA_INFO_T_OFFSET] = { .type = NLA_U64 },
+ 		[NL80211_STA_INFO_TX_BITRATE] = { .type = NLA_NESTED },
+ 		[NL80211_STA_INFO_RX_BITRATE] = { .type = NLA_NESTED },
+@@ -636,6 +637,105 @@ static int print_sta_handler(struct nl_msg *msg, void *arg)
+ 	}
+ 
+ 	printf("\n\tcurrent time:\t%llu ms\n", now_ms);
++
++	printf("\t*** MLD Information ***");
++	if (tb[NL80211_ATTR_MLO_LINK_ID])
++		printf("\n\tSetup link = %d", nla_get_u8(tb[NL80211_ATTR_MLO_LINK_ID]));
++
++	if (tb[NL80211_ATTR_MLD_ADDR]) {
++		mac_addr_n2a(mac_addr, nla_data(tb[NL80211_ATTR_MLD_ADDR]));
++		printf("\n\tMLD Address: %s", mac_addr);
++	}
++
++	if (tb[NL80211_ATTR_MLO_LINKS]) {
++		struct nlattr *link;
++		char buf[100];
++		int rem;
++
++		nla_for_each_nested(link, tb[NL80211_ATTR_MLO_LINKS], rem) {
++			struct nlattr *tb_link[NL80211_ATTR_MAX + 1];
++
++			nla_parse_nested(tb_link, NL80211_ATTR_MAX, link, NULL);
++
++			if (tb_link[NL80211_ATTR_MLO_LINK_ID])
++				printf("\n\t***** Link ID: %2d *****",
++				       nla_get_u32(tb_link[NL80211_ATTR_MLO_LINK_ID]));
++			if (tb_link[NL80211_ATTR_MAC]) {
++				mac_addr_n2a(buf, nla_data(tb_link[NL80211_ATTR_MAC]));
++				printf("\n\tLink addr: %s", buf);
++			}
++			if (nla_parse_nested(sinfo, NL80211_STA_INFO_MAX,
++					     tb_link[NL80211_ATTR_STA_INFO],
++					     stats_policy)) {
++				fprintf(stderr, "failed to parse nested attributes!\n");
++				return NL_SKIP;
++			}
++
++			if (sinfo[NL80211_STA_INFO_RX_BYTES64])
++				printf("\n\trx bytes:\t%llu",
++				       (unsigned long long)nla_get_u64(sinfo[NL80211_STA_INFO_RX_BYTES64]));
++			if (sinfo[NL80211_STA_INFO_RX_MPDUS])
++				printf("\n\trx mpdus:\t%u",
++				       nla_get_u32(sinfo[NL80211_STA_INFO_RX_MPDUS]));
++			if (sinfo[NL80211_STA_INFO_FCS_ERROR_COUNT])
++				printf("\n\trx fcs errors:\t%u",
++				       nla_get_u32(sinfo[NL80211_STA_INFO_FCS_ERROR_COUNT]));
++
++			if (sinfo[NL80211_STA_INFO_TX_BYTES64])
++				printf("\n\ttx bytes:\t%llu",
++				       (unsigned long long)nla_get_u64(sinfo[NL80211_STA_INFO_TX_BYTES64]));
++			if (sinfo[NL80211_STA_INFO_TX_RETRIES])
++				printf("\n\ttx retries:\t%u",
++				       nla_get_u32(sinfo[NL80211_STA_INFO_TX_RETRIES]));
++			if (sinfo[NL80211_STA_INFO_TX_FAILED])
++				printf("\n\ttx failed:\t%u",
++				       nla_get_u32(sinfo[NL80211_STA_INFO_TX_FAILED]));
++
++			chain = get_chain_signal(sinfo[NL80211_STA_INFO_CHAIN_SIGNAL]);
++			if (sinfo[NL80211_STA_INFO_SIGNAL])
++				printf("\n\tsignal:  \t%d %sdBm",
++				       (int8_t)nla_get_u8(sinfo[NL80211_STA_INFO_SIGNAL]),
++				       chain);
++
++			chain = get_chain_signal(sinfo[NL80211_STA_INFO_CHAIN_SIGNAL_AVG]);
++			if (sinfo[NL80211_STA_INFO_SIGNAL_AVG])
++				printf("\n\tsignal avg:\t%d %sdBm",
++				       (int8_t)nla_get_u8(sinfo[NL80211_STA_INFO_SIGNAL_AVG]),
++				       chain);
++
++			if (sinfo[NL80211_STA_INFO_TX_BITRATE]) {
++				parse_bitrate(sinfo[NL80211_STA_INFO_TX_BITRATE],
++					      buf, sizeof(buf));
++				printf("\n\ttx bitrate:\t%s", buf);
++			}
++
++			if (sinfo[NL80211_STA_INFO_TX_DURATION])
++				printf("\n\ttx duration:\t%llu us",
++				       (unsigned long long)nla_get_u64(sinfo[NL80211_STA_INFO_TX_DURATION]));
++
++			if (sinfo[NL80211_STA_INFO_RX_BITRATE]) {
++				parse_bitrate(sinfo[NL80211_STA_INFO_RX_BITRATE],
++					      buf, sizeof(buf));
++				printf("\n\trx bitrate:\t%s", buf);
++			}
++
++			if (sinfo[NL80211_STA_INFO_RX_DURATION])
++				printf("\n\trx duration:\t%llu us",
++				       (unsigned long long)nla_get_u64(sinfo[NL80211_STA_INFO_RX_DURATION]));
++
++			if (sinfo[NL80211_STA_INFO_ACK_SIGNAL])
++				printf("\n\tlast ack signal:%d dBm",
++				       (int8_t)nla_get_u8(sinfo[NL80211_STA_INFO_ACK_SIGNAL]));
++
++			if (sinfo[NL80211_STA_INFO_ACK_SIGNAL_AVG])
++				printf("\n\tavg ack signal:\t%d dBm",
++				       (int8_t)nla_get_u8(sinfo[NL80211_STA_INFO_ACK_SIGNAL_AVG]));
++
++			if (sinfo[NL80211_STA_INFO_BSS_PARAM])
++				parse_bss_param(sinfo[NL80211_STA_INFO_BSS_PARAM]);
++		}
++	}
++	printf("\n");
+ 	return NL_SKIP;
+ }
+ 
+-- 
+2.45.2
+

@@ -1,0 +1,58 @@
+From cf1c9327a8f32db8693498e0438f5316c05baa28 Mon Sep 17 00:00:00 2001
+From: Bo-Cun Chen <bc-bocun.chen@mediatek.com>
+Date: Fri, 10 Jan 2025 09:19:52 +0800
+Subject: [PATCH] arm64: dts: mt7988: aqr 10gphy disable eee
+
+Without this patch, users will observe the Rx error packet count from
+USXGMII RX on the AQR 10G PHY when EEE is enabled.
+---
+ arch/arm64/boot/dts/mediatek/mt7988a-rfb-eth1-aqr.dtso     | 2 ++
+ arch/arm64/boot/dts/mediatek/mt7988a-rfb-eth1-cux3410.dtso | 2 ++
+ arch/arm64/boot/dts/mediatek/mt7988a-rfb-eth2-aqr.dtso     | 2 ++
+ arch/arm64/boot/dts/mediatek/mt7988a-rfb-eth2-cux3410.dtso | 2 ++
+ 4 files changed, 8 insertions(+)
+
+--- a/arch/arm64/boot/dts/mediatek/mt7988a-rfb-eth1-aqr.dtso
++++ b/arch/arm64/boot/dts/mediatek/mt7988a-rfb-eth1-aqr.dtso
+@@ -26,6 +26,8 @@
+ 				reset-gpios = <&pio 72 GPIO_ACTIVE_LOW>;
+ 				reset-assert-us = <100000>;
+ 				reset-deassert-us = <221000>;
++				eee-broken-10gt;
++				eee-broken-1000t;
+ 			};
+ 		};
+ 	};
+--- a/arch/arm64/boot/dts/mediatek/mt7988a-rfb-eth1-cux3410.dtso
++++ b/arch/arm64/boot/dts/mediatek/mt7988a-rfb-eth1-cux3410.dtso
+@@ -27,6 +27,8 @@
+ 				reset-gpios = <&pio 72 GPIO_ACTIVE_LOW>;
+ 				reset-assert-us = <100000>;
+ 				reset-deassert-us = <221000>;
++				eee-broken-10gt;
++				eee-broken-1000t;
+ 
+ 				leds {
+ 					#address-cells = <1>;
+--- a/arch/arm64/boot/dts/mediatek/mt7988a-rfb-eth2-aqr.dtso
++++ b/arch/arm64/boot/dts/mediatek/mt7988a-rfb-eth2-aqr.dtso
+@@ -26,6 +26,8 @@
+ 				reset-gpios = <&pio 71 GPIO_ACTIVE_LOW>;
+ 				reset-assert-us = <100000>;
+ 				reset-deassert-us = <221000>;
++				eee-broken-10gt;
++				eee-broken-1000t;
+ 			};
+ 		};
+ 	};
+--- a/arch/arm64/boot/dts/mediatek/mt7988a-rfb-eth2-cux3410.dtso
++++ b/arch/arm64/boot/dts/mediatek/mt7988a-rfb-eth2-cux3410.dtso
+@@ -26,6 +26,8 @@
+ 				reset-gpios = <&pio 71 GPIO_ACTIVE_LOW>;
+ 				reset-assert-us = <100000>;
+ 				reset-deassert-us = <221000>;
++				eee-broken-10gt;
++				eee-broken-1000t;
+ 
+ 				leds {
+ 					#address-cells = <1>;

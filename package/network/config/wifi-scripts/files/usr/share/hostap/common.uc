@@ -101,7 +101,9 @@ function wdev_create(phy, name, data)
 		req["4addr"] = data["4addr"];
 	if (data.macaddr)
 		req.mac = data.macaddr;
-	if (data.radio != null && data.radio >= 0)
+	if (data.mld_radio_mask != null && data.mld_radio_mask > 0)
+		req.vif_radio_mask = data.mld_radio_mask;
+	else if (data.radio != null && data.radio >= 0)
 		req.vif_radio_mask = 1 << data.radio;
 
 	nl80211.error();
@@ -213,12 +215,7 @@ const phy_proto = {
 		if (!base_mask)
 			return null;
 
-		if (base_mask == "00:00:00:00:00:00")
-			base_mask = "ff:ff:ff:ff:ff:ff";
-
-		if (data.macaddr_base)
-			base_addr = data.macaddr_base;
-		else if (base_mask == "ff:ff:ff:ff:ff:ff" &&
+		if (base_mask == "00:00:00:00:00:00" &&
 		    (radio_idx > 0 || idx >= num_global)) {
 			let addrs = split(phy_sysfs_file(phy, "addresses"), "\n");
 
@@ -230,6 +227,8 @@ const phy_proto = {
 			} else {
 				if (idx < length(addrs))
 					return addrs[idx];
+
+				base_mask = "ff:ff:ff:ff:ff:ff";
 			}
 		}
 

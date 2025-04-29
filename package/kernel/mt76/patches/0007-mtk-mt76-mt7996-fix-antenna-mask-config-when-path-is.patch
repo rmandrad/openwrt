@@ -1,0 +1,57 @@
+From 9ee469de5108e838f768662c3e50779cc6c5e5ef Mon Sep 17 00:00:00 2001
+From: Peter Chiu <chui-hao.chiu@mediatek.com>
+Date: Mon, 10 Feb 2025 13:36:32 +0800
+Subject: [PATCH 07/92] mtk: mt76: mt7996: fix antenna mask config when path is
+ larger than then nss
+
+The maximum path and nss may be different so add orig_antenna_mask to
+prevent setting invalid nss.
+
+Signed-off-by: Peter Chiu <chui-hao.chiu@mediatek.com>
+---
+ mt7996/eeprom.c | 1 +
+ mt7996/main.c   | 3 ++-
+ mt7996/mt7996.h | 1 +
+ 3 files changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/mt7996/eeprom.c b/mt7996/eeprom.c
+index 7bfd19ed..87c6192b 100644
+--- a/mt7996/eeprom.c
++++ b/mt7996/eeprom.c
+@@ -310,6 +310,7 @@ int mt7996_eeprom_parse_hw_cap(struct mt7996_dev *dev, struct mt7996_phy *phy)
+ 		phy->has_aux_rx = true;
+ 
+ 	mphy->antenna_mask = BIT(nss) - 1;
++	phy->orig_antenna_mask = mphy->antenna_mask;
+ 	mphy->chainmask = (BIT(path) - 1) << dev->chainshift[band_idx];
+ 	phy->orig_chainmask = mphy->chainmask;
+ 	dev->chainmask |= mphy->chainmask;
+diff --git a/mt7996/main.c b/mt7996/main.c
+index f52ee066..a3671e58 100644
+--- a/mt7996/main.c
++++ b/mt7996/main.c
+@@ -1516,7 +1516,8 @@ mt7996_set_antenna(struct ieee80211_hw *hw, u32 tx_ant, u32 rx_ant)
+ 		u8 shift = dev->chainshift[band_idx];
+ 
+ 		phy->mt76->chainmask = tx_ant & phy->orig_chainmask;
+-		phy->mt76->antenna_mask = phy->mt76->chainmask >> shift;
++		phy->mt76->antenna_mask = (phy->mt76->chainmask >> shift) &
++					  phy->orig_antenna_mask;
+ 
+ 		mt76_set_stream_caps(phy->mt76, true);
+ 		mt7996_set_stream_vht_txbf_caps(phy);
+diff --git a/mt7996/mt7996.h b/mt7996/mt7996.h
+index 7c334e31..c75189a0 100644
+--- a/mt7996/mt7996.h
++++ b/mt7996/mt7996.h
+@@ -312,6 +312,7 @@ struct mt7996_phy {
+ 	struct mt76_channel_state state_ts;
+ 
+ 	u16 orig_chainmask;
++	u16 orig_antenna_mask;
+ 
+ 	bool has_aux_rx;
+ 	bool counter_reset;
+-- 
+2.45.2
+

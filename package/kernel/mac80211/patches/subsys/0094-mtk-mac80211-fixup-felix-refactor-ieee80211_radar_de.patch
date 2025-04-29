@@ -1,0 +1,53 @@
+From 359a2bc8a38831954f74aecb4f1d34cb1baacb03 Mon Sep 17 00:00:00 2001
+From: StanleyYP Wang <StanleyYP.Wang@mediatek.com>
+Date: Tue, 11 Feb 2025 09:34:59 +0800
+Subject: [PATCH 094/101] mtk: mac80211: fixup felix: refactor
+ ieee80211_radar_detection_busy for channel switch
+
+Refactor the scanning condition in ieee80211_channel_switch.
+Also, rename ieee80211_radar_detection_busy to ieee80211_scanning_busy
+to make it more general.
+
+This will be merged in felix's upstream patch.
+
+Signed-off-by: StanleyYP Wang <StanleyYP.Wang@mediatek.com>
+---
+ net/mac80211/cfg.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/net/mac80211/cfg.c b/net/mac80211/cfg.c
+index 5e95a06e..02dd65bc 100644
+--- a/net/mac80211/cfg.c
++++ b/net/mac80211/cfg.c
+@@ -3553,8 +3553,8 @@ static int ieee80211_set_bitrate_mask(struct wiphy *wiphy,
+ 	return 0;
+ }
+ 
+-static bool ieee80211_radar_detection_busy(struct ieee80211_local *local,
+-					   struct ieee80211_chan_req *chanreq)
++static bool ieee80211_scanning_busy(struct ieee80211_local *local,
++				    struct ieee80211_chan_req *chanreq)
+ {
+ 	struct cfg80211_scan_request *scan_req;
+ 	struct wiphy *wiphy = local->hw.wiphy;
+@@ -3587,7 +3587,7 @@ static int ieee80211_start_radar_detection(struct wiphy *wiphy,
+ 
+ 	lockdep_assert_wiphy(local->hw.wiphy);
+ 
+-	if (ieee80211_radar_detection_busy(local, &chanreq))
++	if (ieee80211_scanning_busy(local, &chanreq))
+ 		return -EBUSY;
+ 
+ 	link_data = sdata_dereference(sdata->link[link_id], sdata);
+@@ -4168,7 +4168,7 @@ __ieee80211_channel_switch(struct wiphy *wiphy, struct net_device *dev,
+ 
+ 	lockdep_assert_wiphy(local->hw.wiphy);
+ 
+-	if (!list_empty(&local->roc_list) || local->scanning)
++	if (ieee80211_scanning_busy(local, &chanreq))
+ 		return -EBUSY;
+ 
+ 	if (WARN_ON(link_id >= IEEE80211_MLD_MAX_NUM_LINKS))
+-- 
+2.45.2
+

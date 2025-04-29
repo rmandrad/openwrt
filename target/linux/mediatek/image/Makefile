@@ -34,9 +34,25 @@ define Device/Default
 endef
 
 include $(SUBTARGET).mk
+-include $(SUBTARGET)-extra.mk
 
 define Image/Build
 	$(call Image/Build/$(1),$(1))
+endef
+
+# build squashfs-hashed
+define Build/squashfs-hashed
+	$(TOPDIR)/scripts/make-squashfs-hashed.sh \
+		$(ROOTFS/$(FILESYSTEMS)/$(DEVICE_NAME)) \
+		$(STAGING_DIR_HOSTPKG) \
+		$(TOPDIR) \
+		$(ROOTFS/$(FILESYSTEMS)/$(DEVICE_NAME))-hashed-summary
+	fdt-patch-dm-verify $(ROOTFS/$(FILESYSTEMS)/$(DEVICE_NAME))-hashed-summary \
+		$(KDIR)/image-$(firstword $(DEVICE_DTS)).dtb $(KDIR)/image-$(firstword $(DEVICE_DTS)).dtb
+endef
+
+define Build/secure-boot
+	$(if $(CONFIG_MTK_SECURE_BOOT),$(call Build/squashfs-hashed))
 endef
 
 $(eval $(call BuildImage))

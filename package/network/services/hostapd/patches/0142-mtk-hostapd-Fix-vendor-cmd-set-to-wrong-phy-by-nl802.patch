@@ -1,0 +1,103 @@
+From 977db294dd4c4cecce6cce54ad09d579e9593f51 Mon Sep 17 00:00:00 2001
+From: Allen Ye <allen.ye@mediatek.com>
+Date: Tue, 19 Nov 2024 14:49:41 +0800
+Subject: [PATCH 142/210] mtk: hostapd: Fix vendor cmd set to wrong phy by
+ nl80211_drv_msg
+
+Fix vendor cmd set to wrong phy by legacy interface calling nl80211_drv_msg.
+The commit change all the features that use wdev_to_ieee80211_vif() and
+band_idx to handle in the mt76 part.
+
+Signed-off-by: Allen Ye <allen.ye@mediatek.com>
+---
+ src/drivers/driver_nl80211.c | 18 +++++++++---------
+ 1 file changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/src/drivers/driver_nl80211.c b/src/drivers/driver_nl80211.c
+index b64efe6b6..8ad6b871e 100644
+--- a/src/drivers/driver_nl80211.c
++++ b/src/drivers/driver_nl80211.c
+@@ -14807,7 +14807,7 @@ static int nl80211_mu_ctrl(void *priv, u8 mode, void *config)
+ 		return 0;
+ 	}
+ 
+-	if (!(msg = nl80211_drv_msg(drv, 0, NL80211_CMD_VENDOR)) ||
++	if (!(msg = nl80211_bss_msg(bss, 0, NL80211_CMD_VENDOR)) ||
+ 		nla_put_u32(msg, NL80211_ATTR_VENDOR_ID, OUI_MTK) ||
+ 		nla_put_u32(msg, NL80211_ATTR_VENDOR_SUBCMD, MTK_NL80211_VENDOR_SUBCMD_MU_CTRL) ||
+ 		!(data = nla_nest_start(msg, NL80211_ATTR_VENDOR_DATA)))
+@@ -14894,7 +14894,7 @@ static int nl80211_mu_dump(void *priv, u8 *mu_onoff, u8 band_idx)
+ 		return 0;
+ 	}
+ 
+-	if (!(msg = nl80211_drv_msg(drv, NLM_F_DUMP, NL80211_CMD_VENDOR)) ||
++	if (!(msg = nl80211_bss_msg(bss, NLM_F_DUMP, NL80211_CMD_VENDOR)) ||
+ 		nla_put_u32(msg, NL80211_ATTR_VENDOR_ID, OUI_MTK) ||
+ 		nla_put_u32(msg, NL80211_ATTR_VENDOR_SUBCMD, MTK_NL80211_VENDOR_SUBCMD_MU_CTRL) ||
+ 		!(attr = nla_nest_start(msg, NL80211_ATTR_VENDOR_DATA)) ||
+@@ -15565,7 +15565,7 @@ static int nl80211_enable_amsdu(void *priv, u8 amsdu)
+ 		return 0;
+ 	}
+ 
+-	msg = nl80211_drv_msg(drv, 0, NL80211_CMD_VENDOR);
++	msg = nl80211_bss_msg(bss, 0, NL80211_CMD_VENDOR);
+ 	if (!msg)
+ 		goto fail;
+ 
+@@ -15636,7 +15636,7 @@ nl80211_dump_amsdu(void *priv, u8 *amsdu)
+ 		return 0;
+ 	}
+ 
+-	msg = nl80211_drv_msg(drv, NLM_F_DUMP, NL80211_CMD_VENDOR);
++	msg = nl80211_bss_msg(bss, NLM_F_DUMP, NL80211_CMD_VENDOR);
+ 	if (!msg)
+ 		goto fail;
+ 
+@@ -15742,7 +15742,7 @@ static int nl80211_ap_wireless(void *priv, u8 sub_vendor_id, int value, s8 link_
+ 		return 0;
+ 	}
+ 
+-	msg = nl80211_drv_msg(drv, 0, NL80211_CMD_VENDOR);
++	msg = nl80211_bss_msg(bss, 0, NL80211_CMD_VENDOR);
+ 	if (!msg)
+ 		goto fail;
+ 
+@@ -15788,7 +15788,7 @@ static int nl80211_ap_rfeatures(void *priv, u8 sub_vendor_id, int value, s8 link
+ 		return 0;
+ 	}
+ 
+-	msg = nl80211_drv_msg(drv, 0, NL80211_CMD_VENDOR);
++	msg = nl80211_bss_msg(bss, 0, NL80211_CMD_VENDOR);
+ 	if (!msg)
+ 		goto fail;
+ 
+@@ -15832,7 +15832,7 @@ static int nl80211_ap_trigtype(void *priv, u8 enable, u8 type, s8 link_id)
+ 		return 0;
+ 	}
+ 
+-	msg = nl80211_drv_msg(drv, 0, NL80211_CMD_VENDOR);
++	msg = nl80211_bss_msg(bss, 0, NL80211_CMD_VENDOR);
+ 	if (!msg)
+ 		goto fail;
+ 
+@@ -16233,7 +16233,7 @@ nl80211_csi_set(void *priv, u8 band_idx, u8 mode, u8 cfg, u8 v1, u32 v2, u8 *mac
+ 		return 0;
+ 	}
+ 
+-	msg = nl80211_drv_msg(drv, 0, NL80211_CMD_VENDOR);
++	msg = nl80211_bss_msg(bss, 0, NL80211_CMD_VENDOR);
+ 	if (!msg)
+ 		goto fail;
+ 
+@@ -16396,7 +16396,7 @@ nl80211_csi_dump(void *priv, u8 band_idx, void *dump_buf)
+ 
+ #define CSI_DUMP_PER_NUM	3
+ 	for (i = 0; i < pkt_num / CSI_DUMP_PER_NUM; i++) {
+-		msg = nl80211_drv_msg(drv, NLM_F_DUMP, NL80211_CMD_VENDOR);
++		msg = nl80211_bss_msg(bss, NLM_F_DUMP, NL80211_CMD_VENDOR);
+ 		if (!msg)
+ 			goto fail;
+ 
+-- 
+2.45.2
+

@@ -1,0 +1,36 @@
+From ba36421f00f8b0f132ede3baf408d9c12470990d Mon Sep 17 00:00:00 2001
+From: Peter Chiu <chui-hao.chiu@mediatek.com>
+Date: Fri, 14 Mar 2025 12:23:39 +0800
+Subject: [PATCH 05/92] mtk: mt76: mt7996: change max beacon size
+
+According to hw capability, the maximum beacon size would be 2048 minus
+tlv headers.
+
+Signed-off-by: Peter Chiu <chui-hao.chiu@mediatek.com>
+---
+ mt7996/mcu.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/mt7996/mcu.h b/mt7996/mcu.h
+index fd660e91..130ea956 100644
+--- a/mt7996/mcu.h
++++ b/mt7996/mcu.h
+@@ -832,13 +832,13 @@ enum {
+ 					 sizeof(struct sta_rec_eht_mld) +	\
+ 					 sizeof(struct tlv))
+ 
+-#define MT7996_MAX_BEACON_SIZE		1338
+ #define MT7996_BEACON_UPDATE_SIZE	(sizeof(struct bss_req_hdr) +		\
+ 					 sizeof(struct bss_bcn_content_tlv) +	\
+ 					 4 + MT_TXD_SIZE +			\
+ 					 sizeof(struct bss_bcn_cntdwn_tlv) +	\
+ 					 sizeof(struct bss_bcn_mbss_tlv))
+-#define MT7996_MAX_BSS_OFFLOAD_SIZE	(MT7996_MAX_BEACON_SIZE +		\
++#define MT7996_MAX_BSS_OFFLOAD_SIZE	2048
++#define MT7996_MAX_BEACON_SIZE		(MT7996_MAX_BSS_OFFLOAD_SIZE - \
+ 					 MT7996_BEACON_UPDATE_SIZE)
+ 
+ enum {
+-- 
+2.45.2
+

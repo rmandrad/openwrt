@@ -2,3 +2,4 @@ src-git packages https://git.openwrt.org/feed/packages.git^d8cd30f4e281d6853b3de
 src-git luci https://git.openwrt.org/project/luci.git^2ac26e56cc55102cb10e7b0867c2b78e0f6d5fd8
 src-git routing https://git.openwrt.org/feed/routing.git^c9b636698881059a3c981032770968f5a98ff201
 src-git telephony https://git.openwrt.org/feed/telephony.git^fd605af7143165a2490681ec1752f259873b9147
+src-link --subdir=feed mtk_openwrt_feed /mnt/sda1/Development/mtk-bpi-r4-owrt/mtk-openwrt-feeds

@@ -1,0 +1,55 @@
+From 79579ddedd2bb3d7d3fb69d2daa8901c015d020d Mon Sep 17 00:00:00 2001
+From: Shayne Chen <shayne.chen@mediatek.com>
+Date: Fri, 21 Mar 2025 14:23:41 +0800
+Subject: [PATCH 01/92] Revert "wifi: mt76: mt7996: fill txd by host driver"
+
+This reverts commit 3b522cadedfe6e9e0e8193d7d4ab5aa8d0c73209.
+
+The MTK connac3 introduces new hardware, SDO (Software Defined Offload),
+to offload the process of filling the TX descriptor. There were some
+issues when it was first introduced, but it should be stable now after
+several fixes, so we can revert this commit.
+
+Additionally, enabling SDO is necessary for functions such as TX checksum
+offload to work properly.
+
+Tested-by: Ben Greear <greearb@candelatech.com>
+Signed-off-by: Shayne Chen <shayne.chen@mediatek.com>
+---
+ mt7996/mac.c | 13 +++++++++----
+ 1 file changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/mt7996/mac.c b/mt7996/mac.c
+index 8c352366..771c16e8 100644
+--- a/mt7996/mac.c
++++ b/mt7996/mac.c
+@@ -1040,8 +1040,11 @@ int mt7996_tx_prepare_skb(struct mt76_dev *mdev, void *txwi_ptr,
+ 		return id;
+ 
+ 	pid = mt76_tx_status_skb_add(mdev, wcid, tx_info->skb);
+-	mt7996_mac_write_txwi(dev, txwi_ptr, tx_info->skb, wcid, key,
+-			      pid, qid, 0);
++	memset(txwi_ptr, 0, MT_TXD_SIZE);
++	/* Transmit non qos data by 802.11 header and need to fill txd by host*/
++	if (!is_8023 || pid >= MT_PACKET_ID_FIRST)
++		mt7996_mac_write_txwi(dev, txwi_ptr, tx_info->skb, wcid, key,
++				      pid, qid, 0);
+ 
+ 	txp = (struct mt76_connac_txp_common *)(txwi + MT_TXD_SIZE);
+ 	for (i = 0; i < nbuf; i++) {
+@@ -1058,8 +1061,10 @@ int mt7996_tx_prepare_skb(struct mt76_dev *mdev, void *txwi_ptr,
+ 	}
+ 	txp->fw.nbuf = nbuf;
+ 
+-	txp->fw.flags =
+-		cpu_to_le16(MT_CT_INFO_FROM_HOST | MT_CT_INFO_APPLY_TXD);
++	txp->fw.flags = cpu_to_le16(MT_CT_INFO_FROM_HOST);
++
++	if (!is_8023 || pid >= MT_PACKET_ID_FIRST)
++		txp->fw.flags |= cpu_to_le16(MT_CT_INFO_APPLY_TXD);
+ 
+ 	if (!key)
+ 		txp->fw.flags |= cpu_to_le16(MT_CT_INFO_NONE_CIPHER_FRAME);
+-- 
+2.45.2
+

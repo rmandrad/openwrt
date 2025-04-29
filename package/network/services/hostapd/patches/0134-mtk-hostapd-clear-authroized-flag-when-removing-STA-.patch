@@ -1,0 +1,30 @@
+From 6227c51bef8088f7bcc618f299f460f9111ba69f Mon Sep 17 00:00:00 2001
+From: Michael-CY Lee <michael-cy.lee@mediatek.com>
+Date: Fri, 11 Oct 2024 14:50:10 +0800
+Subject: [PATCH 134/210] mtk: hostapd: clear authroized flag when removing STA
+ from the driver during association handling
+
+When removing the STA from the driver, authorized flag should be cleared
+at the same time. Failing to do so may result in the STA being re-added
+with authorized flag enabled.
+
+Signed-off-by: Michael-CY Lee <michael-cy.lee@mediatek.com>
+---
+ src/ap/ieee802_11.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/ap/ieee802_11.c b/src/ap/ieee802_11.c
+index f7452c6e2..8e859fb1f 100644
+--- a/src/ap/ieee802_11.c
++++ b/src/ap/ieee802_11.c
+@@ -4949,6 +4949,7 @@ static int add_associated_sta(struct hostapd_data *hapd,
+ 	     (!reassoc && (sta->flags & WLAN_STA_AUTHORIZED)))) {
+ 		hostapd_drv_sta_remove(hapd, sta->addr);
+ 		wpa_auth_sm_event(sta->wpa_sm, WPA_DRV_STA_REMOVED);
++		ap_sta_set_authorized_flag(hapd, sta, 0);
+ 		set = 0;
+ 
+ 		 /* Do not allow the FT-over-DS exception to be used more than
+-- 
+2.45.2
+

@@ -110,7 +110,18 @@ mediatek_setup_interfaces()
 	mediatek,mt7986b-rfb)
 		ucidef_set_interfaces_lan_wan "lan0 lan1 lan2 lan3 lan4" eth1
 		;;
-	mediatek,mt7988a-rfb)
+	mediatek,mt7988a-rfb-gsw|\
+	mediatek,mt7988d-rfb-gsw)
+		ucidef_set_interfaces_lan_wan "eth0 eth2" eth1
+		ucidef_add_switch "switch0" \
+			"0:lan" "1:lan" "2:lan" "3:lan" "6u@eth0"
+		;;
+	mediatek,mt7987a-spim-nand-cob*)
+		ucidef_set_interfaces_lan_wan "eth0 eth2" eth1
+		;;
+	mediatek,mt7987*|\
+	mediatek,mt7988a-rfb|\
+	mediatek,mt7988d-rfb)
 		ucidef_set_interfaces_lan_wan "lan0 lan1 lan2 lan3 eth2" eth1
 		;;
 	mercusys,mr90x-v1|\
@@ -161,6 +172,11 @@ mediatek_setup_macs()
 		wan_mac=$(mtd_get_mac_ascii pdt_data_1 ethaddr)
 		lan_mac=$(macaddr_add "$wan_mac" 1)
 		label_mac=$wan_mac
+		;;
+	mediatek,mt7987*|\
+	mediatek,mt7988*)
+		lan_mac=$(mtd_get_mac_binary "Factory" "0xFFFF4")
+		wan_mac=$(mtd_get_mac_binary "Factory" "0xFFFFA")
 		;;
 	mercusys,mr90x-v1|\
 	tplink,re6000xd)

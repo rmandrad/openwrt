@@ -1,0 +1,98 @@
+From 0d92e41e9840108a6eb735bb48ecfcf29e259a70 Mon Sep 17 00:00:00 2001
+From: Howard Hsu <howard-yh.hsu@mediatek.com>
+Date: Thu, 13 Feb 2025 17:46:26 +0800
+Subject: [PATCH 179/210] mtk: hostapd: add new argument mbo_cert for
+ hostapd_cli bss_tm_req
+
+Add a new argument "mbo_cert" for hostapd_cli bss_tm_req to bypass the
+commit 7a873c8.
+
+Commit 7a873c8 does not set a timer for disassoc frames for MLD STAs,
+while the certification EHT program 4.2.5.6 requires sending dissassoc
+frames after the BTM request. Thus, we use "mbo_cert" to bypass commit
+7a873c8 for test case 4.2.5.6.
+
+Note that this commit is a workaround for EHT prgram 4.2.5.6.
+
+Signed-off-by: Howard Hsu <howard-yh.hsu@mediatek.com>
+
+---
+ src/ap/ctrl_iface_ap.c | 3 ++-
+ src/ap/ubus.c          | 3 ++-
+ src/ap/wnm_ap.c        | 4 ++--
+ src/ap/wnm_ap.h        | 2 +-
+ 4 files changed, 7 insertions(+), 5 deletions(-)
+
+diff --git a/src/ap/ctrl_iface_ap.c b/src/ap/ctrl_iface_ap.c
+index 4612442cc..3f1af1be1 100644
+--- a/src/ap/ctrl_iface_ap.c
++++ b/src/ap/ctrl_iface_ap.c
+@@ -1400,6 +1400,7 @@ int hostapd_ctrl_iface_bss_tm_req(struct hostapd_data *hapd,
+ 	int nei_len;
+ 	u8 mbo[10];
+ 	size_t mbo_len = 0;
++	bool mbo_cert = false;
+ 
+ 	if (hwaddr_aton(cmd, addr)) {
+ 		wpa_printf(MSG_DEBUG, "Invalid STA MAC address");
+@@ -1565,7 +1566,7 @@ int hostapd_ctrl_iface_bss_tm_req(struct hostapd_data *hapd,
+ 	ret = wnm_send_bss_tm_req(hapd, sta, req_mode, disassoc_timer,
+ 				  valid_int, bss_term_dur, dialog_token, url,
+ 				  nei_len ? nei_rep : NULL, nei_len,
+-				  mbo_len ? mbo : NULL, mbo_len);
++				  mbo_len ? mbo : NULL, mbo_len, mbo_cert);
+ #ifdef CONFIG_MBO
+ fail:
+ #endif /* CONFIG_MBO */
+diff --git a/src/ap/ubus.c b/src/ap/ubus.c
+index 225672075..c5b6aa8e3 100644
+--- a/src/ap/ubus.c
++++ b/src/ap/ubus.c
+@@ -1421,7 +1421,8 @@ hostapd_bss_tr_send(struct hostapd_data *hapd, u8 *addr, bool disassoc_imminent,
+ #endif
+ 
+ 	if (wnm_send_bss_tm_req(hapd, sta, req_mode, disassoc_timer, validity_period, NULL,
+-				dialog_token, NULL, nr, nr_len, mbo_len ? mbo : NULL, mbo_len))
++				dialog_token, NULL, nr, nr_len, mbo_len ? mbo : NULL, mbo_len,
++				false))
+ 		return UBUS_STATUS_UNKNOWN_ERROR;
+ 
+ 	return 0;
+diff --git a/src/ap/wnm_ap.c b/src/ap/wnm_ap.c
+index 4ac96b1be..f806d9543 100644
+--- a/src/ap/wnm_ap.c
++++ b/src/ap/wnm_ap.c
+@@ -1007,7 +1007,7 @@ int wnm_send_bss_tm_req(struct hostapd_data *hapd, struct sta_info *sta,
+ 			u8 req_mode, int disassoc_timer, u8 valid_int,
+ 			const u8 *bss_term_dur, u8 dialog_token,
+ 			const char *url, const u8 *nei_rep, size_t nei_rep_len,
+-			const u8 *mbo_attrs, size_t mbo_len)
++			const u8 *mbo_attrs, size_t mbo_len, bool mbo_cert)
+ {
+ 	u8 *buf, *pos;
+ 	struct ieee80211_mgmt *mgmt;
+@@ -1079,7 +1079,7 @@ int wnm_send_bss_tm_req(struct hostapd_data *hapd, struct sta_info *sta,
+ 	hapd->openwrt_stats.wnm.bss_transition_request_tx++;
+ 	if (disassoc_timer) {
+ #ifdef CONFIG_IEEE80211BE
+-		if (ap_sta_is_mld(hapd, sta)) {
++		if (ap_sta_is_mld(hapd, sta) && !mbo_cert) {
+ 			int i;
+ 			unsigned int links = 0;
+ 
+diff --git a/src/ap/wnm_ap.h b/src/ap/wnm_ap.h
+index f86c6b2af..b78fc1b60 100644
+--- a/src/ap/wnm_ap.h
++++ b/src/ap/wnm_ap.h
+@@ -22,7 +22,7 @@ int wnm_send_bss_tm_req(struct hostapd_data *hapd, struct sta_info *sta,
+ 			u8 req_mode, int disassoc_timer, u8 valid_int,
+ 			const u8 *bss_term_dur, u8 dialog_token,
+ 			const char *url, const u8 *nei_rep, size_t nei_rep_len,
+-			const u8 *mbo_attrs, size_t mbo_len);
++			const u8 *mbo_attrs, size_t mbo_len, bool mbo_cert);
+ void ap_sta_reset_steer_flag_timer(void *eloop_ctx, void *timeout_ctx);
+ int wnm_send_coloc_intf_req(struct hostapd_data *hapd, struct sta_info *sta,
+ 			    unsigned int auto_report, unsigned int timeout);
+-- 
+2.45.2
+

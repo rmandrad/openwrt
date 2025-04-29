@@ -1,0 +1,170 @@
+From 79092d2ba43aec799e80b6672a040816af8fbd8f Mon Sep 17 00:00:00 2001
+From: Bo-Cun Chen <bc-bocun.chen@mediatek.com>
+Date: Tue, 1 Apr 2025 17:27:48 +0800
+Subject: [PATCH] net: phy: sfp: add some FS copper SFP fixes
+
+---
+ drivers/net/phy/realtek/realtek_main.c | 17 +-------
+ drivers/net/phy/sfp.c                  | 56 +++++++++++++++++---------
+ 2 files changed, 39 insertions(+), 34 deletions(-)
+
+--- a/drivers/net/phy/realtek/realtek_main.c
++++ b/drivers/net/phy/realtek/realtek_main.c
+@@ -837,23 +837,10 @@ static int rtl822x_probe(struct phy_devi
+ 
+ static int rtl822xb_config_init(struct phy_device *phydev)
+ {
+-	bool has_2500, has_sgmii;
++	bool has_2500 = true, has_sgmii = false;
+ 	int ret, val;
+ 	u16 mode;
+ 
+-	has_2500 = test_bit(PHY_INTERFACE_MODE_2500BASEX,
+-			    phydev->host_interfaces) ||
+-		   phydev->interface == PHY_INTERFACE_MODE_2500BASEX;
+-
+-	has_sgmii = test_bit(PHY_INTERFACE_MODE_SGMII,
+-			     phydev->host_interfaces) ||
+-		    phydev->interface == PHY_INTERFACE_MODE_SGMII;
+-
+-	/* disable listening on MDIO broadcast address (0) */
+-	ret = phy_clear_bits_mmd(phydev, MDIO_MMD_VEND2, 0xa430, BIT(13));
+-	if (ret < 0)
+-		return ret;
+-
+ 	/* fill in possible interfaces */
+ 	__assign_bit(PHY_INTERFACE_MODE_2500BASEX, phydev->possible_interfaces,
+ 		     has_2500);
+@@ -1624,7 +1611,7 @@ static struct phy_driver realtek_drvs[]
+ 		.name           = "RTL8221B-VB-CG 2.5Gbps PHY (C45)",
+ 		.config_intr	= rtl8221b_config_intr,
+ 		.handle_interrupt = rtl8221b_handle_interrupt,
+-		.soft_reset     = genphy_soft_reset,
++		/*.soft_reset     = genphy_soft_reset,*/
+ 		.probe		= rtl822x_probe,
+ 		.config_init    = rtl822xb_config_init_war,
+ 		.get_rate_matching = rtl822xb_get_rate_matching,
+--- a/drivers/net/phy/sfp.c
++++ b/drivers/net/phy/sfp.c
+@@ -191,7 +191,7 @@ static const enum gpiod_flags gpio_flags
+  * R_PHY_RETRY is the number of attempts.
+  */
+ #define T_PHY_RETRY		msecs_to_jiffies(50)
+-#define R_PHY_RETRY		12
++#define R_PHY_RETRY		25
+ 
+ /* SFP module presence detection is poor: the three MOD DEF signals are
+  * the same length on the PCB, which means it's possible for MOD DEF 0 to
+@@ -274,6 +274,7 @@ struct sfp {
+ 	unsigned int module_power_mW;
+ 	unsigned int module_t_start_up;
+ 	unsigned int module_t_wait;
++	unsigned int phy_t_retry;
+ 
+ 	unsigned int rate_kbd;
+ 	unsigned int rs_threshold_kbd;
+@@ -357,18 +358,33 @@ static void sfp_fixup_10gbaset_30m(struc
+ 	sfp->id.base.extended_cc = SFF8024_ECC_10GBASE_T_SR;
+ }
+ 
+-static void sfp_fixup_rollball_proto(struct sfp *sfp, unsigned int secs)
++static void sfp_fixup_rollball(struct sfp *sfp)
+ {
+ 	sfp->mdio_protocol = MDIO_I2C_ROLLBALL;
+-	sfp->module_t_wait = msecs_to_jiffies(secs * 1000);
++
++	/* RollBall modules may disallow access to PHY registers for up to 25
++	 * seconds, and the reads return 0xffff before that. Increase the time
++	 * between PHY probe retries from 50ms to 1s so that we will wait for
++	 * the PHY for a sufficient amount of time.
++	 */
++	sfp->phy_t_retry = msecs_to_jiffies(1000);
++}
++
++static void sfp_fixup_fs_2_5gt(struct sfp *sfp)
++{
++	sfp_fixup_rollball(sfp);
++
++	/* The RollBall fixup is not enough for FS modules, the PHY chip inside
++	 * them does not return 0xffff for PHY ID registers in all MMDs for the
++	 * while initializing. They need a 4 second wait before accessing PHY.
++	 */
++	sfp->module_t_wait = msecs_to_jiffies(4000);
+ }
+ 
+ static void sfp_fixup_fs_10gt(struct sfp *sfp)
+ {
+ 	sfp_fixup_10gbaset_30m(sfp);
+-
+-	// These SFPs need 4 seconds before the PHY can be accessed
+-	sfp_fixup_rollball_proto(sfp, 4);
++	sfp_fixup_fs_2_5gt(sfp);
+ }
+ 
+ static void sfp_fixup_halny_gsfp(struct sfp *sfp)
+@@ -380,12 +396,6 @@ static void sfp_fixup_halny_gsfp(struct
+ 	sfp->state_hw_mask &= ~(SFP_F_TX_FAULT | SFP_F_LOS);
+ }
+ 
+-static void sfp_fixup_rollball(struct sfp *sfp)
+-{
+-	// Rollball SFPs need 25 seconds before the PHY can be accessed
+-	sfp_fixup_rollball_proto(sfp, 25);
+-}
+-
+ static void sfp_fixup_rollball_cc(struct sfp *sfp)
+ {
+ 	sfp_fixup_rollball(sfp);
+@@ -449,10 +459,16 @@ static const struct sfp_quirk sfp_quirks
+ 	SFP_QUIRK("ALCATELLUCENT", "3FE46541AA", sfp_quirk_2500basex,
+ 		  sfp_fixup_long_startup),
+ 
+-	// Fiberstore SFP-10G-T doesn't identify as copper, and uses the
+-	// Rollball protocol to talk to the PHY.
++	// Fiberstore SFP-10G-T doesn't identify as copper, uses the Rollball
++	// protocol to talk to the PHY and needs 4 sec wait before probing the
++	// PHY.
+ 	SFP_QUIRK_F("FS", "SFP-10G-T", sfp_fixup_fs_10gt),
+ 
++	// Fiberstore SFP-2.5G-T uses Rollball protocol to talk to the PHY and
++	// needs 4 sec wait before probing the PHY.
++	SFP_QUIRK_F("FS", "SFP-2.5G-T", sfp_fixup_fs_2_5gt),
++	SFP_QUIRK_F("FS", "SFP-2.5G-T-I", sfp_fixup_fs_2_5gt),
++
+ 	// Fiberstore GPON-ONU-34-20BI can operate at 2500base-X, but report 1.2GBd
+ 	// NRZ in their EEPROM
+ 	SFP_QUIRK("FS", "GPON-ONU-34-20BI", sfp_quirk_2500basex,
+@@ -469,9 +485,6 @@ static const struct sfp_quirk sfp_quirks
+ 	SFP_QUIRK("HUAWEI", "MA5671A", sfp_quirk_2500basex,
+ 		  sfp_fixup_ignore_tx_fault),
+ 
+-	// FS 2.5G Base-T
+-	SFP_QUIRK_M("FS", "SFP-2.5G-T", sfp_quirk_oem_2_5g),
+-
+ 	// OEM SFP-GE-T is 1000Base-T module
+ 	SFP_QUIRK_F("OEM", "SFP-GE-T", sfp_fixup_ignore_tx_fault),
+ 
+@@ -2360,6 +2373,7 @@ static int sfp_sm_mod_probe(struct sfp *
+ 
+ 	sfp->module_t_start_up = T_START_UP;
+ 	sfp->module_t_wait = T_WAIT;
++	sfp->phy_t_retry = T_PHY_RETRY;
+ 
+ 	sfp->tx_fault_ignore = false;
+ 
+@@ -2653,9 +2667,13 @@ static void sfp_sm_main(struct sfp *sfp,
+ 		 * clear.  Probe for the PHY and check the LOS state.
+ 		 */
+ 		ret = sfp_sm_probe_for_phy(sfp);
+-		if (ret == -ENODEV) {
++		if (ret == -ENODEV || ret == -EINVAL) {
+ 			if (--sfp->sm_phy_retries) {
+-				sfp_sm_next(sfp, SFP_S_INIT_PHY, T_PHY_RETRY);
++				sfp_sm_next(sfp, SFP_S_INIT_PHY,
++					    sfp->phy_t_retry);
++				dev_info(sfp->dev,
++					"no PHY detected, %u tries left\n",
++					sfp->sm_phy_retries);
+ 				break;
+ 			} else {
+ 				dev_info(sfp->dev, "no PHY detected\n");

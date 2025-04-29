@@ -1,0 +1,50 @@
+From 7bc2a84438c56925b716e5c5db6d5e83ee45ef6b Mon Sep 17 00:00:00 2001
+From: Aaradhana Sahu <quic_aarasahu@quicinc.com>
+Date: Mon, 25 Nov 2024 15:39:13 +0530
+Subject: [PATCH 11/22] iw: print tx power per link for MLD
+
+Add support to print tx power per link for an ML interface
+
+Sample output:
+phy#0
+        Interface wlp88s0
+                ifindex 5
+                wdev 0x1
+                addr 00:03:7f:01:54:92
+                ssid tx_power_123
+                type AP
+                multicast TXQ:
+                        qsz-byt qsz-pkt flows   drops   marks   overlmt hashcol tx-bytes        tx-packets
+                        0       0       0       0       0       0       0       0               0
+                MLD with links:
+                 - link ID  0 link addr 00:03:7f:01:54:92
+                   channel 36 (5180 MHz), width: 80 MHz, center1: 5210 MHz
+                   txpower 30.00 dBm
+
+Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
+Signed-off-by: Rameshkumar Sundaram <quic_ramess@quicinc.com>
+Link: https://patch.msgid.link/20241125100913.261319-1-quic_ramess@quicinc.com
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+---
+ interface.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/interface.c b/interface.c
+index bb1a1d3..0d4ff04 100644
+--- a/interface.c
++++ b/interface.c
+@@ -490,6 +490,11 @@ static int print_iface_handler(struct nl_msg *msg, void *arg)
+ 				printf("\n%s\t   ", indent);
+ 				print_channel(tb);
+ 			}
++			if (tb[NL80211_ATTR_WIPHY_TX_POWER_LEVEL]) {
++				int32_t txp = nla_get_u32(tb[NL80211_ATTR_WIPHY_TX_POWER_LEVEL]);
++
++				printf("\n%s\t   txpower %d.%.2d dBm", indent, txp / 100, txp % 100);
++			}
+ 			printf("\n");
+ 		}
+ 	}
+-- 
+2.45.2
+

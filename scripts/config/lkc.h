@@ -43,6 +43,9 @@ extern int recursive_is_error;
 /* confdata.c */
 const char *conf_get_configname(void);
 void set_all_choice_values(struct symbol *csym);
+int conf_set_sym_val(struct symbol *sym, int def, int def_flags, char *p);
+void print_symbol_for_dotconfig(FILE *fp, struct symbol *sym);
+ssize_t compat_getline(char **lineptr, size_t *n, FILE *stream);
 
 /* confdata.c and expr.c */
 static inline void xfwrite(const void *str, size_t len, size_t count, FILE *out)
@@ -114,6 +117,7 @@ struct property *sym_get_range_prop(struct symbol *sym);
 const char *sym_get_string_default(struct symbol *sym);
 struct symbol *sym_check_deps(struct symbol *sym);
 struct symbol *prop_get_symbol(struct property *prop);
+unsigned strhash(const char *s);
 
 static inline tristate sym_get_tristate_value(struct symbol *sym)
 {

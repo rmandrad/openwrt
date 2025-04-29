@@ -1,0 +1,32 @@
+From e26f5559c4772c7e6953a47c4c646f6dcaad510b Mon Sep 17 00:00:00 2001
+From: StanleyYP Wang <StanleyYP.Wang@mediatek.com>
+Date: Tue, 11 Feb 2025 09:28:12 +0800
+Subject: [PATCH 095/101] mtk: mac80211: fixup felix: add roc started flag
+
+If the roc has not started yet, do not consider the
+corresponding radio to be scanning.
+
+This will be merged in felix's upstream patch.
+
+Signed-off-by: StanleyYP Wang <StanleyYP.Wang@mediatek.com>
+---
+ net/mac80211/offchannel.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/net/mac80211/offchannel.c b/net/mac80211/offchannel.c
+index 16afffe7..faa3ac01 100644
+--- a/net/mac80211/offchannel.c
++++ b/net/mac80211/offchannel.c
+@@ -181,6 +181,9 @@ u32 ieee80211_offchannel_radio_mask(struct ieee80211_local *local)
+ 		list_for_each_entry(roc, &local->roc_list, list) {
+ 			struct cfg80211_chan_def chandef = {};
+ 
++			if (!roc->started)
++				continue;
++
+ 			cfg80211_chandef_create(&chandef, roc->chan,
+ 						NL80211_CHAN_NO_HT);
+ 			if (!cfg80211_radio_chandef_valid(radio, &chandef))
+-- 
+2.45.2
+

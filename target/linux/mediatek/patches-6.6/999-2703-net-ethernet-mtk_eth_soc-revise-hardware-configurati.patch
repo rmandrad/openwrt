@@ -1,0 +1,95 @@
+From 5dd14fdfa948dec24775cd4078774193a9c5074f Mon Sep 17 00:00:00 2001
+From: Bo-Cun Chen <bc-bocun.chen@mediatek.com>
+Date: Wed, 26 Mar 2025 23:04:53 +0800
+Subject: [PATCH] net: ethernet: mtk_eth_soc: revise hardware configuration for
+  NETSYSv3
+
+Change hardware configuration for the NETSYSv3.
+ - Enable PSE dummy page mechanism for the GDM1/2/3
+ - Enable PSE drop mechanism when the WDMA Rx ring full
+ - Enable PSE no-drop mechanism for packets from the WDMA Tx
+ - Correct PSE free drop threshold
+ - Correct PSE CDMA high threshold
+ - Change to Token Bucket for the QDMA
+ - Change SPEED_1000 configuration for the QDMA QTX_SCH
+
+Signed-off-by: Bo-Cun Chen <bc-bocun.chen@mediatek.com>
+---
+ drivers/net/ethernet/mediatek/mtk_eth_soc.c | 26 +++++++++++++++------
+ drivers/net/ethernet/mediatek/mtk_eth_soc.h |  7 +++++-
+ 2 files changed, 25 insertions(+), 8 deletions(-)
+
+--- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
++++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
+@@ -868,8 +868,8 @@ static void mtk_set_queue_speed(struct m
+ 			break;
+ 		case SPEED_1000:
+ 			val |= MTK_QTX_SCH_MAX_RATE_EN |
+-			       FIELD_PREP(MTK_QTX_SCH_MAX_RATE_MAN, 10) |
+-			       FIELD_PREP(MTK_QTX_SCH_MAX_RATE_EXP, 5) |
++			       FIELD_PREP(MTK_QTX_SCH_MAX_RATE_MAN, 1) |
++			       FIELD_PREP(MTK_QTX_SCH_MAX_RATE_EXP, 6) |
+ 			       FIELD_PREP(MTK_QTX_SCH_MAX_RATE_WEIGHT, 10);
+ 			break;
+ 		default:
+@@ -3471,7 +3471,7 @@ static int mtk_start_dma(struct mtk_eth
+ 			val &= ~MTK_RESV_BUF_MASK;
+ 			val |= MTK_MUTLI_CNT | MTK_RESV_BUF |
+ 			       MTK_WCOMP_EN | MTK_DMAD_WR_WDONE |
+-			       MTK_CHK_DDONE_EN | MTK_LEAKY_BUCKET_EN;
++			       MTK_CHK_DDONE_EN;
+ 		} else {
+ 			val |= MTK_RX_BT_32DWORDS;
+ 		}
+@@ -4208,11 +4208,23 @@ static int mtk_hw_init(struct mtk_eth *e
+ 	mtk_w32(eth, 0x21021000, MTK_FE_INT_GRP);
+ 
+ 	if (mtk_is_netsys_v3_or_greater(eth)) {
+-		/* PSE should not drop port1, port8 and port9 packets */
+-		mtk_w32(eth, 0x00000302, PSE_DROP_CFG);
++		/* PSE dummy page mechanism */
++		mtk_w32(eth, PSE_DUMMY_WORK_GDM(1) | PSE_DUMMY_WORK_GDM(2) |
++			PSE_DUMMY_WORK_GDM(3) | DUMMY_PAGE_THR, PSE_DUMY_REQ);
++
++		/* PSE free buffer drop threshold */
++		mtk_w32(eth, 0x00600009, PSE_IQ_REV(8));
++
++		/* PSE should not drop port8, port9 and port13 packets from WDMA Tx */
++		mtk_w32(eth, 0x00002300, PSE_DROP_CFG);
++
++		/* PSE should drop packets to port8, port9 and port13 on WDMA Rx ring full */
++		mtk_w32(eth, 0x00002300, PSE_PPE_DROP(0));
++		mtk_w32(eth, 0x00002300, PSE_PPE_DROP(1));
++		mtk_w32(eth, 0x00002300, PSE_PPE_DROP(2));
+ 
+ 		/* GDM and CDM Threshold */
+-		mtk_w32(eth, 0x00000707, MTK_CDMW0_THRES);
++		mtk_w32(eth, 0x08000707, MTK_CDMW0_THRES);
+ 		mtk_w32(eth, 0x00000077, MTK_CDMW1_THRES);
+ 
+ 		/* Disable GDM1 RX CRC stripping */
+@@ -4229,7 +4241,7 @@ static int mtk_hw_init(struct mtk_eth *e
+ 		mtk_w32(eth, 0x00000300, PSE_DROP_CFG);
+ 
+ 		/* PSE should drop packets to port 8/9 on WDMA Rx ring full */
+-		mtk_w32(eth, 0x00000300, PSE_PPE0_DROP);
++		mtk_w32(eth, 0x00000300, PSE_PPE_DROP(0));
+ 
+ 		/* PSE Free Queue Flow Control  */
+ 		mtk_w32(eth, 0x01fa01f4, PSE_FQFC_CFG2);
+--- a/drivers/net/ethernet/mediatek/mtk_eth_soc.h
++++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.h
+@@ -152,7 +152,12 @@
+ #define PSE_FQFC_CFG1		0x100
+ #define PSE_FQFC_CFG2		0x104
+ #define PSE_DROP_CFG		0x108
+-#define PSE_PPE0_DROP		0x110
++#define PSE_PPE_DROP(x)		(0x110 + ((x) * 0x4))
++
++/* PSE Last FreeQ Page Request Control */
++#define PSE_DUMY_REQ		0x10C
++#define PSE_DUMMY_WORK_GDM(x)	BIT(16 + (x))
++#define DUMMY_PAGE_THR		0x1
+ 
+ /* PSE Input Queue Reservation Register*/
+ #define PSE_IQ_REV(x)		(0x140 + (((x) - 1) << 2))

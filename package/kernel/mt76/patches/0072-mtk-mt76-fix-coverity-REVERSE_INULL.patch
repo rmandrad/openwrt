@@ -1,0 +1,38 @@
+From 51791db3fc018f9af5cce14ee7b24b8864f3c2c2 Mon Sep 17 00:00:00 2001
+From: Shayne Chen <shayne.chen@mediatek.com>
+Date: Fri, 7 Feb 2025 15:01:01 +0800
+Subject: [PATCH 72/92] mtk: mt76: fix coverity REVERSE_INULL
+
+Null-checking "phy" suggests that it may be null, but it has already been dereferenced on all paths leading to the check.
+
+Signed-off-by: Shayne Chen <shayne.chen@mediatek.com>
+---
+ mt7996/main.c | 5 +----
+ 1 file changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/mt7996/main.c b/mt7996/main.c
+index 35003a56..06b06520 100644
+--- a/mt7996/main.c
++++ b/mt7996/main.c
+@@ -121,7 +121,7 @@ static void mt7996_stop_phy(struct mt7996_phy *phy)
+ {
+ 	struct mt7996_dev *dev = phy->dev;
+ 
+-	if (!phy || !test_bit(MT76_STATE_RUNNING, &phy->mt76->state))
++	if (!test_bit(MT76_STATE_RUNNING, &phy->mt76->state))
+ 		return;
+ 
+ 	cancel_delayed_work_sync(&phy->mt76->mac_work);
+@@ -472,9 +472,6 @@ static void mt7996_set_monitor(struct mt7996_phy *phy, bool enabled)
+ {
+ 	struct mt7996_dev *dev = phy->dev;
+ 
+-	if (!phy)
+-		return;
+-
+ 	if (enabled == !(phy->rxfilter & MT_WF_RFCR_DROP_OTHER_UC))
+ 		return;
+ 
+-- 
+2.45.2
+

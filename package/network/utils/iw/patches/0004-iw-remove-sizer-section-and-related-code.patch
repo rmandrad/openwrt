@@ -1,0 +1,66 @@
+From 8609336b71a8ae37238dc3f4ddff251a4698a4fc Mon Sep 17 00:00:00 2001
+From: Benjamin Berg <benjamin.berg@intel.com>
+Date: Fri, 3 May 2024 13:12:06 +0200
+Subject: [PATCH 04/22] iw: remove sizer section and related code
+
+With commit 338059ace9d0 ("iw: change __cmd section scheme to fit
+gcc/clang"), the __cmd section only includes pointers to struct cmd
+rather than the struct itself. This means that the code to measure the
+spacing is not needed anymore and can be dropped.
+
+Signed-off-by: Benjamin Berg <benjamin.berg@intel.com>
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+---
+ iw.c | 23 -----------------------
+ 1 file changed, 23 deletions(-)
+
+diff --git a/iw.c b/iw.c
+index 35308ba..c99edb1 100644
+--- a/iw.c
++++ b/iw.c
+@@ -87,8 +87,6 @@ static void nl80211_cleanup(struct nl80211_state *state)
+ 	nl_socket_free(state->nl_sock);
+ }
+ 
+-static int cmd_size;
+-
+ extern struct cmd *__start___cmd[];
+ extern struct cmd *__stop___cmd;
+ 
+@@ -555,33 +553,12 @@ int handle_cmd(struct nl80211_state *state, enum id_input idby,
+ 	return __handle_cmd(state, idby, argc, argv, NULL);
+ }
+ 
+-/*
+- * Unfortunately, I don't know how densely the linker packs the struct cmd.
+- * For example, if you have a 72-byte struct cmd, the linker will pad each
+- * out to 96 bytes before putting them together in the section. There must
+- * be some algorithm, but I haven't found it yet.
+- *
+- * We used to calculate this by taking the (abs value of) the difference
+- * between __section_get and __section_set, but if LTO is enabled then this
+- * stops working because the entries of the "__cmd" section get rearranged
+- * freely by the compiler/linker.
+- *
+- * Fix this by using yet another "__sizer" section that only contains these
+- * two entries - then the (abs value of) the difference between them will
+- * be how they get packed and that can be used to iterate the __cmd section
+- * as well.
+- */
+-static struct cmd sizer1 __attribute__((section("__sizer"))) = {};
+-static struct cmd sizer2 __attribute__((section("__sizer"))) = {};
+-
+ int main(int argc, char **argv)
+ {
+ 	struct nl80211_state nlstate;
+ 	int err;
+ 	const struct cmd *cmd = NULL;
+ 
+-	/* calculate command size including padding */
+-	cmd_size = labs((long)&sizer2 - (long)&sizer1);
+ 	/* strip off self */
+ 	argc--;
+ 	argv0 = *argv++;
+-- 
+2.45.2
+

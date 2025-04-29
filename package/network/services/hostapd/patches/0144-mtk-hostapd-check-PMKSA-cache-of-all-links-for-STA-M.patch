@@ -1,0 +1,101 @@
+From bdeffd7aaaf7c5edc737a22c1ba39a9b404f70d3 Mon Sep 17 00:00:00 2001
+From: Michael-CY Lee <michael-cy.lee@mediatek.com>
+Date: Fri, 22 Nov 2024 11:50:25 +0800
+Subject: [PATCH 144/210] mtk: hostapd: check PMKSA cache of all links for STA
+ MLD
+
+This is a workaround for passing CERT 4.48.1 RUN1 ITER2.
+
+Because the PMKSA cache is not synchronized during MLD link removal and
+addition, the PMKSA cache miss might happen when STA MLD connects to
+AP MLD with the link that is once removed and add back.
+
+If it is an MLD STA, all links' PMKSA cache will be checked to find the
+target PMKID.
+
+Signed-off-by: Michael-CY Lee <michael-cy.lee@mediatek.com>
+---
+ src/ap/wpa_auth.c    | 25 +++++++++++++++++++++++++
+ src/ap/wpa_auth.h    |  3 +++
+ src/ap/wpa_auth_ie.c | 15 +++++++++++++--
+ 3 files changed, 41 insertions(+), 2 deletions(-)
+
+diff --git a/src/ap/wpa_auth.c b/src/ap/wpa_auth.c
+index 2e055aec9..5c17a97c6 100644
+--- a/src/ap/wpa_auth.c
++++ b/src/ap/wpa_auth.c
+@@ -6683,6 +6683,31 @@ wpa_auth_get_pmksa_cache(struct wpa_authenticator *wpa_auth)
+ }
+ 
+ 
++struct rsn_pmksa_cache_entry *
++link_wpa_auth_pmksa_get(struct wpa_authenticator *wpa_auth, const u8 *sta_addr,
++			const u8 *pmkid)
++{
++	unsigned int link_id;
++	struct wpa_authenticator *link_wpa_auth;
++	struct rsn_pmksa_cache_entry *pmksa = NULL;
++
++	if (!wpa_auth || !wpa_auth->pmksa)
++		return NULL;
++
++	for (link_id = 0; link_id < MAX_NUM_MLD_LINKS; link_id++) {
++		link_wpa_auth = wpa_get_link_auth(wpa_auth, link_id);
++		if (!link_wpa_auth || !link_wpa_auth->pmksa)
++			continue;
++
++		pmksa = pmksa_cache_auth_get(link_wpa_auth->pmksa, sta_addr, pmkid);
++		if (pmksa)
++			break;
++	}
++
++	return pmksa;
++}
++
++
+ struct rsn_pmksa_cache_entry *
+ wpa_auth_pmksa_get(struct wpa_authenticator *wpa_auth, const u8 *sta_addr,
+ 		   const u8 *pmkid)
+diff --git a/src/ap/wpa_auth.h b/src/ap/wpa_auth.h
+index ad18f934f..e60fb84f5 100644
+--- a/src/ap/wpa_auth.h
++++ b/src/ap/wpa_auth.h
+@@ -530,6 +530,9 @@ int wpa_auth_pmksa_add_entry(struct wpa_authenticator *wpa_auth,
+ struct rsn_pmksa_cache *
+ wpa_auth_get_pmksa_cache(struct wpa_authenticator *wpa_auth);
+ struct rsn_pmksa_cache_entry *
++link_wpa_auth_pmksa_get(struct wpa_authenticator *wpa_auth, const u8 *sta_addr,
++			const u8 *pmkid);
++struct rsn_pmksa_cache_entry *
+ wpa_auth_pmksa_get(struct wpa_authenticator *wpa_auth, const u8 *sta_addr,
+ 		   const u8 *pmkid);
+ int wpa_auth_pmksa_get_pmk(struct wpa_authenticator *wpa_auth,
+diff --git a/src/ap/wpa_auth_ie.c b/src/ap/wpa_auth_ie.c
+index 93847fe7a..ce7baf4d1 100644
+--- a/src/ap/wpa_auth_ie.c
++++ b/src/ap/wpa_auth_ie.c
+@@ -1255,8 +1255,19 @@ wpa_validate_wpa_ie(struct wpa_authenticator *wpa_auth,
+ 	for (i = 0; i < data.num_pmkid; i++) {
+ 		wpa_hexdump(MSG_DEBUG, "RSN IE: STA PMKID",
+ 			    &data.pmkid[i * PMKID_LEN], PMKID_LEN);
+-		sm->pmksa = pmksa_cache_auth_get(wpa_auth->pmksa, sm->addr,
+-						 &data.pmkid[i * PMKID_LEN]);
++
++		/* FIXME This is a workaround for not synchronizing PMKSA cache
++		 * during link removal and addition.
++		 * All links' PMKSA cache are checked for RSN Element with PMKID
++		 * from the STA MLD
++		 */
++		if (sm->mld_assoc_link_id >= 0)
++			sm->pmksa = link_wpa_auth_pmksa_get(wpa_auth, sm->addr,
++							    &data.pmkid[i * PMKID_LEN]);
++		else
++			sm->pmksa = pmksa_cache_auth_get(wpa_auth->pmksa, sm->addr,
++							 &data.pmkid[i * PMKID_LEN]);
++
+ 		if (!sm->pmksa && !is_zero_ether_addr(sm->p2p_dev_addr))
+ 			sm->pmksa = pmksa_cache_auth_get(
+ 				wpa_auth->pmksa, sm->p2p_dev_addr,
+-- 
+2.45.2
+

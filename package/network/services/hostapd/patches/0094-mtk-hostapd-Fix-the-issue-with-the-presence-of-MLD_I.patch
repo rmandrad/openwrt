@@ -1,0 +1,51 @@
+From 59c9e69167e5f211f5a7bd24e353a6861329d980 Mon Sep 17 00:00:00 2001
+From: "MeiChia.Chiu" <MeiChia.Chiu@mediatek.com>
+Date: Mon, 3 Jun 2024 14:29:24 +0800
+Subject: [PATCH 094/210] mtk: hostapd: Fix the issue with the presence of
+ MLD_ID in the probe response
+
+The probe response carries the MLD_ID value only
+when mld_id is not 0 (e.g., NonTxBSS).
+
+Signed-off-by: Evelyn Tsai <evelyn.tsai@mediatek.com>
+Signed-off-by: Money Wang <money.wang@mediatek.com>
+Signed-off-by: MeiChia Chiu <MeiChia.Chiu@mediatek.com>
+---
+ src/ap/ieee802_11_eht.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/src/ap/ieee802_11_eht.c b/src/ap/ieee802_11_eht.c
+index 67617cc86..28f85b4cc 100644
+--- a/src/ap/ieee802_11_eht.c
++++ b/src/ap/ieee802_11_eht.c
+@@ -480,7 +480,7 @@ static u8 * hostapd_eid_eht_basic_ml_common(struct hostapd_data *hapd,
+ 	if (hapd->iconf->eml_disable)
+ 		common_info_len -= 2; /* EML Capabilities (2) */
+ 
+-	if (include_mld_id) {
++	if (include_mld_id && hostapd_get_mld_id(hapd)) {
+ 		/* AP MLD ID */
+ 		control |= BASIC_MULTI_LINK_CTRL_PRES_AP_MLD_ID;
+ 		common_info_len++;
+@@ -526,7 +526,7 @@ static u8 * hostapd_eid_eht_basic_ml_common(struct hostapd_data *hapd,
+ 		   mld_cap);
+ 	wpabuf_put_le16(buf, mld_cap);
+ 
+-	if (include_mld_id) {
++	if (include_mld_id && hostapd_get_mld_id(hapd)) {
+ 		wpa_printf(MSG_DEBUG, "MLD: AP MLD ID=0x%x",
+ 			   hostapd_get_mld_id(hapd));
+ 		wpabuf_put_u8(buf, hostapd_get_mld_id(hapd));
+@@ -820,7 +820,8 @@ size_t hostapd_eid_eht_ml_beacon_len(struct hostapd_data *hapd,
+ 				     struct mld_info *info,
+ 				     bool include_mld_id)
+ {
+-	return hostapd_eid_eht_ml_len(info, include_mld_id,
++	return hostapd_eid_eht_ml_len(info,
++				      include_mld_id && hostapd_get_mld_id(hapd),
+ 				      hapd->iconf->eml_disable);
+ }
+ 
+-- 
+2.45.2
+

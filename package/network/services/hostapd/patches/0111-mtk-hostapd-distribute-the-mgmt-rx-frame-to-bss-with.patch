@@ -1,0 +1,31 @@
+From e51f23110f6ac929e5a841d4fde29836ef477671 Mon Sep 17 00:00:00 2001
+From: Bo Jiao <Bo.Jiao@mediatek.com>
+Date: Wed, 10 Jul 2024 15:00:50 +0800
+Subject: [PATCH 111/210] mtk: hostapd: distribute the mgmt rx frame to bss
+ with same freq.
+
+there is no need to distribute the mgmt rx frame to all bss, we use
+mgmt->freq to filter.
+
+Signed-off-by: Bo Jiao <Bo.Jiao@mediatek.com>
+---
+ src/ap/drv_callbacks.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/ap/drv_callbacks.c b/src/ap/drv_callbacks.c
+index e1a9de4c8..460eb1e25 100644
+--- a/src/ap/drv_callbacks.c
++++ b/src/ap/drv_callbacks.c
+@@ -1988,6 +1988,9 @@ static int hostapd_mgmt_rx(struct hostapd_data *hapd, struct rx_mgmt *rx_mgmt)
+ 			return 0;
+ 	}
+ 
++	if (rx_mgmt->freq != 0 && rx_mgmt->freq != iface->freq)
++		return 0;
++
+ 	os_memset(&fi, 0, sizeof(fi));
+ 	fi.freq = rx_mgmt->freq;
+ 	fi.datarate = rx_mgmt->datarate;
+-- 
+2.45.2
+

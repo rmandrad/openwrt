@@ -1,0 +1,29 @@
+From 4428f602e4d75e7aa41d1190ab31be6199c2ac9e Mon Sep 17 00:00:00 2001
+From: Bo-Cun Chen <bc-bocun.chen@mediatek.com>
+Date: Tue, 8 Apr 2025 12:44:02 +0800
+Subject: [PATCH] net: pcs: mtk_lynxi add mt7987 support
+
+Signed-off-by: Bo-Cun Chen <bc-bocun.chen@mediatek.com>
+---
+ drivers/net/pcs/pcs-mtk-lynxi.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/drivers/net/pcs/pcs-mtk-lynxi.c
++++ b/drivers/net/pcs/pcs-mtk-lynxi.c
+@@ -449,7 +449,7 @@ static int mtk_pcs_lynxi_probe(struct pl
+ 
+ 	mpcs->rstc = of_reset_control_get_shared(np->parent, NULL);
+ 	if (IS_ERR(mpcs->rstc))
+-		return PTR_ERR(mpcs->rstc);
++		mpcs->rstc = NULL;
+ 
+ 	reset_control_deassert(mpcs->rstc);
+ 	mpcs->sgmii_sel = devm_clk_get_enabled(dev, "sgmii_sel");
+@@ -505,6 +505,7 @@ static int mtk_pcs_lynxi_remove(struct p
+ }
+ 
+ static const struct of_device_id mtk_pcs_lynxi_of_match[] = {
++	{ .compatible = "mediatek,mt7987-sgmii", .data = (void *)MTK_NETSYS_V3_AMA_RGC3 },
+ 	{ .compatible = "mediatek,mt7988-sgmii", .data = (void *)MTK_NETSYS_V3_AMA_RGC3 },
+ 	{ /* sentinel */ },
+ };

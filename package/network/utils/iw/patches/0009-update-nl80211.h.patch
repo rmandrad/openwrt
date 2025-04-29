@@ -1,0 +1,132 @@
+From 93e2309f406cacf1cefe71cb7ac4a8d804d34040 Mon Sep 17 00:00:00 2001
+From: Johannes Berg <johannes.berg@intel.com>
+Date: Thu, 7 Nov 2024 15:24:07 +0100
+Subject: [PATCH 09/22] update nl80211.h
+
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+---
+ nl80211.h | 75 +++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 75 insertions(+)
+
+diff --git a/nl80211.h b/nl80211.h
+index 6ae3997..6d11437 100644
+--- a/nl80211.h
++++ b/nl80211.h
+@@ -2052,6 +2052,10 @@ enum nl80211_commands {
+  * @NL80211_ATTR_INTERFACE_COMBINATIONS: Nested attribute listing the supported
+  *	interface combinations. In each nested item, it contains attributes
+  *	defined in &enum nl80211_if_combination_attrs.
++ *	If the wiphy uses multiple radios (@NL80211_ATTR_WIPHY_RADIOS is set),
++ *	this attribute contains the interface combinations of the first radio.
++ *	See @NL80211_ATTR_WIPHY_INTERFACE_COMBINATIONS for the global wiphy
++ *	combinations for the sum of all radios.
+  * @NL80211_ATTR_SOFTWARE_IFTYPES: Nested attribute (just like
+  *	%NL80211_ATTR_SUPPORTED_IFTYPES) containing the interface types that
+  *	are managed in software: interfaces of these types aren't subject to
+@@ -2856,6 +2860,17 @@ enum nl80211_commands {
+  *	%NL80211_CMD_ASSOCIATE indicating the SPP A-MSDUs
+  *	are used on this connection
+  *
++ * @NL80211_ATTR_WIPHY_RADIOS: Nested attribute describing physical radios
++ *	belonging to this wiphy. See &enum nl80211_wiphy_radio_attrs.
++ *
++ * @NL80211_ATTR_WIPHY_INTERFACE_COMBINATIONS: Nested attribute listing the
++ *	supported interface combinations for all radios combined. In each
++ *	nested item, it contains attributes defined in
++ *	&enum nl80211_if_combination_attrs.
++ *
++ * @NL80211_ATTR_VIF_RADIO_MASK: Bitmask of allowed radios (u32).
++ *	A value of 0 means all radios.
++ *
+  * @NUM_NL80211_ATTR: total number of nl80211_attrs available
+  * @NL80211_ATTR_MAX: highest attribute number currently defined
+  * @__NL80211_ATTR_AFTER_LAST: internal use
+@@ -3401,6 +3416,11 @@ enum nl80211_attrs {
+ 
+ 	NL80211_ATTR_ASSOC_SPP_AMSDU,
+ 
++	NL80211_ATTR_WIPHY_RADIOS,
++	NL80211_ATTR_WIPHY_INTERFACE_COMBINATIONS,
++
++	NL80211_ATTR_VIF_RADIO_MASK,
++
+ 	/* add attributes here, update the policy in nl80211.c */
+ 
+ 	__NL80211_ATTR_AFTER_LAST,
+@@ -4683,6 +4703,7 @@ enum nl80211_survey_info {
+  *	overrides all other flags.
+  * @NL80211_MNTR_FLAG_ACTIVE: use the configured MAC address
+  *	and ACK incoming unicast packets.
++ * @NL80211_MNTR_FLAG_SKIP_TX: do not pass local tx packets
+  *
+  * @__NL80211_MNTR_FLAG_AFTER_LAST: internal use
+  * @NL80211_MNTR_FLAG_MAX: highest possible monitor flag
+@@ -4695,6 +4716,7 @@ enum nl80211_mntr_flags {
+ 	NL80211_MNTR_FLAG_OTHER_BSS,
+ 	NL80211_MNTR_FLAG_COOK_FRAMES,
+ 	NL80211_MNTR_FLAG_ACTIVE,
++	NL80211_MNTR_FLAG_SKIP_TX,
+ 
+ 	/* keep last */
+ 	__NL80211_MNTR_FLAG_AFTER_LAST,
+@@ -8005,4 +8027,57 @@ enum nl80211_ap_settings_flags {
+ 	NL80211_AP_SETTINGS_SA_QUERY_OFFLOAD_SUPPORT	= 1 << 1,
+ };
+ 
++/**
++ * enum nl80211_wiphy_radio_attrs - wiphy radio attributes
++ *
++ * @__NL80211_WIPHY_RADIO_ATTR_INVALID: Invalid
++ *
++ * @NL80211_WIPHY_RADIO_ATTR_INDEX: Index of this radio (u32)
++ * @NL80211_WIPHY_RADIO_ATTR_FREQ_RANGE: Frequency range supported by this
++ *	radio. Attribute may be present multiple times.
++ * @NL80211_WIPHY_RADIO_ATTR_INTERFACE_COMBINATION: Supported interface
++ *	combination for this radio. Attribute may be present multiple times
++ *	and contains attributes defined in &enum nl80211_if_combination_attrs.
++ * @NL80211_WIPHY_RADIO_ATTR_ANTENNA_MASK: bitmask (u32) of antennas
++ *	connected to this radio.
++ *
++ * @__NL80211_WIPHY_RADIO_ATTR_LAST: Internal
++ * @NL80211_WIPHY_RADIO_ATTR_MAX: Highest attribute
++ */
++enum nl80211_wiphy_radio_attrs {
++	__NL80211_WIPHY_RADIO_ATTR_INVALID,
++
++	NL80211_WIPHY_RADIO_ATTR_INDEX,
++	NL80211_WIPHY_RADIO_ATTR_FREQ_RANGE,
++	NL80211_WIPHY_RADIO_ATTR_INTERFACE_COMBINATION,
++	NL80211_WIPHY_RADIO_ATTR_ANTENNA_MASK,
++
++	/* keep last */
++	__NL80211_WIPHY_RADIO_ATTR_LAST,
++	NL80211_WIPHY_RADIO_ATTR_MAX = __NL80211_WIPHY_RADIO_ATTR_LAST - 1,
++};
++
++/**
++ * enum nl80211_wiphy_radio_freq_range - wiphy radio frequency range
++ *
++ * @__NL80211_WIPHY_RADIO_FREQ_ATTR_INVALID: Invalid
++ *
++ * @NL80211_WIPHY_RADIO_FREQ_ATTR_START: Frequency range start (u32).
++ *	The unit is kHz.
++ * @NL80211_WIPHY_RADIO_FREQ_ATTR_END: Frequency range end (u32).
++ *	The unit is kHz.
++ *
++ * @__NL80211_WIPHY_RADIO_FREQ_ATTR_LAST: Internal
++ * @NL80211_WIPHY_RADIO_FREQ_ATTR_MAX: Highest attribute
++ */
++enum nl80211_wiphy_radio_freq_range {
++	__NL80211_WIPHY_RADIO_FREQ_ATTR_INVALID,
++
++	NL80211_WIPHY_RADIO_FREQ_ATTR_START,
++	NL80211_WIPHY_RADIO_FREQ_ATTR_END,
++
++	__NL80211_WIPHY_RADIO_FREQ_ATTR_LAST,
++	NL80211_WIPHY_RADIO_FREQ_ATTR_MAX = __NL80211_WIPHY_RADIO_FREQ_ATTR_LAST - 1,
++};
++
+ #endif /* __LINUX_NL80211_H */
+-- 
+2.45.2
+

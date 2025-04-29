@@ -10,18 +10,19 @@ include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=mac80211
 
-PKG_VERSION:=6.12.6
+PKG_VERSION:=6.14-rc7
 PKG_RELEASE:=1
 PKG_LICENSE:=GPL-2.0-only
 PKG_LICENSE_FILES:=COPYING
 
 PKG_SOURCE_URL:=http://mirror2.openwrt.org/sources/
-PKG_HASH:=28ec39425a1b3270e1422d92a8131a6a3d8919cc13e8ee250c315e55d922ba68
+PKG_HASH:=d81c67ca24cbf41fd8d7eaa32aedeb238b5db83ea2139bbaa8ebe532b39e0ab4
 
 PKG_SOURCE:=backports-$(PKG_VERSION).tar.xz
 PKG_BUILD_DIR:=$(KERNEL_BUILD_DIR)/$(if $(BUILD_VARIANT),$(PKG_NAME)-$(BUILD_VARIANT)/)backports-$(PKG_VERSION)
 PKG_BUILD_PARALLEL:=1
 
+SOURCE_PATH:=./src
 PKG_MAINTAINER:=Felix Fietkau <nbd@nbd.name>
 
 PKG_DRIVERS = \
@@ -80,6 +81,10 @@ config-y:= \
 	WLAN_VENDOR_ST \
 	WLAN_VENDOR_TI \
 	WLAN_VENDOR_ZYDAS \
+	MAC80211_DEBUG_MENU \
+	MAC80211_MLME_DEBUG \
+	MAC80211_STA_DEBUG \
+	MAC80211_HT_DEBUG \
 
 config-$(call config_package,cfg80211,$(ALL_VARIANTS)) += CFG80211
 config-$(CONFIG_PACKAGE_CFG80211_TESTMODE) += NL80211_TESTMODE
@@ -304,6 +309,7 @@ define Build/Prepare
 	rm -rf $(PKG_BUILD_DIR)
 	mkdir -p $(PKG_BUILD_DIR)
 	$(PKG_UNPACK)
+	$(CP) $(SOURCE_PATH)/* $(PKG_BUILD_DIR) 2>/dev/null || :
 	$(Build/Patch)
 	rm -rf \
 		$(PKG_BUILD_DIR)/include/linux/ssb \

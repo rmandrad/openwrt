@@ -1,0 +1,163 @@
+From 9215914c7ce0570bdffc37cff20aeb97ac00de94 Mon Sep 17 00:00:00 2001
+From: Shayne Chen <shayne.chen@mediatek.com>
+Date: Wed, 16 Apr 2025 16:46:54 +0800
+Subject: [PATCH 206/210] mtk: hostapd: sync nl80211_copy.h
+
+Sync with wireless-next-2025-03-20 tag.
+
+Signed-off-by: Shayne Chen <shayne.chen@mediatek.com>
+---
+ src/drivers/nl80211_copy.h | 78 ++++++++++++++++++++++----------------
+ 1 file changed, 46 insertions(+), 32 deletions(-)
+
+diff --git a/src/drivers/nl80211_copy.h b/src/drivers/nl80211_copy.h
+index 908cb8e69..6fa52ebf8 100644
+--- a/src/drivers/nl80211_copy.h
++++ b/src/drivers/nl80211_copy.h
+@@ -11,7 +11,7 @@
+  * Copyright 2008 Jouni Malinen <jouni.malinen@atheros.com>
+  * Copyright 2008 Colin McCabe <colin@cozybit.com>
+  * Copyright 2015-2017	Intel Deutschland GmbH
+- * Copyright (C) 2018-2024 Intel Corporation
++ * Copyright (C) 2018-2025 Intel Corporation
+  *
+  * Permission to use, copy, modify, and/or distribute this software for any
+  * purpose with or without fee is hereby granted, provided that the above
+@@ -2890,10 +2890,13 @@ enum nl80211_commands {
+  *
+  * @NL80211_ATTR_VIF_RADIO_MASK: Bitmask of allowed radios (u32).
+  *	A value of 0 means all radios.
++ * @NL80211_ATTR_CNTDWN_OFFS_STA_PROF: An array of offsets (u16) to the channel
++ *	switch or color change counters in the per-STA profile corresponding to
++ *	the affected AP.
+  *
+- * @NL80211_ATTR_SUPPORTED_SELECTORS: supported selectors, array of
+- *	supported selectors as defined by IEEE 802.11 7.3.2.2 but without the
+- *	length restriction (at most %NL80211_MAX_SUPP_SELECTORS).
++ * @NL80211_ATTR_SUPPORTED_SELECTORS: supported BSS Membership Selectors, array
++ *	of supported selectors as defined by IEEE Std 802.11-2020 9.4.2.3 but
++ *	without the length restriction (at most %NL80211_MAX_SUPP_SELECTORS).
+  *	This can be used to provide a list of selectors that are implemented
+  *	by the supplicant. If not given, support for SAE_H2E is assumed.
+  *
+@@ -2903,9 +2906,11 @@ enum nl80211_commands {
+  * @NL80211_ATTR_EPCS: Flag attribute indicating that EPCS is enabled for a
+  *	station interface.
+  *
+- * @NL80211_ATTR_CNTDWN_OFFS_STA_PROF: An array of offsets (u16) to the channel
+- *	switch or color change counters in the per-STA profile corresponding to
+- *	the affected AP.
++ * @NL80211_ATTR_ASSOC_MLD_EXT_CAPA_OPS: Extended MLD capabilities and
++ *	operations that userspace implements to use during association/ML
++ *	link reconfig, currently only "BTM MLD Recommendation For Multiple
++ *	APs Support". Drivers may set additional flags that they support
++ *	in the kernel or device.
+  *
+  * @NL80211_ATTR_MLO_LINK_DISABLED_BMP: u16 bitmap of A-TTLM disabled links for
+  * 	the %NL80211_CMD_SET_ATTLM.
+@@ -3481,6 +3486,8 @@ enum nl80211_attrs {
+ 	NL80211_ATTR_MLO_RECONF_REM_LINKS,
+ 	NL80211_ATTR_EPCS,
+ 
++	NL80211_ATTR_ASSOC_MLD_EXT_CAPA_OPS,
++
+ 	/* add attributes here, update the policy in nl80211.c */
+ 
+ 	/* MTK internal */
+@@ -4374,6 +4381,8 @@ enum nl80211_wmm_rule {
+  *	otherwise completely disabled.
+  * @NL80211_FREQUENCY_ATTR_ALLOW_6GHZ_VLP_AP: This channel can be used for a
+  *	very low power (VLP) AP, despite being NO_IR.
++ * @NL80211_FREQUENCY_ATTR_ALLOW_20MHZ_ACTIVITY: This channel can be active in
++ *	20 MHz bandwidth, despite being NO_IR.
+  * @NL80211_FREQUENCY_ATTR_MAX: highest frequency attribute number
+  *	currently defined
+  * @__NL80211_FREQUENCY_ATTR_AFTER_LAST: internal use
+@@ -4418,6 +4427,7 @@ enum nl80211_frequency_attr {
+ 	NL80211_FREQUENCY_ATTR_NO_6GHZ_AFC_CLIENT,
+ 	NL80211_FREQUENCY_ATTR_CAN_MONITOR,
+ 	NL80211_FREQUENCY_ATTR_ALLOW_6GHZ_VLP_AP,
++	NL80211_FREQUENCY_ATTR_ALLOW_20MHZ_ACTIVITY,
+ 
+ 	/* keep last */
+ 	__NL80211_FREQUENCY_ATTR_AFTER_LAST,
+@@ -4629,31 +4639,34 @@ enum nl80211_sched_scan_match_attr {
+  * @NL80211_RRF_NO_6GHZ_AFC_CLIENT: Client connection to AFC AP not allowed
+  * @NL80211_RRF_ALLOW_6GHZ_VLP_AP: Very low power (VLP) AP can be permitted
+  *	despite NO_IR configuration.
++ * @NL80211_RRF_ALLOW_20MHZ_ACTIVITY: Allow activity in 20 MHz bandwidth,
++ *	despite NO_IR configuration.
+  */
+ enum nl80211_reg_rule_flags {
+-	NL80211_RRF_NO_OFDM		= 1<<0,
+-	NL80211_RRF_NO_CCK		= 1<<1,
+-	NL80211_RRF_NO_INDOOR		= 1<<2,
+-	NL80211_RRF_NO_OUTDOOR		= 1<<3,
+-	NL80211_RRF_DFS			= 1<<4,
+-	NL80211_RRF_PTP_ONLY		= 1<<5,
+-	NL80211_RRF_PTMP_ONLY		= 1<<6,
+-	NL80211_RRF_NO_IR		= 1<<7,
+-	__NL80211_RRF_NO_IBSS		= 1<<8,
+-	NL80211_RRF_AUTO_BW		= 1<<11,
+-	NL80211_RRF_IR_CONCURRENT	= 1<<12,
+-	NL80211_RRF_NO_HT40MINUS	= 1<<13,
+-	NL80211_RRF_NO_HT40PLUS		= 1<<14,
+-	NL80211_RRF_NO_80MHZ		= 1<<15,
+-	NL80211_RRF_NO_160MHZ		= 1<<16,
+-	NL80211_RRF_NO_HE		= 1<<17,
+-	NL80211_RRF_NO_320MHZ		= 1<<18,
+-	NL80211_RRF_NO_EHT		= 1<<19,
+-	NL80211_RRF_PSD			= 1<<20,
+-	NL80211_RRF_DFS_CONCURRENT	= 1<<21,
+-	NL80211_RRF_NO_6GHZ_VLP_CLIENT	= 1<<22,
+-	NL80211_RRF_NO_6GHZ_AFC_CLIENT	= 1<<23,
+-	NL80211_RRF_ALLOW_6GHZ_VLP_AP	= 1<<24,
++	NL80211_RRF_NO_OFDM                 = 1 << 0,
++	NL80211_RRF_NO_CCK                  = 1 << 1,
++	NL80211_RRF_NO_INDOOR               = 1 << 2,
++	NL80211_RRF_NO_OUTDOOR              = 1 << 3,
++	NL80211_RRF_DFS                     = 1 << 4,
++	NL80211_RRF_PTP_ONLY                = 1 << 5,
++	NL80211_RRF_PTMP_ONLY               = 1 << 6,
++	NL80211_RRF_NO_IR                   = 1 << 7,
++	__NL80211_RRF_NO_IBSS               = 1 << 8,
++	NL80211_RRF_AUTO_BW                 = 1 << 11,
++	NL80211_RRF_IR_CONCURRENT           = 1 << 12,
++	NL80211_RRF_NO_HT40MINUS            = 1 << 13,
++	NL80211_RRF_NO_HT40PLUS             = 1 << 14,
++	NL80211_RRF_NO_80MHZ                = 1 << 15,
++	NL80211_RRF_NO_160MHZ               = 1 << 16,
++	NL80211_RRF_NO_HE                   = 1 << 17,
++	NL80211_RRF_NO_320MHZ               = 1 << 18,
++	NL80211_RRF_NO_EHT                  = 1 << 19,
++	NL80211_RRF_PSD                     = 1 << 20,
++	NL80211_RRF_DFS_CONCURRENT          = 1 << 21,
++	NL80211_RRF_NO_6GHZ_VLP_CLIENT      = 1 << 22,
++	NL80211_RRF_NO_6GHZ_AFC_CLIENT      = 1 << 23,
++	NL80211_RRF_ALLOW_6GHZ_VLP_AP       = 1 << 24,
++	NL80211_RRF_ALLOW_20MHZ_ACTIVITY    = 1 << 25,
+ };
+ 
+ #define NL80211_RRF_PASSIVE_SCAN	NL80211_RRF_NO_IR
+@@ -4774,8 +4787,8 @@ enum nl80211_survey_info {
+  * @NL80211_MNTR_FLAG_PLCPFAIL: pass frames with bad PLCP
+  * @NL80211_MNTR_FLAG_CONTROL: pass control frames
+  * @NL80211_MNTR_FLAG_OTHER_BSS: disable BSSID filtering
+- * @NL80211_MNTR_FLAG_COOK_FRAMES: report frames after processing.
+- *	overrides all other flags.
++ * @NL80211_MNTR_FLAG_COOK_FRAMES: deprecated
++ *	will unconditionally be refused
+  * @NL80211_MNTR_FLAG_ACTIVE: use the configured MAC address
+  *	and ACK incoming unicast packets.
+  * @NL80211_MNTR_FLAG_SKIP_TX: do not pass local tx packets
+@@ -6723,6 +6736,7 @@ enum nl80211_ext_feature_index {
+ 	NL80211_EXT_FEATURE_OWE_OFFLOAD_AP,
+ 	NL80211_EXT_FEATURE_DFS_CONCURRENT,
+ 	NL80211_EXT_FEATURE_SPP_AMSDU_SUPPORT,
++	NL80211_EXT_FEATURE_STAS_COUNT,
+ 
+ 	/* add new features before the definition below */
+ 	NUM_NL80211_EXT_FEATURES,
+-- 
+2.45.2
+

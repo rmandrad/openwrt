@@ -1,0 +1,28 @@
+Subject: [PATCH] 999-2758-net-dsa-add-assisted-learning
+
+---
+ drivers/net/dsa/mt7530.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+--- a/drivers/net/dsa/mt7530.c
++++ b/drivers/net/dsa/mt7530.c
+@@ -2510,6 +2510,9 @@ mt7531_setup_common(struct dsa_switch *d
+ 	struct mt7530_priv *priv = ds->priv;
+ 	int ret, i;
+ 
++	ds->assisted_learning_on_cpu_port = true;
++	ds->mtu_enforcement_ingress = true;
++
+ 	mt753x_trap_frames(priv);
+ 
+ 	/* Enable and reset MIB counters */
+@@ -2655,9 +2658,6 @@ mt7531_setup(struct dsa_switch *ds)
+ 	if (ret)
+ 		return ret;
+ 
+-	ds->assisted_learning_on_cpu_port = true;
+-	ds->mtu_enforcement_ingress = true;
+-
+ 	return 0;
+ }
+ 

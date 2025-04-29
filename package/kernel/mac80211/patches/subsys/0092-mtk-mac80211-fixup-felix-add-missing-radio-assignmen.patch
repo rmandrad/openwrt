@@ -1,0 +1,30 @@
+From eb8a4cfbe482c7521794bf42ba4bff55230cf617 Mon Sep 17 00:00:00 2001
+From: StanleyYP Wang <StanleyYP.Wang@mediatek.com>
+Date: Tue, 11 Feb 2025 15:25:46 +0800
+Subject: [PATCH 092/101] mtk: mac80211: fixup felix: add missing radio
+ assignment
+
+Fix kernel crash
+
+This will be merged in felix's upstream patch
+
+Signed-off-by: StanleyYP Wang <StanleyYP.Wang@mediatek.com>
+---
+ net/mac80211/util.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/net/mac80211/util.c b/net/mac80211/util.c
+index c30e9ef1..14f584a6 100644
+--- a/net/mac80211/util.c
++++ b/net/mac80211/util.c
+@@ -895,6 +895,7 @@ u32 ieee80211_chandef_radio_mask(struct ieee80211_local *local,
+ 	int i;
+ 
+ 	for (i = 0; i < wiphy->n_radio; i++) {
++		radio = &wiphy->radio[i];
+ 		if (cfg80211_radio_chandef_valid(radio, chandef))
+ 			mask |= BIT(i);
+ 	}
+-- 
+2.45.2
+

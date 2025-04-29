@@ -1,0 +1,52 @@
+From da6a41c4b8e356b0d79791f1ff422545703f9d31 Mon Sep 17 00:00:00 2001
+From: Benjamin Lin <benjamin-jw.lin@mediatek.com>
+Date: Thu, 1 Aug 2024 09:11:02 +0800
+Subject: [PATCH 33/92] mtk: mt76: mt7996: record per-antenna average
+ data-frame RSSI
+
+Record per-antenna average data-frame RSSI.
+
+Signed-off-by: Benjamin Lin <benjamin-jw.lin@mediatek.com>
+---
+ mt7996/mac.c    | 7 +++++++
+ mt7996/mt7996.h | 2 ++
+ 2 files changed, 9 insertions(+)
+
+diff --git a/mt7996/mac.c b/mt7996/mac.c
+index 7c135143..988ec0c2 100644
+--- a/mt7996/mac.c
++++ b/mt7996/mac.c
+@@ -560,10 +560,17 @@ mt7996_mac_fill_rx(struct mt7996_dev *dev, enum mt76_rxq_id q,
+ 		status->chain_signal[3] = to_rssi(MT_PRXV_RCPI3, v3);
+ 
+ 		if (msta_link) {
++			int i;
++
+ 			memcpy(msta_link->chain_signal, status->chain_signal,
+ 			       IEEE80211_MAX_CHAINS);
+ 			msta_link->signal = mt76_rx_signal(mphy->antenna_mask,
+ 							   msta_link->chain_signal);
++
++			for (i = 0; i < IEEE80211_MAX_CHAINS; ++i)
++				ewma_avg_signal_add(msta_link->chain_signal_avg + i,
++						    -msta_link->chain_signal[i]);
++			ewma_avg_signal_add(&msta_link->signal_avg, -msta_link->signal);
+ 		}
+ 
+ 		/* RXD Group 5 - C-RXV */
+diff --git a/mt7996/mt7996.h b/mt7996/mt7996.h
+index d1bd6fbc..8ca07d55 100644
+--- a/mt7996/mt7996.h
++++ b/mt7996/mt7996.h
+@@ -349,6 +349,8 @@ struct mt7996_sta_link {
+ 
+ 	s8 chain_signal[IEEE80211_MAX_CHAINS];
+ 	int signal;
++	struct ewma_avg_signal chain_signal_avg[IEEE80211_MAX_CHAINS];
++	struct ewma_avg_signal signal_avg;
+ 
+ 	s8 chain_ack_signal[IEEE80211_MAX_CHAINS];
+ 	int ack_signal;
+-- 
+2.45.2
+

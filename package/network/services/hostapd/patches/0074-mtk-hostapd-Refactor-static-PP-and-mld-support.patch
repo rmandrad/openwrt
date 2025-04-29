@@ -1,0 +1,336 @@
+From 1da7634ac16be133db3658c972f6f26100ddc7b8 Mon Sep 17 00:00:00 2001
+From: Allen Ye <allen.ye@mediatek.com>
+Date: Tue, 2 Apr 2024 16:51:07 +0800
+Subject: [PATCH 074/210] mtk: hostapd: Refactor static PP and mld support
+
+Add band_idx attribute in pp cmd for vendor cmd under mld setting.
+
+---
+ hostapd/config_file.c        |  6 ++--
+ hostapd/ctrl_iface.c         | 69 +++++++++++++++++++++++++-----------
+ hostapd/ctrl_iface.h         |  3 +-
+ hostapd/hostapd_cli.c        | 15 ++++++++
+ src/ap/ap_config.h           |  4 +--
+ src/ap/ap_drv_ops.c          |  7 ++--
+ src/ap/dfs.c                 |  3 ++
+ src/ap/hostapd.c             |  4 +--
+ src/common/mtk_vendor.h      |  1 +
+ src/drivers/driver.h         |  3 +-
+ src/drivers/driver_nl80211.c |  4 ++-
+ 11 files changed, 87 insertions(+), 32 deletions(-)
+
+diff --git a/hostapd/config_file.c b/hostapd/config_file.c
+index 1dc2c6a94..f0277f640 100644
+--- a/hostapd/config_file.c
++++ b/hostapd/config_file.c
+@@ -5468,7 +5468,7 @@ static int hostapd_config_fill(struct hostapd_config *conf,
+ 		if (get_u16(pos, line, &conf->punct_bitmap))
+ 			return 1;
+ 		conf->punct_bitmap = atoi(pos);
+-		conf->pp_mode = PP_MANUAL_MODE;
++		conf->pp_mode = PP_USR_MODE;
+ 	} else if (os_strcmp(buf, "punct_acs_threshold") == 0) {
+ 		int val = atoi(pos);
+ 
+@@ -5565,8 +5565,8 @@ static int hostapd_config_fill(struct hostapd_config *conf,
+ 	} else if (os_strcmp(buf, "pp_mode") == 0) {
+ 		int val = atoi(pos);
+ 
+-		if ((val != PP_MANUAL_MODE && conf->punct_bitmap) ||
+-		    val < PP_DISABLE || val > PP_MANUAL_MODE) {
++		if ((val != PP_USR_MODE && conf->punct_bitmap) ||
++		    val < PP_DISABLE || val > PP_USR_MODE) {
+ 			wpa_printf(MSG_ERROR, "Line %d: invalid pp_mode value",
+ 				   line);
+ 			return 1;
+diff --git a/hostapd/ctrl_iface.c b/hostapd/ctrl_iface.c
+index e381fec3a..e34e4a2ff 100644
+--- a/hostapd/ctrl_iface.c
++++ b/hostapd/ctrl_iface.c
+@@ -4991,27 +4991,57 @@ hostapd_ctrl_iface_set_background_radar_mode(struct hostapd_data *hapd, char *cm
+ 	return os_snprintf(buf, buflen, "OK\n");
+ }
+ 
++struct hostapd_data *
++hostapd_get_hapd_by_band_idx(struct hostapd_data *hapd, u8 band_idx)
++{
++	struct hostapd_data *link;
++
++	if (!hostapd_is_mld_ap(hapd))
++		return hapd;
++
++	for_each_mld_link(link, hapd) {
++		if (link->iconf->band_idx == band_idx)
++			break;
++	}
++
++	if (!link || link->iconf->band_idx != band_idx) {
++		wpa_printf(MSG_ERROR, "Invalid band idx %d\n", band_idx);
++		return NULL;
++	}
++
++	return link;
++}
++
+ static int
+ hostapd_ctrl_iface_set_pp(struct hostapd_data *hapd, char *cmd, char *buf,
+ 			  size_t buflen)
+ {
+-	char *pos, *config, *value;
++	char *band, *config, *value;
++	u8 band_idx;
+ 
+ 	config = cmd;
+-	pos = os_strchr(config, ' ');
+-	if (pos == NULL)
++
++	value = os_strchr(config, ' ');
++	if (value == NULL)
+ 		return -1;
+-	*pos++ = '\0';
++	*value++ = '\0';
+ 
+-	if (pos == NULL)
++	band = os_strchr(value, ' ');
++	if (band == NULL)
++		return -1;
++	*band++ = '\0';
++	band_idx = strtol(band, NULL, 10);
++
++	hapd = hostapd_get_hapd_by_band_idx(hapd, band_idx);
++
++	if (!hapd)
+ 		return -1;
+-	value = pos;
+ 
+ 	if (os_strcmp(config, "mode") == 0) {
+-		int val = atoi(value);
++		int val = strtol(value, NULL, 10);
+ 
+-		if (val < PP_DISABLE || val > PP_AUTO_MODE) {
+-			wpa_printf(MSG_ERROR, "Invalid value for set_pp");
++		if (val < PP_DISABLE || val > PP_FW_MODE) {
++			wpa_printf(MSG_ERROR, "Invalid value for SET_PP");
+ 			return -1;
+ 		}
+ 		hapd->iconf->pp_mode = (u8) val;
+@@ -5019,7 +5049,8 @@ hostapd_ctrl_iface_set_pp(struct hostapd_data *hapd, char *cmd, char *buf,
+ 			return -1;
+ 	} else {
+ 		wpa_printf(MSG_ERROR,
+-			   "Unsupported parameter %s for set_pp", config);
++			   "Unsupported parameter %s for SET_PP"
++			   "Usage: set_pp mode <value> <band_idx>", config);
+ 		return -1;
+ 	}
+ 	return os_snprintf(buf, buflen, "OK\n");
+@@ -5029,19 +5060,17 @@ static int
+ hostapd_ctrl_iface_get_pp(struct hostapd_data *hapd, char *cmd, char *buf,
+ 			  size_t buflen)
+ {
+-	char *pos, *end;
++	u8 band_idx;
+ 
+-	pos = buf;
+-	end = buf + buflen;
++	band_idx = strtol(cmd, NULL, 10);
+ 
+-	if (os_strcmp(cmd, "mode") == 0) {
+-		return os_snprintf(pos, end - pos, "pp_mode: %d\n",
+-				   hapd->iconf->pp_mode);
+-	} else {
+-		wpa_printf(MSG_ERROR,
+-			   "Unsupported parameter %s for get_pp", cmd);
++	hapd = hostapd_get_hapd_by_band_idx(hapd, band_idx);
++
++	if (!hapd)
+ 		return -1;
+-	}
++
++	return os_snprintf(buf, buflen, "pp_mode: %d, punct_bitmap: 0x%04x\n",
++			   hapd->iconf->pp_mode, hapd->iconf->punct_bitmap);
+ }
+ 
+ static int
+diff --git a/hostapd/ctrl_iface.h b/hostapd/ctrl_iface.h
+index 6ce209d22..237b628f5 100644
+--- a/hostapd/ctrl_iface.h
++++ b/hostapd/ctrl_iface.h
+@@ -37,5 +37,6 @@ hostapd_global_ctrl_iface_deinit(struct hapd_interfaces *interface)
+ {
+ }
+ #endif /* CONFIG_NO_CTRL_IFACE */
+-
++struct hostapd_data *
++hostapd_get_hapd_by_band_idx(struct hostapd_data *hapd, u8 band_idx);
+ #endif /* CTRL_IFACE_H */
+diff --git a/hostapd/hostapd_cli.c b/hostapd/hostapd_cli.c
+index 9f6a0da0b..4e955f738 100644
+--- a/hostapd/hostapd_cli.c
++++ b/hostapd/hostapd_cli.c
+@@ -1754,6 +1754,17 @@ static int hostapd_cli_cmd_dump_csi(struct wpa_ctrl *ctrl, int argc,
+ {
+ 	return hostapd_cli_cmd(ctrl, "DUMP_CSI", 1, argc, argv);
+ }
++static int hostapd_cli_cmd_set_pp(struct wpa_ctrl *ctrl, int argc,
++					   char *argv[])
++{
++	return hostapd_cli_cmd(ctrl, "set_pp", 3, argc, argv);
++}
++
++static int hostapd_cli_cmd_get_pp(struct wpa_ctrl *ctrl, int argc,
++					   char *argv[])
++{
++	return hostapd_cli_cmd(ctrl, "get_pp", 1, argc, argv);
++}
+ 
+ struct hostapd_cli_cmd {
+ 	const char *cmd;
+@@ -2007,6 +2018,10 @@ static const struct hostapd_cli_cmd hostapd_cli_commands[] = {
+ 		" = Set csi configuaration"},
+ 	{ "dump_csi", hostapd_cli_cmd_dump_csi, NULL,
+ 		" = Dump csi data to a json file"},
++	{ "set_pp", hostapd_cli_cmd_set_pp, NULL,
++		" = Set preamble puncture mode"},
++	{ "get_pp", hostapd_cli_cmd_get_pp, NULL,
++		" = Get preamble puncture status"},
+ 	{ NULL, NULL, NULL, NULL }
+ };
+ 
+diff --git a/src/ap/ap_config.h b/src/ap/ap_config.h
+index 3c323903f..ea0ccaf46 100644
+--- a/src/ap/ap_config.h
++++ b/src/ap/ap_config.h
+@@ -1413,8 +1413,8 @@ enum mtk_vendor_attr_edcca_ctrl_mode {
+ 
+ enum pp_mode {
+ 	PP_DISABLE = 0,
+-	PP_AUTO_MODE,
+-	PP_MANUAL_MODE,
++	PP_FW_MODE,
++	PP_USR_MODE,
+ };
+ 
+ #define EDCCA_DEFAULT_COMPENSATION -6
+diff --git a/src/ap/ap_drv_ops.c b/src/ap/ap_drv_ops.c
+index d0ef3c112..8b3517bae 100644
+--- a/src/ap/ap_drv_ops.c
++++ b/src/ap/ap_drv_ops.c
+@@ -1551,10 +1551,13 @@ int hostapd_drv_background_radar_mode(struct hostapd_data *hapd)
+ int hostapd_drv_pp_mode_set(struct hostapd_data *hapd)
+ {
+ 	if (!hapd->driver || !hapd->driver->pp_mode_set ||
+-	    hapd->iconf->pp_mode > PP_AUTO_MODE)
++	    hapd->iconf->pp_mode >= PP_USR_MODE ||
++	    hapd->iface->current_mode->mode != HOSTAPD_MODE_IEEE80211A)
+ 		return 0;
++
+ 	return hapd->driver->pp_mode_set(hapd->drv_priv,
+-					 hapd->iconf->pp_mode);
++					 hapd->iconf->pp_mode,
++					 hapd->iconf->band_idx);
+ }
+ 
+ int hostapd_drv_beacon_ctrl(struct hostapd_data *hapd, u8 beacon_mode)
+diff --git a/src/ap/dfs.c b/src/ap/dfs.c
+index 127773d63..5a3457a90 100644
+--- a/src/ap/dfs.c
++++ b/src/ap/dfs.c
+@@ -1095,6 +1095,7 @@ static int hostapd_dfs_request_channel_switch(struct hostapd_iface *iface,
+ 	os_memset(&csa_settings, 0, sizeof(csa_settings));
+ 	csa_settings.cs_count = 5;
+ 	csa_settings.block_tx = 1;
++	csa_settings.punct_bitmap = hostapd_get_punct_bitmap(iface->bss[0]);
+ 	csa_settings.link_id = -1;
+ #ifdef CONFIG_IEEE80211BE
+ 	if (iface->bss[0]->conf->mld_ap)
+@@ -1671,6 +1672,8 @@ int hostapd_dfs_radar_detected(struct hostapd_iface *iface, int freq,
+ 			return 0;
+ 	}
+ 
++	iface->bss[0]->iconf->punct_bitmap = 0;
++
+ 	if (hostapd_dfs_background_start_channel_switch(iface, freq)) {
+ 		/* Radar detected while operating, switch the channel. */
+ 		return hostapd_dfs_start_channel_switch(iface);
+diff --git a/src/ap/hostapd.c b/src/ap/hostapd.c
+index 4ca79f158..1967639db 100644
+--- a/src/ap/hostapd.c
++++ b/src/ap/hostapd.c
+@@ -2811,6 +2811,8 @@ dfs_offload:
+ 	}
+ #endif /* CONFIG_MESH */
+ 
++	if (hostapd_drv_pp_mode_set(hapd) < 0)
++		goto fail;
+ 	if (hostapd_drv_configure_edcca_enable(hapd) < 0)
+ 		goto fail;
+ 
+@@ -2825,8 +2827,6 @@ dfs_offload:
+ 		goto fail;
+ 	if (hostapd_drv_amsdu_ctrl(hapd) < 0)
+ 		goto fail;
+-	if (hostapd_drv_pp_mode_set(hapd) < 0)
+-		goto fail;
+ 
+ 	wpa_printf(MSG_DEBUG, "%s: Setup of interface done.",
+ 		   iface->bss[0]->conf->iface);
+diff --git a/src/common/mtk_vendor.h b/src/common/mtk_vendor.h
+index ce3a2ad9a..be516e017 100644
+--- a/src/common/mtk_vendor.h
++++ b/src/common/mtk_vendor.h
+@@ -268,6 +268,7 @@ enum mtk_vendor_attr_pp_ctrl {
+ 	MTK_VENDOR_ATTR_PP_CTRL_UNSPEC,
+ 
+ 	MTK_VENDOR_ATTR_PP_MODE,
++	MTK_VENDOR_ATTR_PP_BAND_IDX,
+ 
+ 	/* keep last */
+ 	NUM_MTK_VENDOR_ATTRS_PP_CTRL,
+diff --git a/src/drivers/driver.h b/src/drivers/driver.h
+index a6a402fe1..70bba1489 100644
+--- a/src/drivers/driver.h
++++ b/src/drivers/driver.h
+@@ -5583,8 +5583,9 @@ struct wpa_driver_ops {
+ 	 * pp_mode_set - Set preamble puncture operation mode
+ 	 * @priv: Private driver interface data
+ 	 * @pp_mode: Value is defined in enum pp_mode
++	 * @band_idx: chip band index
+ 	 */
+-	int (*pp_mode_set)(void *priv, const u8 pp_mode);
++	int (*pp_mode_set)(void *priv, const u8 pp_mode, u8 band_idx);
+ #ifdef CONFIG_IEEE80211BE
+ 	int (*get_mld_addr)(void *priv, u8 *addr);
+ #endif
+diff --git a/src/drivers/driver_nl80211.c b/src/drivers/driver_nl80211.c
+index aa4e45d03..28deea643 100644
+--- a/src/drivers/driver_nl80211.c
++++ b/src/drivers/driver_nl80211.c
+@@ -161,6 +161,7 @@ amnt_dump_policy[NUM_MTK_VENDOR_ATTRS_AMNT_DUMP] = {
+ static struct nla_policy
+ pp_ctrl_policy[NUM_MTK_VENDOR_ATTRS_PP_CTRL] = {
+ 	[MTK_VENDOR_ATTR_PP_MODE] = { .type = NLA_U8 },
++	[MTK_VENDOR_ATTR_PP_BAND_IDX] = { .type = NLA_U8 },
+ };
+ 
+ static struct nla_policy csi_ctrl_policy[NUM_MTK_VENDOR_ATTRS_CSI_CTRL] = {
+@@ -15893,7 +15894,7 @@ static int nl80211_background_radar_mode(void *priv, const u8 background_radar_m
+ 	return ret;
+ }
+ 
+-static int nl80211_pp_mode_set(void *priv, const u8 pp_mode)
++static int nl80211_pp_mode_set(void *priv, const u8 pp_mode, u8 band_idx)
+ {
+ 	struct i802_bss *bss = priv;
+ 	struct wpa_driver_nl80211_data *drv = bss->drv;
+@@ -15920,6 +15921,7 @@ static int nl80211_pp_mode_set(void *priv, const u8 pp_mode)
+ 	if (!data)
+ 		goto fail;
+ 
++	nla_put_u8(msg, MTK_VENDOR_ATTR_PP_BAND_IDX, band_idx);
+ 	nla_put_u8(msg, MTK_VENDOR_ATTR_PP_MODE, pp_mode);
+ 
+ 	nla_nest_end(msg, data);
+-- 
+2.45.2
+

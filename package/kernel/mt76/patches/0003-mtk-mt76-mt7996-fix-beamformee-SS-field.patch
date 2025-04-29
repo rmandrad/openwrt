@@ -1,0 +1,39 @@
+From db8fd39794ab7731d4dc44817010faa8a042ab06 Mon Sep 17 00:00:00 2001
+From: Howard Hsu <howard-yh.hsu@mediatek.com>
+Date: Thu, 17 Apr 2025 13:54:54 +0800
+Subject: [PATCH 03/92] mtk: mt76: mt7996: fix beamformee SS field
+
+Fix the beamformee SS field for the mt7996, mt7992 and mt7990 chipsets.
+For the mt7992, this value shall be set to 0x4, while the others shall
+be set to 0x3.
+
+Signed-off-by: Howard Hsu <howard-yh.hsu@mediatek.com>
+
+---
+ mt7996/init.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/mt7996/init.c b/mt7996/init.c
+index 6e233fab..e6064903 100644
+--- a/mt7996/init.c
++++ b/mt7996/init.c
+@@ -1122,12 +1122,12 @@ mt7996_set_stream_he_txbf_caps(struct mt7996_phy *phy,
+ 
+ 	c = IEEE80211_HE_PHY_CAP4_SU_BEAMFORMEE;
+ 
+-	if (is_mt7996(phy->mt76->dev))
+-		c |= IEEE80211_HE_PHY_CAP4_BEAMFORMEE_MAX_STS_UNDER_80MHZ_4 |
+-		     (IEEE80211_HE_PHY_CAP4_BEAMFORMEE_MAX_STS_ABOVE_80MHZ_4 * non_2g);
+-	else
++	if (is_mt7992(phy->mt76->dev))
+ 		c |= IEEE80211_HE_PHY_CAP4_BEAMFORMEE_MAX_STS_UNDER_80MHZ_5 |
+ 		     (IEEE80211_HE_PHY_CAP4_BEAMFORMEE_MAX_STS_ABOVE_80MHZ_5 * non_2g);
++	else
++		c |= IEEE80211_HE_PHY_CAP4_BEAMFORMEE_MAX_STS_UNDER_80MHZ_4 |
++		     (IEEE80211_HE_PHY_CAP4_BEAMFORMEE_MAX_STS_ABOVE_80MHZ_4 * non_2g);
+ 
+ 	elem->phy_cap_info[4] |= c;
+ 
+-- 
+2.45.2
+

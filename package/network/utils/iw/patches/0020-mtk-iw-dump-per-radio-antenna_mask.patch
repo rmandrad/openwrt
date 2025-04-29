@@ -1,0 +1,27 @@
+From 1bb2c2a6f9c31c068c3f0cf042930ecafc675348 Mon Sep 17 00:00:00 2001
+From: Shayne Chen <shayne.chen@mediatek.com>
+Date: Mon, 25 Nov 2024 14:16:47 +0800
+Subject: [PATCH 20/22] mtk: iw: dump per-radio antenna_mask
+
+Signed-off-by: Shayne Chen <shayne.chen@mediatek.com>
+---
+ info.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/info.c b/info.c
+index 986eaa6..adf6f6a 100644
+--- a/info.c
++++ b/info.c
+@@ -926,6 +926,9 @@ next:
+ 					if (!have_combinations)
+ 						printf("\t\t\tRadio level interface combinations are not supported\n");
+ 					break;
++				case NL80211_WIPHY_RADIO_ATTR_ANTENNA_MASK:
++					printf("\t\t\tantenna_mask: 0x%08x\n", nla_get_u32(radio_prop));
++					break;
+ 				default:
+ 					printf("\t\t\t* <failed to parse>\n");
+ 				}
+-- 
+2.45.2
+

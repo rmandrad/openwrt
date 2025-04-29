@@ -1,0 +1,2021 @@
+From f91be8e1dea576a51e108074db3973a2138824ce Mon Sep 17 00:00:00 2001
+From: Jouni Malinen <quic_jouni@quicinc.com>
+Date: Tue, 11 Feb 2025 12:02:34 +0200
+Subject: [PATCH 001/210] step to hostapd 2025-02-15 version
+
+GAS: Fix eloop timeout clearing on random MAC address error path
+
+There is one error case (for failing to update random MAC address) that
+uses gas_query_free() for a query that has started and as such, might
+have registered eloop timeouts. However, eloop timeouts were canceled in
+gas_query_done() and as such, that was skipped for this error case. That
+could result in leaving behind timeouts pointing to freed memory.
+
+Fix this by moving eloop_cancel_timeout() calls to gas_query_free() so
+that they are covered for all cases.
+
+Fixes: c267753ba2cc ("Add support for using random local MAC address")
+Signed-off-by: Jouni Malinen <quic_jouni@quicinc.com>
+
+MBSSID: Fix Non-Inheritance element length calculation
+
+Commit 4bfc007b61e6 ("MBSSID: Fix Non-Inheritance element encoding")
+added one octet while filling the data. However, this one octet is
+missing during length calculation. Add it now.
+
+Fixes: 4bfc007b61e6 ("MBSSID: Fix Non-Inheritance element encoding")
+Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
+
+MBSSID: Correctly compute the Extended Supported Rates element length
+
+A hardcoded value of 8 bytes was used as the length for the Extended
+Supported Rates element. This approach can cause issues if any changes
+are made to the function without updating the length accordingly.
+Determine the length properly instead of hardcoding and incorporate it
+into the Multiple BSSID element length calculation.
+
+And since this will now happen while calculating length, there is no
+need to call hostapd_eid_ext_supp_rates() in
+ieee802_11_build_ap_params_mbssid().
+
+Signed-off-by: Rameshkumar Sundaram <quic_ramess@quicinc.com>
+Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
+
+MBSSID: Add Extended Supported Rates element in MBSSID profile
+
+The length for Extended Supported Rates element was allocated, but the
+element was never filled in the profile. Add logic to fill it now.
+
+Signed-off-by: Rameshkumar Sundaram <quic_ramess@quicinc.com>
+Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
+
+AP: Remove xrates_supported config
+
+This config is no longer needed and hence can be removed.
+
+Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
+
+Simplify supported rates and BSS membership selectors generation
+
+Use a common helper function to generate the complete list of supported
+rates and BSS membership selectors so that building the Supported Rates
+and BSS Membership Selectors and the Extended Supported Rates and BSS
+Membersip Selectors elements can be generated without having to
+duplicate the logic for determining the actual values for the
+rates/selectors. The functions for building these elements are now
+simply selecting the subset of the values from the output from the
+helper function.
+
+Signed-off-by: Jouni Malinen <quic_jouni@quicinc.com>
+
+nl80211: Avoid uninitialized err_info on test failure path
+
+Initialize err_info.link_id before use to cover the TEST_FAIL testing
+case for a failure where err_info.link_id might not be set.
+
+Signed-off-by: Jouni Malinen <quic_jouni@quicinc.com>
+
+P2P: Check IEs buffer before use more consistently
+
+Commit cab963e9f887 ("AP: Split check_assoc_ies()") added check for
+ies/ies_len before going through the P2P element. Add similar checks for
+p2p_group_notif_assoc() to be consistent and avoid potential risk of
+associated STA tracking for P2P groups dereferencing NULL pointers.
+
+Signed-off-by: Jouni Malinen <quic_jouni@quicinc.com>
+
+Define a QCA vendor subcmd to set periodic probe response config
+
+Define a QCA vendor subcmd to send periodic or on-demand
+directed Probe Response frames to a connected peer.
+This config command will include attributes as per enum
+qca_wlan_vendor_attr_periodic_probe_rsp_cfg.
+Attribute list includes:
+QCA_WLAN_VENDOR_ATTR_PROBE_RESP_CFG_PEER_MAC_ADDR
+QCA_WLAN_VENDOR_ATTR_PROBE_RESP_CFG_PERIOD
+QCA_WLAN_VENDOR_ATTR_PROBE_RESP_CFG_COUNT
+
+Signed-off-by: Shailendra Singh <quic_shasing@quicinc.com>
+
+tests: Verify that AP MLD does not time out two link association
+
+Signed-off-by: Jouni Malinen <quic_jouni@quicinc.com>
+
+AP MLD: Cancel ap_sta_assoc_timeout for partner links
+
+An earlier commit implements a timeout handler to remove unassociated
+sta entries. For AP MLD, when a non-AP MLD is associated, the timeout
+handler needs to be removed in its partner links, too. The check for
+WLAN_STA_ASSOC is supposed to skip such cases in ap_sta_assoc_timeout(),
+but it is better to cancel this timeout altogether from all links.
+
+Fixes: 07ee3e8b0eb4 ("Remove STA entries if association is not completed in 60 seconds")
+Signed-off-by: Chenming Huang <quic_chenhuan@quicinc.com>
+
+Make sure wpa_sm has correct PMK when PMKSA cache used by driver
+
+The PMK corresponding to the PMKSA cache entry used by the driver is
+updated to wpa_sm only when the authorized flag set in the association
+event data. In cases where the authorized flag is not set, i.e., initial
+association or roam indication with 4-way handshake not completed by the
+driver, the PMK is not updated and may be left at the default value
+based on not yet known AKM and group. That would result in issues for
+SAE-EXT-KEY cases where groups 20 or 21 are used since the Key MIC
+length of the EAPOL-Key frames depends on the used PMK length. In
+particular, wpa_sm needs to know the correct PMK length to determine the
+Key MIC field length and the offset of the Key Data Length field
+correctly in the EAPOL-Key msg 1/4. Otherwise, wpa_sm may fail to parse
+the EAPOL-Key msg 1/4.
+
+Fix this by always setting the PMK from the PMKSA entry corresponding to
+the PMKID used by the driver in the (Re)Association Request frame to
+wpa_sm.
+
+Signed-off-by: Veerendranath Jakkam <quic_vjakkam@quicinc.com>
+
+AP MLD: Allow new link to be added through control interface
+
+AP MLD link is added with the same interface name but current control
+interface command "ADD" does not consider tjat AP MLD case yet.
+
+Modify the logic here to support adding a new AP MLD link from the "ADD"
+command, too, by adding a new hostapd_iface structure instead of just a
+new BSS into the existing structure.
+
+Signed-off-by: Chenming Huang <quic_chenhuan@quicinc.com>
+
+DPP: Send connection status result if disconnected during 4-way HS
+
+Connection status result was reported during failed 4-way handshake if
+that failure might have been due to an incorrect phassphrase/password.
+4-eay handshake might fail for other reasons and if that is the case,
+the connection status result is delayed unnecessarily long untile the 15
+second timeout occurs.
+
+Optimize this by sending out the connection status result in all
+disconnection cases that happen before the 4-way handshake has been
+completed successfully.
+
+Signed-off-by: Chenming Huang <quic_chenhuan@quicinc.com>
+
+AP MLD: Set WLAN_STA_ASSOC flag before copying STA entry (SME-in-driver)
+
+In SME offloaded cases, it was found that WLAN_STA_ASSOC flag is
+not set on all STA entries. This is because STA entries are
+copied before WLAN_STA_ASSOC flag is set in the assocation link.
+
+To fix that, set WLAN_STA_ASSOC flag properly before calling
+hostapd_process_assoc_ml_info() where flags are copied to STA
+entries in other links.
+
+Signed-off-by: Chenming Huang <quic_chenhuan@quicinc.com>
+
+tests: ap_pmf: Stop using use_monitor=1
+
+There's no need for this anymore, all the tests work without it. This
+was originally used to be able to inject unprotected Deauthentication
+and Disassociation frames in cases where PMF was in use, but commit
+9bedf90047d6 ("nl80211: Use monitor interface for sending no-encrypt
+test frames") allowed this to be done without having to for AP
+operations to use the monitor interface for EAPOL frames with
+use_monitor=1.
+
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+
+tests: Remove monitor interface tests
+
+Remove the tests that explicitly test the use of cooked monitor
+interfaces for AP mode since support for that mode is being removed from
+the kernel.
+
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+
+nl80211: Remove support for use_monitor
+
+Using nl80211 for management and EAPOL TX/RX has been available in the
+kernel for over a decade, including TX status for data frames starting
+from kernel 3.3. Remove support for (cooked) monitor TX/RX, leaving a
+simple non-RX monitor for unencrypted TX testing.
+
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+
+tests: Fix owe_invalid_assoc_resp with mac80211_hwsim STRICT validation
+
+mac80211 has started rejecting the association attempt based on some
+HT/WMM information missing for the (Re)Association Response frame when
+in STRICT validation mode and that broke this test case with
+mac80211_hwsim due to the Association Response frame being constructed
+without HT and WMM information in the test script. Disable HT for now to
+avoid this.
+
+Signed-off-by: Jouni Malinen <j@w1.fi>
+
+AP MLD: Request MLO Group KDEs for a subset of links
+
+While requesting GTK, IGTK, and BIGTK group KDEs, all link group key
+data are fetched by default. Make the APIs flexible by requesting for a
+subset of links which may as well be all links, and populate the keys as
+KDE for only the requested links.
+
+Signed-off-by: Pooventhiran G <quic_pooventh@quicinc.com>
+---
+ src/ap/ap_config.h                    |   1 -
+ src/ap/beacon.c                       |   9 -
+ src/ap/drv_callbacks.c                |  11 +-
+ src/ap/hostapd.c                      |  36 ++-
+ src/ap/ieee802_11.c                   | 180 +++++-------
+ src/ap/wpa_auth.c                     |  41 +--
+ src/common/qca-vendor.h               |  46 +++
+ src/drivers/driver_nl80211.c          | 173 ++----------
+ src/drivers/driver_nl80211.h          |   7 -
+ src/drivers/driver_nl80211_capa.c     |  12 +-
+ src/drivers/driver_nl80211_monitor.c  | 387 ++++----------------------
+ tests/hwsim/test_ap_pmf.py            |   2 +-
+ tests/hwsim/test_eht.py               |  13 +-
+ tests/hwsim/test_monitor_interface.py |  94 -------
+ tests/hwsim/test_owe.py               |   1 +
+ wpa_supplicant/events.c               |  15 +-
+ wpa_supplicant/gas_query.c            |   7 +-
+ 17 files changed, 272 insertions(+), 763 deletions(-)
+ delete mode 100644 tests/hwsim/test_monitor_interface.py
+
+diff --git a/src/ap/ap_config.h b/src/ap/ap_config.h
+index d056c60e3..4ef2d8c70 100644
+--- a/src/ap/ap_config.h
++++ b/src/ap/ap_config.h
+@@ -972,7 +972,6 @@ struct hostapd_bss_config {
+ 
+ 	u8 rnr;
+ 	char *config_id;
+-	bool xrates_supported;
+ 
+ 	bool ssid_protection;
+ 	bool known_sta_identification;
+diff --git a/src/ap/beacon.c b/src/ap/beacon.c
+index 95235aee4..71f7bc3c7 100644
+--- a/src/ap/beacon.c
++++ b/src/ap/beacon.c
+@@ -598,7 +598,6 @@ ieee802_11_build_ap_params_mbssid(struct hostapd_data *hapd,
+ 	size_t len, rnr_len = 0;
+ 	u8 elem_count = 0, *elem = NULL, **elem_offset = NULL, *end;
+ 	u8 rnr_elem_count = 0, *rnr_elem = NULL, **rnr_elem_offset = NULL;
+-	size_t i;
+ 
+ 	if (!iface->mbssid_max_interfaces ||
+ 	    iface->num_bss > iface->mbssid_max_interfaces ||
+@@ -606,14 +605,6 @@ ieee802_11_build_ap_params_mbssid(struct hostapd_data *hapd,
+ 	     !iface->ema_max_periodicity))
+ 		goto fail;
+ 
+-	/* Make sure bss->xrates_supported is set for all BSSs to know whether
+-	 * it need to be non-inherited. */
+-	for (i = 0; i < iface->num_bss; i++) {
+-		u8 buf[100];
+-
+-		hostapd_eid_ext_supp_rates(iface->bss[i], buf);
+-	}
+-
+ 	tx_bss = hostapd_mbssid_get_tx_bss(hapd);
+ 	len = hostapd_eid_mbssid_len(tx_bss, WLAN_FC_STYPE_BEACON, &elem_count,
+ 				     NULL, 0, &rnr_len);
+diff --git a/src/ap/drv_callbacks.c b/src/ap/drv_callbacks.c
+index 7234a3b47..d781cca3d 100644
+--- a/src/ap/drv_callbacks.c
++++ b/src/ap/drv_callbacks.c
+@@ -923,6 +923,12 @@ skip_wpa_check:
+ 	}
+ #endif /* CONFIG_IEEE80211R_AP || CONFIG_FILS */
+ 
++	new_assoc = (sta->flags & WLAN_STA_ASSOC) == 0;
++	sta->flags |= WLAN_STA_AUTH | WLAN_STA_ASSOC;
++	sta->flags &= ~WLAN_STA_WNM_SLEEP_MODE;
++
++	hostapd_set_sta_flags(hapd, sta);
++
+ #ifdef CONFIG_IEEE80211BE
+ 	if (hostapd_process_assoc_ml_info(hapd, sta, req_ies, req_ies_len,
+ 					  !!reassoc, WLAN_STATUS_SUCCESS,
+@@ -933,11 +939,6 @@ skip_wpa_check:
+ 	}
+ #endif /* CONFIG_IEEE80211BE */
+ 
+-	new_assoc = (sta->flags & WLAN_STA_ASSOC) == 0;
+-	sta->flags |= WLAN_STA_AUTH | WLAN_STA_ASSOC;
+-	sta->flags &= ~WLAN_STA_WNM_SLEEP_MODE;
+-
+-	hostapd_set_sta_flags(hapd, sta);
+ 	if (updated)
+ 		ap_sta_set_authorized_event(hapd, sta, 1);
+ 
+diff --git a/src/ap/hostapd.c b/src/ap/hostapd.c
+index 0227b8512..1907a6b62 100644
+--- a/src/ap/hostapd.c
++++ b/src/ap/hostapd.c
+@@ -3354,6 +3354,7 @@ hostapd_interface_init_bss(struct hapd_interfaces *interfaces, const char *phy,
+ {
+ 	struct hostapd_iface *new_iface = NULL, *iface = NULL;
+ 	struct hostapd_data *hapd;
++	struct hostapd_config *conf;
+ 	int k;
+ 	size_t i, bss_idx;
+ 
+@@ -3369,17 +3370,26 @@ hostapd_interface_init_bss(struct hapd_interfaces *interfaces, const char *phy,
+ 
+ 	wpa_printf(MSG_INFO, "Configuration file: %s (phy %s)%s",
+ 		   config_fname, phy, iface ? "" : " --> new PHY");
++
++	conf = interfaces->config_read_cb(config_fname);
++	if (!conf)
++		return NULL;
++
++#ifdef CONFIG_IEEE80211BE
++	/* AP MLD can be enabled with the same interface name, so even if we
++	 * get the interface, we still need to allocate a new hostapd_iface
++	 * structure. */
++	if (conf->bss[0]->mld_ap)
++		iface = NULL;
++#endif /* CONFIG_IEEE80211BE */
++
+ 	if (iface) {
+-		struct hostapd_config *conf;
+ 		struct hostapd_bss_config **tmp_conf;
+ 		struct hostapd_data **tmp_bss;
+ 		struct hostapd_bss_config *bss;
+ 		const char *ifname;
+ 
+ 		/* Add new BSS to existing iface */
+-		conf = interfaces->config_read_cb(config_fname);
+-		if (conf == NULL)
+-			return NULL;
+ 		if (conf->num_bss > 1) {
+ 			wpa_printf(MSG_ERROR, "Multiple BSSes specified in BSS-config");
+ 			hostapd_config_free(conf);
+@@ -3429,6 +3439,8 @@ hostapd_interface_init_bss(struct hapd_interfaces *interfaces, const char *phy,
+ 		conf->bss[0] = NULL;
+ 		hostapd_config_free(conf);
+ 	} else {
++		hostapd_config_free(conf);
++
+ 		/* Add a new iface with the first BSS */
+ 		new_iface = iface = hostapd_init(interfaces, config_fname);
+ 		if (!iface)
+@@ -4089,6 +4101,22 @@ void hostapd_new_assoc_sta(struct hostapd_data *hapd, struct sta_info *sta,
+ 
+ 	ap_sta_clear_disconnect_timeouts(hapd, sta);
+ 	ap_sta_clear_assoc_timeout(hapd, sta);
++
++#ifdef CONFIG_IEEE80211BE
++	if (ap_sta_is_mld(hapd, sta)) {
++		struct hostapd_data *bss;
++		struct sta_info *lsta;
++
++		for_each_mld_link(bss, hapd) {
++			if (bss == hapd)
++				continue;
++			lsta = ap_get_sta(bss, sta->addr);
++			if (lsta)
++				ap_sta_clear_assoc_timeout(bss, lsta);
++		}
++	}
++#endif /* CONFIG_IEEE80211BE */
++
+ 	sta->post_csa_sa_query = 0;
+ 
+ #ifdef CONFIG_P2P
+diff --git a/src/ap/ieee802_11.c b/src/ap/ieee802_11.c
+index ec1437c1e..72910394c 100644
+--- a/src/ap/ieee802_11.c
++++ b/src/ap/ieee802_11.c
+@@ -117,142 +117,82 @@ static u8 * hostapd_eid_multi_ap(struct hostapd_data *hapd, u8 *eid, size_t len)
+ }
+ 
+ 
+-u8 * hostapd_eid_supp_rates(struct hostapd_data *hapd, u8 *eid)
++static size_t hostapd_supp_rates(struct hostapd_data *hapd, u8 *buf)
+ {
+-	u8 *pos = eid;
+-	int i, num, count;
+-	int h2e_required;
++	u8 *pos = buf;
++	int i;
+ 
+-	if (hapd->iface->current_rates == NULL)
+-		return eid;
++	if (!hapd->iface->current_rates)
++		return 0;
+ 
+-	*pos++ = WLAN_EID_SUPP_RATES;
+-	num = hapd->iface->num_rates;
+-	if (hapd->iconf->ieee80211n && hapd->iconf->require_ht)
+-		num++;
+-	if (hapd->iconf->ieee80211ac && hapd->iconf->require_vht)
+-		num++;
+-#ifdef CONFIG_IEEE80211AX
+-	if (hapd->iconf->ieee80211ax && hapd->iconf->require_he)
+-		num++;
+-#endif /* CONFIG_IEEE80211AX */
+-	h2e_required = (hapd->conf->sae_pwe == SAE_PWE_HASH_TO_ELEMENT ||
+-			hostapd_sae_pw_id_in_use(hapd->conf) == 2) &&
+-		hapd->conf->sae_pwe != SAE_PWE_FORCE_HUNT_AND_PECK &&
+-		wpa_key_mgmt_only_sae(hapd->conf->wpa_key_mgmt);
+-	if (h2e_required)
+-		num++;
+-	if (num > 8) {
+-		/* rest of the rates are encoded in Extended supported
+-		 * rates element */
+-		num = 8;
+-	}
+-
+-	*pos++ = num;
+-	for (i = 0, count = 0; i < hapd->iface->num_rates && count < num;
+-	     i++) {
+-		count++;
++	for (i = 0; i < hapd->iface->num_rates; i++) {
+ 		*pos = hapd->iface->current_rates[i].rate / 5;
+ 		if (hapd->iface->current_rates[i].flags & HOSTAPD_RATE_BASIC)
+ 			*pos |= 0x80;
+ 		pos++;
+ 	}
+ 
+-	if (hapd->iconf->ieee80211n && hapd->iconf->require_ht && count < 8) {
+-		count++;
++	if (hapd->iconf->ieee80211n && hapd->iconf->require_ht)
+ 		*pos++ = 0x80 | BSS_MEMBERSHIP_SELECTOR_HT_PHY;
+-	}
+ 
+-	if (hapd->iconf->ieee80211ac && hapd->iconf->require_vht && count < 8) {
+-		count++;
++	if (hapd->iconf->ieee80211ac && hapd->iconf->require_vht)
+ 		*pos++ = 0x80 | BSS_MEMBERSHIP_SELECTOR_VHT_PHY;
+-	}
+ 
+ #ifdef CONFIG_IEEE80211AX
+-	if (hapd->iconf->ieee80211ax && hapd->iconf->require_he && count < 8) {
+-		count++;
++	if (hapd->iconf->ieee80211ax && hapd->iconf->require_he)
+ 		*pos++ = 0x80 | BSS_MEMBERSHIP_SELECTOR_HE_PHY;
+-	}
+ #endif /* CONFIG_IEEE80211AX */
+ 
+-	if (h2e_required && count < 8) {
+-		count++;
++#ifdef CONFIG_SAE
++	if ((hapd->conf->sae_pwe == SAE_PWE_HASH_TO_ELEMENT ||
++	     hostapd_sae_pw_id_in_use(hapd->conf) == 2) &&
++	    hapd->conf->sae_pwe != SAE_PWE_FORCE_HUNT_AND_PECK &&
++	    wpa_key_mgmt_only_sae(hapd->conf->wpa_key_mgmt))
+ 		*pos++ = 0x80 | BSS_MEMBERSHIP_SELECTOR_SAE_H2E_ONLY;
+-	}
++#endif /* CONFIG_SAE */
+ 
+-	return pos;
++	return pos - buf;
+ }
+ 
+ 
+-u8 * hostapd_eid_ext_supp_rates(struct hostapd_data *hapd, u8 *eid)
++u8 * hostapd_eid_supp_rates(struct hostapd_data *hapd, u8 *eid)
+ {
+ 	u8 *pos = eid;
+-	int i, num, count;
+-	int h2e_required;
++	u8 buf[100];
++	size_t len;
+ 
+-	hapd->conf->xrates_supported = false;
+-	if (hapd->iface->current_rates == NULL)
++	len = hostapd_supp_rates(hapd, buf);
++	if (len == 0)
+ 		return eid;
++	/* Only up to first eight values in this element */
++	if (len > 8)
++		len = 8;
+ 
+-	num = hapd->iface->num_rates;
+-	if (hapd->iconf->ieee80211n && hapd->iconf->require_ht)
+-		num++;
+-	if (hapd->iconf->ieee80211ac && hapd->iconf->require_vht)
+-		num++;
+-#ifdef CONFIG_IEEE80211AX
+-	if (hapd->iconf->ieee80211ax && hapd->iconf->require_he)
+-		num++;
+-#endif /* CONFIG_IEEE80211AX */
+-	h2e_required = (hapd->conf->sae_pwe == SAE_PWE_HASH_TO_ELEMENT ||
+-			hostapd_sae_pw_id_in_use(hapd->conf) == 2) &&
+-		hapd->conf->sae_pwe != SAE_PWE_FORCE_HUNT_AND_PECK &&
+-		wpa_key_mgmt_only_sae(hapd->conf->wpa_key_mgmt);
+-	if (h2e_required)
+-		num++;
+-	if (num <= 8)
+-		return eid;
+-	num -= 8;
++	*pos++ = WLAN_EID_SUPP_RATES;
++	*pos++ = len;
++	os_memcpy(pos, buf, len);
++	pos += len;
+ 
+-	*pos++ = WLAN_EID_EXT_SUPP_RATES;
+-	*pos++ = num;
+-	for (i = 0, count = 0; i < hapd->iface->num_rates && count < num + 8;
+-	     i++) {
+-		count++;
+-		if (count <= 8)
+-			continue; /* already in SuppRates IE */
+-		*pos = hapd->iface->current_rates[i].rate / 5;
+-		if (hapd->iface->current_rates[i].flags & HOSTAPD_RATE_BASIC)
+-			*pos |= 0x80;
+-		pos++;
+-	}
++	return pos;
++}
+ 
+-	if (hapd->iconf->ieee80211n && hapd->iconf->require_ht) {
+-		count++;
+-		if (count > 8)
+-			*pos++ = 0x80 | BSS_MEMBERSHIP_SELECTOR_HT_PHY;
+-	}
+ 
+-	if (hapd->iconf->ieee80211ac && hapd->iconf->require_vht) {
+-		count++;
+-		if (count > 8)
+-			*pos++ = 0x80 | BSS_MEMBERSHIP_SELECTOR_VHT_PHY;
+-	}
++u8 * hostapd_eid_ext_supp_rates(struct hostapd_data *hapd, u8 *eid)
++{
++	u8 *pos = eid;
++	u8 buf[100];
++	size_t len;
+ 
+-#ifdef CONFIG_IEEE80211AX
+-	if (hapd->iconf->ieee80211ax && hapd->iconf->require_he) {
+-		count++;
+-		if (count > 8)
+-			*pos++ = 0x80 | BSS_MEMBERSHIP_SELECTOR_HE_PHY;
+-	}
+-#endif /* CONFIG_IEEE80211AX */
++	len = hostapd_supp_rates(hapd, buf);
++	/* Starting from the 9th value for this element */
++	if (len <= 8)
++		return eid;
+ 
+-	if (h2e_required) {
+-		count++;
+-		if (count > 8)
+-			*pos++ = 0x80 | BSS_MEMBERSHIP_SELECTOR_SAE_H2E_ONLY;
+-	}
++	*pos++ = WLAN_EID_EXT_SUPP_RATES;
++	*pos++ = len - 8;
++	os_memcpy(pos, &buf[8], len - 8);
++	pos += len - 8;
+ 
+-	hapd->conf->xrates_supported = true;
+ 	return pos;
+ }
+ 
+@@ -4425,7 +4365,8 @@ static int __check_assoc_ies(struct hostapd_data *hapd, struct sta_info *sta,
+ 		wpa_auth_sta_no_wpa(sta->wpa_sm);
+ 
+ #ifdef CONFIG_P2P
+-	p2p_group_notif_assoc(hapd->p2p_group, sta->addr, ies, ies_len);
++	if (ies && ies_len)
++		p2p_group_notif_assoc(hapd->p2p_group, sta->addr, ies, ies_len);
+ #endif /* CONFIG_P2P */
+ 
+ #ifdef CONFIG_HS20
+@@ -8262,8 +8203,8 @@ static size_t hostapd_eid_mbssid_elem_len(struct hostapd_data *hapd,
+ 					  size_t known_bss_len)
+ {
+ 	struct hostapd_data *tx_bss = hostapd_mbssid_get_tx_bss(hapd);
+-	size_t len, i;
+-	u8 ext_capa[20];
++	size_t len, i, tx_xrate_len;
++	u8 ext_capa[20], buf[100];
+ 
+ 	/* Element ID: 1 octet
+ 	 * Length: 1 octet
+@@ -8276,10 +8217,12 @@ static size_t hostapd_eid_mbssid_elem_len(struct hostapd_data *hapd,
+ 	 */
+ 	len = 1;
+ 
++	tx_xrate_len = hostapd_eid_ext_supp_rates(tx_bss, buf) - buf;
++
+ 	for (i = *bss_index; i < hapd->iface->num_bss; i++) {
+ 		struct hostapd_data *bss = hapd->iface->bss[i];
+ 		const u8 *auth, *rsn = NULL, *rsnx = NULL;
+-		size_t nontx_profile_len, auth_len;
++		size_t nontx_profile_len, auth_len, xrate_len;
+ 		u8 ie_count = 0;
+ 
+ 		if (!bss || !bss->conf || !bss->started ||
+@@ -8317,12 +8260,15 @@ static size_t hostapd_eid_mbssid_elem_len(struct hostapd_data *hapd,
+ 			ie_count++;
+ 		if (!rsnx && hostapd_wpa_ie(tx_bss, WLAN_EID_RSNX))
+ 			ie_count++;
+-		if (bss->conf->xrates_supported)
+-			nontx_profile_len += 8;
+-		else if (hapd->conf->xrates_supported)
++
++		xrate_len = hostapd_eid_ext_supp_rates(bss, buf) - buf;
++
++		if (xrate_len)
++			nontx_profile_len += xrate_len;
++		else if (tx_xrate_len)
+ 			ie_count++;
+ 		if (ie_count)
+-			nontx_profile_len += 4 + ie_count;
++			nontx_profile_len += 4 + ie_count + 1;
+ 
+ 		if (len + nontx_profile_len > 255)
+ 			break;
+@@ -8396,13 +8342,16 @@ static u8 * hostapd_eid_mbssid_elem(struct hostapd_data *hapd, u8 *eid, u8 *end,
+ 				    const u8 *known_bss, size_t known_bss_len)
+ {
+ 	struct hostapd_data *tx_bss = hostapd_mbssid_get_tx_bss(hapd);
+-	size_t i;
++	size_t i, tx_xrate_len;
+ 	u8 *eid_len_offset, *max_bssid_indicator_offset;
++	u8 buf[100];
+ 
+ 	*eid++ = WLAN_EID_MULTIPLE_BSSID;
+ 	eid_len_offset = eid++;
+ 	max_bssid_indicator_offset = eid++;
+ 
++	tx_xrate_len = hostapd_eid_ext_supp_rates(tx_bss, buf) - buf;
++
+ 	for (i = *bss_index; i < hapd->iface->num_bss; i++) {
+ 		struct hostapd_data *bss = hapd->iface->bss[i];
+ 		struct hostapd_bss_config *conf;
+@@ -8410,7 +8359,7 @@ static u8 * hostapd_eid_mbssid_elem(struct hostapd_data *hapd, u8 *eid, u8 *end,
+ 		u8 *eid_len_pos, *nontx_bss_start = eid;
+ 		const u8 *auth, *rsn = NULL, *rsnx = NULL;
+ 		u8 ie_count = 0, non_inherit_ie[3];
+-		size_t auth_len = 0;
++		size_t auth_len = 0, xrate_len;
+ 		u16 capab_info;
+ 		u8 mbssindex = i;
+ 
+@@ -8475,12 +8424,13 @@ static u8 * hostapd_eid_mbssid_elem(struct hostapd_data *hapd, u8 *eid, u8 *end,
+ 		}
+ 
+ 		eid += hostapd_mbssid_ext_capa(bss, tx_bss, eid);
++		xrate_len = hostapd_eid_ext_supp_rates(bss, eid) - eid;
++		eid += xrate_len;
+ 
+ 		/* List of Element ID values in increasing order */
+ 		if (!rsn && hostapd_wpa_ie(tx_bss, WLAN_EID_RSN))
+ 			non_inherit_ie[ie_count++] = WLAN_EID_RSN;
+-		if (hapd->conf->xrates_supported &&
+-		    !bss->conf->xrates_supported)
++		if (tx_xrate_len && !xrate_len)
+ 			non_inherit_ie[ie_count++] = WLAN_EID_EXT_SUPP_RATES;
+ 		if (!rsnx && hostapd_wpa_ie(tx_bss, WLAN_EID_RSNX))
+ 			non_inherit_ie[ie_count++] = WLAN_EID_RSNX;
+diff --git a/src/ap/wpa_auth.c b/src/ap/wpa_auth.c
+index 1a8bec8e6..a7e6ae2b8 100644
+--- a/src/ap/wpa_auth.c
++++ b/src/ap/wpa_auth.c
+@@ -38,6 +38,7 @@
+ #define STATE_MACHINE_DATA struct wpa_state_machine
+ #define STATE_MACHINE_DEBUG_PREFIX "WPA"
+ #define STATE_MACHINE_ADDR wpa_auth_get_spa(sm)
++#define KDE_ALL_LINKS 0xffff
+ 
+ 
+ static void wpa_send_eapol_timeout(void *eloop_ctx, void *timeout_ctx);
+@@ -4292,7 +4293,8 @@ static void wpa_auth_get_ml_key_info(struct wpa_authenticator *wpa_auth,
+ }
+ 
+ 
+-static size_t wpa_auth_ml_group_kdes_len(struct wpa_state_machine *sm)
++static size_t wpa_auth_ml_group_kdes_len(struct wpa_state_machine *sm,
++					 u16 req_links)
+ {
+ 	struct wpa_authenticator *wpa_auth;
+ 	size_t kde_len = 0;
+@@ -4305,6 +4307,9 @@ static size_t wpa_auth_ml_group_kdes_len(struct wpa_state_machine *sm)
+ 		if (!sm->mld_links[link_id].valid)
+ 			continue;
+ 
++		if (!(req_links & BIT(link_id)))
++			continue;
++
+ 		wpa_auth = sm->mld_links[link_id].wpa_auth;
+ 		if (!wpa_auth || !wpa_auth->group)
+ 			continue;
+@@ -4340,7 +4345,8 @@ static size_t wpa_auth_ml_group_kdes_len(struct wpa_state_machine *sm)
+ }
+ 
+ 
+-static u8 * wpa_auth_ml_group_kdes(struct wpa_state_machine *sm, u8 *pos)
++static u8 * wpa_auth_ml_group_kdes(struct wpa_state_machine *sm, u8 *pos,
++				   u16 req_links)
+ {
+ 	struct wpa_auth_ml_key_info ml_key_info;
+ 	unsigned int i, link_id;
+@@ -4349,7 +4355,6 @@ static u8 * wpa_auth_ml_group_kdes(struct wpa_state_machine *sm, u8 *pos)
+ 
+ 	/* First fetch the key information from all the authenticators */
+ 	os_memset(&ml_key_info, 0, sizeof(ml_key_info));
+-	ml_key_info.n_mld_links = sm->n_mld_affiliated_links + 1;
+ 
+ 	/*
+ 	 * Assume that management frame protection and beacon protection are the
+@@ -4362,13 +4367,19 @@ static u8 * wpa_auth_ml_group_kdes(struct wpa_state_machine *sm, u8 *pos)
+ 		if (!sm->mld_links[link_id].valid)
+ 			continue;
+ 
++		if (!(req_links & BIT(link_id)))
++			continue;
++
+ 		ml_key_info.links[i++].link_id = link_id;
+ 	}
++	ml_key_info.n_mld_links = i;
+ 
+ 	wpa_auth_get_ml_key_info(sm->wpa_auth, &ml_key_info, rekey);
+ 
+ 	/* Add MLO GTK KDEs */
+-	for (i = 0, link_id = 0; link_id < MAX_NUM_MLD_LINKS; link_id++) {
++	for (i = 0; i < ml_key_info.n_mld_links; i++) {
++		link_id = ml_key_info.links[i].link_id;
++
+ 		if (!sm->mld_links[link_id].valid ||
+ 		    !ml_key_info.links[i].gtk_len)
+ 			continue;
+@@ -4393,8 +4404,6 @@ static u8 * wpa_auth_ml_group_kdes(struct wpa_state_machine *sm, u8 *pos)
+ 		os_memcpy(pos, ml_key_info.links[i].gtk,
+ 			  ml_key_info.links[i].gtk_len);
+ 		pos += ml_key_info.links[i].gtk_len;
+-
+-		i++;
+ 	}
+ 
+ 	if (!sm->mgmt_frame_prot) {
+@@ -4404,7 +4413,9 @@ static u8 * wpa_auth_ml_group_kdes(struct wpa_state_machine *sm, u8 *pos)
+ 	}
+ 
+ 	/* Add MLO IGTK KDEs */
+-	for (i = 0, link_id = 0; link_id < MAX_NUM_MLD_LINKS; link_id++) {
++	for (i = 0; i < ml_key_info.n_mld_links; i++) {
++		link_id = ml_key_info.links[i].link_id;
++
+ 		if (!sm->mld_links[link_id].valid ||
+ 		    !ml_key_info.links[i].igtk_len)
+ 			continue;
+@@ -4436,8 +4447,6 @@ static u8 * wpa_auth_ml_group_kdes(struct wpa_state_machine *sm, u8 *pos)
+ 		os_memcpy(pos, ml_key_info.links[i].igtk,
+ 			  ml_key_info.links[i].igtk_len);
+ 		pos += ml_key_info.links[i].igtk_len;
+-
+-		i++;
+ 	}
+ 
+ 	if (!sm->wpa_auth->conf.beacon_prot) {
+@@ -4447,7 +4456,9 @@ static u8 * wpa_auth_ml_group_kdes(struct wpa_state_machine *sm, u8 *pos)
+ 	}
+ 
+ 	/* Add MLO BIGTK KDEs */
+-	for (i = 0, link_id = 0; link_id < MAX_NUM_MLD_LINKS; link_id++) {
++	for (i = 0; i < ml_key_info.n_mld_links; i++) {
++		link_id = ml_key_info.links[i].link_id;
++
+ 		if (!sm->mld_links[link_id].valid ||
+ 		    !ml_key_info.links[i].bigtk ||
+ 		    !ml_key_info.links[i].igtk_len)
+@@ -4480,8 +4491,6 @@ static u8 * wpa_auth_ml_group_kdes(struct wpa_state_machine *sm, u8 *pos)
+ 		os_memcpy(pos, ml_key_info.links[i].bigtk,
+ 			  ml_key_info.links[i].igtk_len);
+ 		pos += ml_key_info.links[i].igtk_len;
+-
+-		i++;
+ 	}
+ 
+ 	wpa_printf(MSG_DEBUG, "RSN: MLO Group KDE len = %ld", pos - start);
+@@ -4548,7 +4557,7 @@ static size_t wpa_auth_ml_kdes_len(struct wpa_state_machine *sm)
+ 			kde_len += 2 + ie[1];
+ 	}
+ 
+-	kde_len += wpa_auth_ml_group_kdes_len(sm);
++	kde_len += wpa_auth_ml_group_kdes_len(sm, KDE_ALL_LINKS);
+ #endif /* CONFIG_IEEE80211BE */
+ 
+ 	return kde_len;
+@@ -4676,7 +4685,7 @@ static u8 * wpa_auth_ml_kdes(struct wpa_state_machine *sm, u8 *pos)
+ 	wpa_printf(MSG_DEBUG,
+ 		   "RSN: MLO Link KDEs and RSN Override Link KDEs len = %ld",
+ 		   pos - start);
+-	pos = wpa_auth_ml_group_kdes(sm, pos);
++	pos = wpa_auth_ml_group_kdes(sm, pos, KDE_ALL_LINKS);
+ #endif /* CONFIG_IEEE80211BE */
+ 
+ 	return pos;
+@@ -5419,14 +5428,14 @@ SM_STATE(WPA_PTK_GROUP, REKEYNEGOTIATING)
+ 		kde_len = pos - kde;
+ #ifdef CONFIG_IEEE80211BE
+ 	} else if (sm->wpa == WPA_VERSION_WPA2 && is_mld) {
+-		kde_len = wpa_auth_ml_group_kdes_len(sm);
++		kde_len = wpa_auth_ml_group_kdes_len(sm, KDE_ALL_LINKS);
+ 		if (kde_len) {
+ 			kde_buf = os_malloc(kde_len);
+ 			if (!kde_buf)
+ 				return;
+ 
+ 			kde = pos = kde_buf;
+-			pos = wpa_auth_ml_group_kdes(sm, pos);
++			pos = wpa_auth_ml_group_kdes(sm, pos, KDE_ALL_LINKS);
+ 			kde_len = pos - kde_buf;
+ 		}
+ #endif /* CONFIG_IEEE80211BE */
+diff --git a/src/common/qca-vendor.h b/src/common/qca-vendor.h
+index 13d41f101..29d746838 100644
+--- a/src/common/qca-vendor.h
++++ b/src/common/qca-vendor.h
+@@ -1337,6 +1337,15 @@ enum qca_radiotap_vendor_ids {
+  *	@QCA_WLAN_VENDOR_ATTR_PRI_LINK_MIGR_CURRENT_PRI_LINK_ID are mutually
+  *	exclusive attributes. Migration should be requested for either one ML
+  *	client or a bunch of ML clients.
++ *
++ * @QCA_NL80211_VENDOR_SUBCMD_PERIODIC_PROBE_RSP_CFG: Vendor subcommand that
++ *	can be used to send periodic or on-demand directed Probe Response frames
++ *	to a connected peer.
++ *
++ *	This command is only applicable for AP/P2P GO mode.
++ *
++ *	The attributes used with this command are defined in
++ * 	enum qca_wlan_vendor_attr_periodic_probe_rsp_cfg.
+  */
+ enum qca_nl80211_vendor_subcmds {
+ 	QCA_NL80211_VENDOR_SUBCMD_UNSPEC = 0,
+@@ -1577,6 +1586,7 @@ enum qca_nl80211_vendor_subcmds {
+ 	QCA_NL80211_VENDOR_SUBCMD_IDLE_SHUTDOWN = 254,
+ 	/* 255 - reserved for QCA */
+ 	QCA_NL80211_VENDOR_SUBCMD_PRI_LINK_MIGRATE = 256,
++	QCA_NL80211_VENDOR_SUBCMD_PERIODIC_PROBE_RSP_CFG = 257,
+ };
+ 
+ /* Compatibility defines for previously used subcmd names.
+@@ -19004,4 +19014,40 @@ enum qca_wlan_vendor_attr_btm_req_resp {
+ 	QCA_WLAN_VENDOR_ATTR_BTM_REQ_RESP_AFTER_LAST - 1
+ };
+ 
++/**
++ * enum qca_wlan_vendor_attr_periodic_probe_rsp_cfg: Attributes used
++ * by vendor subcmd QCA_NL80211_VENDOR_SUBCMD_PERIODIC_PROBE_RSP_CFG
++ *
++ * @QCA_WLAN_VENDOR_ATTR_PROBE_RESP_CFG_PEER_MAC_ADDR: Connected peer
++ * MAC address to which Probe Response frames are to be sent.
++ * Multicast/Broadcast addresses are not supported.
++ *
++ * @QCA_WLAN_VENDOR_ATTR_PROBE_RESP_CFG_PERIOD: 32-bit unsigned value.
++ * This attribute specifies the interval (in microseconds) in which directed
++ * Probe Response frames are sent periodically to the peer as specified in
++ * attribute QCA_WLAN_VENDOR_ATTR_PROBE_RESP_CFG_PEER_MAC_ADDR. When the peer
++ *is in power save, sending of the frames might be delayed until the device
++ * comes out of power save. Attribute value can be in the range of minimum value
++ * of 50000 and maximum value of 1500000.
++ *
++ * @QCA_WLAN_VENDOR_ATTR_PROBE_RESP_CFG_COUNT: 8-bit unsigned value.
++ * Specifies number of directed Probe Responses frames that can be sent as per
++ * interval defined in QCA_WLAN_VENDOR_ATTR_PROBE_RESP_CFG_PERIOD. When
++ * attribute value is 255, directed Probe Response frames are sent continuously
++ * until this attribute is sent as 0 in the command to disable period
++ * transmission. When the attribute value is 1, one directed Probe Response
++ * frame will be sent and the attribute
++ * QCA_WLAN_VENDOR_ATTR_PROBE_RESP_CFG_PERIOD will not be considered.
++ */
++enum qca_wlan_vendor_attr_periodic_probe_rsp_cfg {
++	QCA_WLAN_VENDOR_ATTR_PROBE_RSP_CFG_INVALID = 0,
++	QCA_WLAN_VENDOR_ATTR_PROBE_RSP_CFG_PEER_MAC_ADDR = 1,
++	QCA_WLAN_VENDOR_ATTR_PROBE_RSP_CFG_PERIOD = 2,
++	QCA_WLAN_VENDOR_ATTR_PROBE_RSP_CFG_COUNT = 3,
++
++	QCA_WLAN_VENDOR_ATTR_PROBE_RESP_CFG_AFTER_LAST,
++	QCA_WLAN_VENDOR_ATTR_PROBE_RESP_CFG_MAX =
++	QCA_WLAN_VENDOR_ATTR_PROBE_RESP_CFG_AFTER_LAST - 1,
++};
++
+ #endif /* QCA_VENDOR_H */
+diff --git a/src/drivers/driver_nl80211.c b/src/drivers/driver_nl80211.c
+index c72727564..3d5d62e1b 100644
+--- a/src/drivers/driver_nl80211.c
++++ b/src/drivers/driver_nl80211.c
+@@ -2349,8 +2349,6 @@ static void * wpa_driver_nl80211_drv_init(void *ctx, const char *ifname,
+ 	bss->ctx = ctx;
+ 
+ 	os_strlcpy(bss->ifname, ifname, sizeof(bss->ifname));
+-	drv->monitor_ifidx = -1;
+-	drv->monitor_sock = -1;
+ 	drv->eapol_tx_sock = -1;
+ 	drv->ap_scan_as_station = NL80211_IFTYPE_UNSPECIFIED;
+ 
+@@ -2379,9 +2377,7 @@ static void * wpa_driver_nl80211_drv_init(void *ctx, const char *ifname,
+ 				   "nl80211: wifi status sockopt failed: %s",
+ 				   strerror(errno));
+ 			drv->data_tx_status = 0;
+-			if (!drv->use_monitor)
+-				drv->capa.flags &=
+-					~WPA_DRIVER_FLAGS_EAPOL_TX_STATUS;
++			drv->capa.flags &= ~WPA_DRIVER_FLAGS_EAPOL_TX_STATUS;
+ 		} else {
+ 			eloop_register_read_sock(
+ 				drv->eapol_tx_sock,
+@@ -3242,8 +3238,6 @@ static void wpa_driver_nl80211_deinit(struct i802_bss *bss)
+ 				   bss->brname, strerror(errno));
+ 	}
+ 
+-	nl80211_remove_monitor_interface(drv);
+-
+ 	if (is_ap_interface(drv->nlmode)) {
+ 		wpa_driver_nl80211_del_beacon_all(bss);
+ 		nl80211_remove_links(bss);
+@@ -4383,7 +4377,6 @@ static int wpa_driver_nl80211_send_mlme(struct i802_bss *bss, const u8 *data,
+ {
+ 	struct wpa_driver_nl80211_data *drv = bss->drv;
+ 	struct ieee80211_mgmt *mgmt;
+-	int encrypt = !no_encrypt;
+ 	u16 fc;
+ 	int use_cookie = 1;
+ 	int res;
+@@ -4432,20 +4425,6 @@ static int wpa_driver_nl80211_send_mlme(struct i802_bss *bss, const u8 *data,
+ 		goto send_frame_cmd;
+ 	}
+ 
+-	if (WLAN_FC_GET_TYPE(fc) == WLAN_FC_TYPE_MGMT &&
+-	    WLAN_FC_GET_STYPE(fc) == WLAN_FC_STYPE_AUTH) {
+-		/*
+-		 * Only one of the authentication frame types is encrypted.
+-		 * In order for static WEP encryption to work properly (i.e.,
+-		 * to not encrypt the frame), we need to tell mac80211 about
+-		 * the frames that must not be encrypted.
+-		 */
+-		u16 auth_alg = le_to_host16(mgmt->u.auth.auth_alg);
+-		u16 auth_trans = le_to_host16(mgmt->u.auth.auth_transaction);
+-		if (auth_alg != WLAN_AUTH_SHARED_KEY || auth_trans != 3)
+-			encrypt = 0;
+-	}
+-
+ 	if ((is_sta_interface(drv->nlmode) ||
+ 	     drv->nlmode == NL80211_IFTYPE_P2P_DEVICE) &&
+ 	    WLAN_FC_GET_TYPE(fc) == WLAN_FC_TYPE_MGMT &&
+@@ -4494,29 +4473,17 @@ static int wpa_driver_nl80211_send_mlme(struct i802_bss *bss, const u8 *data,
+ 		freq = link->freq;
+ 	}
+ 
+-	if (drv->use_monitor && is_ap_interface(drv->nlmode)) {
+-		wpa_printf(MSG_DEBUG,
+-			   "nl80211: send_frame(freq=%u bss->freq=%u) -> send_monitor",
+-			   freq, link->freq);
+-		return nl80211_send_monitor(drv, data, data_len, encrypt,
+-					    noack);
+-	}
+-
+ 	if ((noack || WLAN_FC_GET_TYPE(fc) != WLAN_FC_TYPE_MGMT ||
+ 	     WLAN_FC_GET_STYPE(fc) != WLAN_FC_STYPE_ACTION) &&
+ 	    link_id == NL80211_DRV_LINK_ID_NA)
+ 		use_cookie = 0;
+ send_frame_cmd:
+ #ifdef CONFIG_TESTING_OPTIONS
+-	if (no_encrypt && !encrypt && !drv->use_monitor) {
++	if (no_encrypt) {
+ 		wpa_printf(MSG_DEBUG,
+ 			   "nl80211: Request to send an unencrypted frame - use a monitor interface for this");
+-		if (nl80211_create_monitor_interface(drv) < 0)
+-			return -1;
+-		res = nl80211_send_monitor(drv, data, data_len, encrypt,
+-					   noack);
+-		nl80211_remove_monitor_interface(drv);
+-		return res;
++		return nl80211_send_monitor(drv, data, data_len, !no_encrypt,
++					    noack);
+ 	}
+ #endif /* CONFIG_TESTING_OPTIONS */
+ 
+@@ -5216,8 +5183,7 @@ static int wpa_driver_nl80211_set_ap(void *priv,
+ 		   beacon_set);
+ 	if (beacon_set)
+ 		cmd = NL80211_CMD_SET_BEACON;
+-	else if (!drv->device_ap_sme && !drv->use_monitor &&
+-		 !nl80211_get_wiphy_data_ap(bss))
++	else if (!drv->device_ap_sme && !nl80211_get_wiphy_data_ap(bss))
+ 		return -ENOBUFS;
+ 
+ 	wpa_hexdump(MSG_DEBUG, "nl80211: Beacon head",
+@@ -6209,19 +6175,8 @@ static int nl80211_create_iface_once(struct wpa_driver_nl80211_data *drv,
+ 	    nla_put_u32(msg, NL80211_ATTR_IFTYPE, iftype))
+ 		goto fail;
+ 
+-	if (iftype == NL80211_IFTYPE_MONITOR) {
+-		struct nlattr *flags;
+-
+-		flags = nla_nest_start(msg, NL80211_ATTR_MNTR_FLAGS);
+-		if (!flags ||
+-		    nla_put_flag(msg, NL80211_MNTR_FLAG_COOK_FRAMES))
+-			goto fail;
+-
+-		nla_nest_end(msg, flags);
+-	} else if (wds) {
+-		if (nla_put_u8(msg, NL80211_ATTR_4ADDR, wds))
+-			goto fail;
+-	}
++	if (wds && nla_put_u8(msg, NL80211_ATTR_4ADDR, wds))
++		goto fail;
+ 
+ 	/*
+ 	 * Tell cfg80211 that the interface belongs to the socket that created
+@@ -6329,8 +6284,8 @@ static int nl80211_setup_ap(struct i802_bss *bss)
+ {
+ 	struct wpa_driver_nl80211_data *drv = bss->drv;
+ 
+-	wpa_printf(MSG_DEBUG, "nl80211: Setup AP(%s) - device_ap_sme=%d use_monitor=%d",
+-		   bss->ifname, drv->device_ap_sme, drv->use_monitor);
++	wpa_printf(MSG_DEBUG, "nl80211: Setup AP(%s) - device_ap_sme=%d",
++		   bss->ifname, drv->device_ap_sme);
+ 
+ 	/*
+ 	 * Disable Probe Request reporting unless we need it in this way for
+@@ -6340,20 +6295,13 @@ static int nl80211_setup_ap(struct i802_bss *bss)
+ 	if (!drv->device_ap_sme)
+ 		wpa_driver_nl80211_probe_req_report(bss, 0);
+ 
+-	if (!drv->device_ap_sme && !drv->use_monitor)
+-		if (nl80211_mgmt_subscribe_ap(bss))
+-			return -1;
+-
+-	if (drv->device_ap_sme && !drv->use_monitor)
+-		if (nl80211_mgmt_subscribe_ap_dev_sme(bss))
+-			wpa_printf(MSG_DEBUG,
+-				   "nl80211: Failed to subscribe for mgmt frames from SME driver - trying to run without it");
+-
+-	if (!drv->device_ap_sme && drv->use_monitor &&
+-	    nl80211_create_monitor_interface(drv) &&
+-	    !drv->device_ap_sme)
++	if (!drv->device_ap_sme && nl80211_mgmt_subscribe_ap(bss))
+ 		return -1;
+ 
++	if (drv->device_ap_sme && nl80211_mgmt_subscribe_ap_dev_sme(bss))
++		wpa_printf(MSG_DEBUG,
++			   "nl80211: Failed to subscribe for mgmt frames from SME driver - trying to run without it");
++
+ 	if (drv->device_ap_sme &&
+ 	    wpa_driver_nl80211_probe_req_report(bss, 1) < 0) {
+ 		wpa_printf(MSG_DEBUG, "nl80211: Failed to enable "
+@@ -6369,16 +6317,14 @@ static void nl80211_teardown_ap(struct i802_bss *bss)
+ {
+ 	struct wpa_driver_nl80211_data *drv = bss->drv;
+ 
+-	wpa_printf(MSG_DEBUG, "nl80211: Teardown AP(%s) - device_ap_sme=%d use_monitor=%d",
+-		   bss->ifname, drv->device_ap_sme, drv->use_monitor);
++	wpa_printf(MSG_DEBUG, "nl80211: Teardown AP(%s) - device_ap_sme=%d",
++		   bss->ifname, drv->device_ap_sme);
+ 	if (drv->device_ap_sme) {
+ 		wpa_driver_nl80211_probe_req_report(bss, 0);
+-		if (!drv->use_monitor)
+-			nl80211_mgmt_unsubscribe(bss, "AP teardown (dev SME)");
+-	} else if (drv->use_monitor)
+-		nl80211_remove_monitor_interface(drv);
+-	else
++		nl80211_mgmt_unsubscribe(bss, "AP teardown (dev SME)");
++	} else {
+ 		nl80211_mgmt_unsubscribe(bss, "AP teardown");
++	}
+ 
+ 	nl80211_put_wiphy_data_ap(bss);
+ 	if (bss->flink)
+@@ -6464,8 +6410,6 @@ static int nl80211_send_eapol_data(struct i802_bss *bss,
+ }
+ 
+ 
+-static const u8 rfc1042_header[6] = { 0xaa, 0xaa, 0x03, 0x00, 0x00, 0x00 };
+-
+ static int wpa_driver_nl80211_hapd_send_eapol(
+ 	void *priv, const u8 *addr, const u8 *data,
+ 	size_t data_len, int encrypt, const u8 *own_addr, u32 flags,
+@@ -6473,11 +6417,6 @@ static int wpa_driver_nl80211_hapd_send_eapol(
+ {
+ 	struct i802_bss *bss = priv;
+ 	struct wpa_driver_nl80211_data *drv = bss->drv;
+-	struct ieee80211_hdr *hdr;
+-	size_t len;
+-	u8 *pos;
+-	int res;
+-	int qos = flags & WPA_STA_WMM;
+ 
+ 	/* For now, disable EAPOL TX over control port in AP mode by default
+ 	 * since it does not provide TX status notifications. */
+@@ -6487,55 +6426,7 @@ static int wpa_driver_nl80211_hapd_send_eapol(
+ 					       data, data_len, !encrypt,
+ 					       link_id);
+ 
+-	if (drv->device_ap_sme || !drv->use_monitor)
+-		return nl80211_send_eapol_data(bss, addr, data, data_len);
+-
+-	len = sizeof(*hdr) + (qos ? 2 : 0) + sizeof(rfc1042_header) + 2 +
+-		data_len;
+-	hdr = os_zalloc(len);
+-	if (hdr == NULL) {
+-		wpa_printf(MSG_INFO, "nl80211: Failed to allocate EAPOL buffer(len=%lu)",
+-			   (unsigned long) len);
+-		return -1;
+-	}
+-
+-	hdr->frame_control =
+-		IEEE80211_FC(WLAN_FC_TYPE_DATA, WLAN_FC_STYPE_DATA);
+-	hdr->frame_control |= host_to_le16(WLAN_FC_FROMDS);
+-	if (encrypt)
+-		hdr->frame_control |= host_to_le16(WLAN_FC_ISWEP);
+-	if (qos) {
+-		hdr->frame_control |=
+-			host_to_le16(WLAN_FC_STYPE_QOS_DATA << 4);
+-	}
+-
+-	memcpy(hdr->IEEE80211_DA_FROMDS, addr, ETH_ALEN);
+-	memcpy(hdr->IEEE80211_BSSID_FROMDS, own_addr, ETH_ALEN);
+-	memcpy(hdr->IEEE80211_SA_FROMDS, own_addr, ETH_ALEN);
+-	pos = (u8 *) (hdr + 1);
+-
+-	if (qos) {
+-		/* Set highest priority in QoS header */
+-		pos[0] = 7;
+-		pos[1] = 0;
+-		pos += 2;
+-	}
+-
+-	memcpy(pos, rfc1042_header, sizeof(rfc1042_header));
+-	pos += sizeof(rfc1042_header);
+-	WPA_PUT_BE16(pos, ETH_P_PAE);
+-	pos += 2;
+-	memcpy(pos, data, data_len);
+-
+-	res = nl80211_send_monitor(drv, hdr, len, encrypt, 0);
+-	if (res < 0) {
+-		wpa_printf(MSG_ERROR,
+-			   "hapd_send_eapol - packet len: %lu - failed",
+-			   (unsigned long) len);
+-	}
+-	os_free(hdr);
+-
+-	return res;
++	return nl80211_send_eapol_data(bss, addr, data, data_len);
+ }
+ 
+ 
+@@ -6633,16 +6524,13 @@ static int wpa_driver_nl80211_ap(struct wpa_driver_nl80211_data *drv,
+ 		nlmode = NL80211_IFTYPE_AP;
+ 
+ 	old_mode = drv->nlmode;
+-	if (wpa_driver_nl80211_set_mode(drv->first_bss, nlmode)) {
+-		nl80211_remove_monitor_interface(drv);
++	if (wpa_driver_nl80211_set_mode(drv->first_bss, nlmode))
+ 		return -1;
+-	}
+ 
+ 	if (params->freq.freq &&
+ 	    nl80211_set_channel(drv->first_bss, &params->freq, 0)) {
+ 		if (old_mode != nlmode)
+ 			wpa_driver_nl80211_set_mode(drv->first_bss, old_mode);
+-		nl80211_remove_monitor_interface(drv);
+ 		return -1;
+ 	}
+ 
+@@ -7483,7 +7371,7 @@ static int wpa_driver_nl80211_associate(
+ {
+ 	struct i802_bss *bss = priv;
+ 	struct wpa_driver_nl80211_data *drv = bss->drv;
+-	struct nl80211_err_info err_info;
++	struct nl80211_err_info err_info = { -1 };
+ 	int ret = -1;
+ 	struct nl_msg *msg;
+ 
+@@ -9443,10 +9331,7 @@ static int wpa_driver_nl80211_send_action(struct i802_bss *bss,
+ 	}
+ #endif /* CONFIG_MESH */
+ 
+-	if (is_ap_interface(drv->nlmode) &&
+-	    (!(drv->capa.flags & WPA_DRIVER_FLAGS_OFFCHANNEL_TX) ||
+-	     (int) freq == bss->flink->freq || drv->device_ap_sme ||
+-	     !drv->use_monitor))
++	if (is_ap_interface(drv->nlmode))
+ 		ret = wpa_driver_nl80211_send_mlme(bss, buf, 24 + data_len,
+ 						   0, freq, no_cck, offchanok,
+ 						   wait_time, NULL, 0, 0,
+@@ -10126,9 +10011,6 @@ static int nl80211_set_param(void *priv, const char *param)
+ 	}
+ #endif /* CONFIG_P2P */
+ 
+-	if (os_strstr(param, "use_monitor=1"))
+-		drv->use_monitor = 1;
+-
+ 	if (os_strstr(param, "force_connect_cmd=1")) {
+ 		drv->capa.flags &= ~WPA_DRIVER_FLAGS_SME;
+ 		drv->force_connect_cmd = 1;
+@@ -11361,12 +11243,9 @@ static int wpa_driver_nl80211_status(void *priv, char *buf, size_t buflen)
+ 			  "prev_bssid=" MACSTR "\n"
+ 			  "associated=%d\n"
+ 			  "assoc_freq=%u\n"
+-			  "monitor_sock=%d\n"
+-			  "monitor_ifidx=%d\n"
+-			  "monitor_refcount=%d\n"
+ 			  "last_mgmt_freq=%u\n"
+ 			  "eapol_tx_sock=%d\n"
+-			  "%s%s%s%s%s%s%s%s%s%s%s%s%s",
++			  "%s%s%s%s%s%s%s%s%s%s%s%s",
+ 			  drv->phyname,
+ 			  MAC2STR(drv->perm_addr),
+ 			  drv->ifindex,
+@@ -11378,9 +11257,6 @@ static int wpa_driver_nl80211_status(void *priv, char *buf, size_t buflen)
+ 			  MAC2STR(drv->prev_bssid),
+ 			  drv->associated,
+ 			  drv->assoc_freq,
+-			  drv->monitor_sock,
+-			  drv->monitor_ifidx,
+-			  drv->monitor_refcount,
+ 			  drv->last_mgmt_freq,
+ 			  drv->eapol_tx_sock,
+ 			  drv->ignore_if_down_event ?
+@@ -11398,7 +11274,6 @@ static int wpa_driver_nl80211_status(void *priv, char *buf, size_t buflen)
+ 			  drv->data_tx_status ? "data_tx_status=1\n" : "",
+ 			  drv->scan_for_auth ? "scan_for_auth=1\n" : "",
+ 			  drv->retry_auth ? "retry_auth=1\n" : "",
+-			  drv->use_monitor ? "use_monitor=1\n" : "",
+ 			  drv->ignore_next_local_disconnect ?
+ 			  "ignore_next_local_disconnect\n" : "",
+ 			  drv->ignore_next_local_deauth ?
+diff --git a/src/drivers/driver_nl80211.h b/src/drivers/driver_nl80211.h
+index da6c2bfa0..9c4aedd7a 100644
+--- a/src/drivers/driver_nl80211.h
++++ b/src/drivers/driver_nl80211.h
+@@ -151,10 +151,6 @@ struct wpa_driver_nl80211_data {
+ 	enum nl80211_iftype ap_scan_as_station;
+ 	unsigned int assoc_freq;
+ 
+-	int monitor_sock;
+-	int monitor_ifidx;
+-	int monitor_refcount;
+-
+ 	unsigned int disabled_11b_rates:1;
+ 	unsigned int pending_remain_on_chan:1;
+ 	unsigned int in_interface_list:1;
+@@ -163,7 +159,6 @@ struct wpa_driver_nl80211_data {
+ 	unsigned int data_tx_status:1;
+ 	unsigned int scan_for_auth:1;
+ 	unsigned int retry_auth:1;
+-	unsigned int use_monitor:1;
+ 	unsigned int hostapd:1;
+ 	unsigned int start_mode_sta:1;
+ 	unsigned int start_iface_up:1;
+@@ -352,8 +347,6 @@ int wpa_driver_nl80211_mlme(struct wpa_driver_nl80211_data *drv,
+ 			    int local_state_change,
+ 			    struct i802_bss *bss);
+ 
+-int nl80211_create_monitor_interface(struct wpa_driver_nl80211_data *drv);
+-void nl80211_remove_monitor_interface(struct wpa_driver_nl80211_data *drv);
+ int nl80211_send_monitor(struct wpa_driver_nl80211_data *drv,
+ 			 const void *data, size_t len,
+ 			 int encrypt, int noack);
+diff --git a/src/drivers/driver_nl80211_capa.c b/src/drivers/driver_nl80211_capa.c
+index 72be7d103..62b166961 100644
+--- a/src/drivers/driver_nl80211_capa.c
++++ b/src/drivers/driver_nl80211_capa.c
+@@ -1580,18 +1580,10 @@ int wpa_driver_nl80211_capa(struct wpa_driver_nl80211_data *drv)
+ 	drv->have_low_prio_scan = info.have_low_prio_scan;
+ 
+ 	/*
+-	 * If poll command and tx status are supported, mac80211 is new enough
+-	 * to have everything we need to not need monitor interfaces.
+-	 */
+-	drv->use_monitor = !info.device_ap_sme &&
+-		(!info.poll_command_supported || !info.data_tx_status);
+-
+-	/*
+-	 * If we aren't going to use monitor interfaces, but the
+-	 * driver doesn't support data TX status, we won't get TX
++	 * If the driver doesn't support data TX status, we won't get TX
+ 	 * status for EAPOL frames.
+ 	 */
+-	if (!drv->use_monitor && !info.data_tx_status)
++	if (!info.data_tx_status)
+ 		drv->capa.flags &= ~WPA_DRIVER_FLAGS_EAPOL_TX_STATUS;
+ 
+ #ifdef CONFIG_DRIVER_NL80211_QCA
+diff --git a/src/drivers/driver_nl80211_monitor.c b/src/drivers/driver_nl80211_monitor.c
+index 7ff55f149..ca9bb1ec3 100644
+--- a/src/drivers/driver_nl80211_monitor.c
++++ b/src/drivers/driver_nl80211_monitor.c
+@@ -23,259 +23,14 @@
+ #include "driver_nl80211.h"
+ 
+ 
+-static void handle_tx_callback(void *ctx, u8 *buf, size_t len, int ok)
+-{
+-	struct ieee80211_hdr *hdr;
+-	u16 fc;
+-	union wpa_event_data event;
+-
+-	hdr = (struct ieee80211_hdr *) buf;
+-	fc = le_to_host16(hdr->frame_control);
+-
+-	os_memset(&event, 0, sizeof(event));
+-	event.tx_status.type = WLAN_FC_GET_TYPE(fc);
+-	event.tx_status.stype = WLAN_FC_GET_STYPE(fc);
+-	event.tx_status.dst = hdr->addr1;
+-	event.tx_status.data = buf;
+-	event.tx_status.data_len = len;
+-	event.tx_status.ack = ok;
+-	wpa_supplicant_event(ctx, EVENT_TX_STATUS, &event);
+-}
+-
+-
+-static void from_unknown_sta(struct wpa_driver_nl80211_data *drv,
+-			     u8 *buf, size_t len)
+-{
+-	struct ieee80211_hdr *hdr = (void *)buf;
+-	u16 fc;
+-	union wpa_event_data event;
+-
+-	if (len < sizeof(*hdr))
+-		return;
+-
+-	fc = le_to_host16(hdr->frame_control);
+-
+-	os_memset(&event, 0, sizeof(event));
+-	event.rx_from_unknown.bssid = get_hdr_bssid(hdr, len);
+-	event.rx_from_unknown.addr = hdr->addr2;
+-	event.rx_from_unknown.wds = (fc & (WLAN_FC_FROMDS | WLAN_FC_TODS)) ==
+-		(WLAN_FC_FROMDS | WLAN_FC_TODS);
+-	wpa_supplicant_event(drv->ctx, EVENT_RX_FROM_UNKNOWN, &event);
+-}
+-
+-
+-static void handle_frame(struct wpa_driver_nl80211_data *drv,
+-			 u8 *buf, size_t len, int datarate, int ssi_signal)
+-{
+-	struct ieee80211_hdr *hdr;
+-	u16 fc;
+-	union wpa_event_data event;
+-
+-	if (!drv->use_monitor)
+-		return;
+-
+-	hdr = (struct ieee80211_hdr *) buf;
+-	fc = le_to_host16(hdr->frame_control);
+-
+-	switch (WLAN_FC_GET_TYPE(fc)) {
+-	case WLAN_FC_TYPE_MGMT:
+-		os_memset(&event, 0, sizeof(event));
+-		event.rx_mgmt.frame = buf;
+-		event.rx_mgmt.frame_len = len;
+-		event.rx_mgmt.datarate = datarate;
+-		event.rx_mgmt.ssi_signal = ssi_signal;
+-		wpa_supplicant_event(drv->ctx, EVENT_RX_MGMT, &event);
+-		break;
+-	case WLAN_FC_TYPE_CTRL:
+-		/* can only get here with PS-Poll frames */
+-		wpa_printf(MSG_DEBUG, "CTRL");
+-		from_unknown_sta(drv, buf, len);
+-		break;
+-	case WLAN_FC_TYPE_DATA:
+-		from_unknown_sta(drv, buf, len);
+-		break;
+-	}
+-}
+-
+-
+-static void handle_monitor_read(int sock, void *eloop_ctx, void *sock_ctx)
+-{
+-	struct wpa_driver_nl80211_data *drv = eloop_ctx;
+-	int len;
+-	unsigned char buf[3000];
+-	struct ieee80211_radiotap_iterator iter;
+-	int ret;
+-	int datarate = 0, ssi_signal = 0;
+-	int injected = 0, failed = 0, rxflags = 0;
+-
+-	len = recv(sock, buf, sizeof(buf), 0);
+-	if (len < 0) {
+-		wpa_printf(MSG_ERROR, "nl80211: Monitor socket recv failed: %s",
+-			   strerror(errno));
+-		return;
+-	}
+-
+-	if (ieee80211_radiotap_iterator_init(&iter, (void *) buf, len, NULL)) {
+-		wpa_printf(MSG_INFO, "nl80211: received invalid radiotap frame");
+-		return;
+-	}
+-
+-	while (1) {
+-		ret = ieee80211_radiotap_iterator_next(&iter);
+-		if (ret == -ENOENT)
+-			break;
+-		if (ret) {
+-			wpa_printf(MSG_INFO, "nl80211: received invalid radiotap frame (%d)",
+-				   ret);
+-			return;
+-		}
+-		switch (iter.this_arg_index) {
+-		case IEEE80211_RADIOTAP_FLAGS:
+-			if (*iter.this_arg & IEEE80211_RADIOTAP_F_FCS)
+-				len -= 4;
+-			break;
+-		case IEEE80211_RADIOTAP_RX_FLAGS:
+-			rxflags = 1;
+-			break;
+-		case IEEE80211_RADIOTAP_TX_FLAGS:
+-			injected = 1;
+-			failed = le_to_host16((*(le16 *) iter.this_arg)) &
+-					IEEE80211_RADIOTAP_F_TX_FAIL;
+-			break;
+-		case IEEE80211_RADIOTAP_DATA_RETRIES:
+-			break;
+-		case IEEE80211_RADIOTAP_CHANNEL:
+-			/* TODO: convert from freq/flags to channel number */
+-			break;
+-		case IEEE80211_RADIOTAP_RATE:
+-			datarate = *iter.this_arg * 5;
+-			break;
+-		case IEEE80211_RADIOTAP_DBM_ANTSIGNAL:
+-			ssi_signal = (s8) *iter.this_arg;
+-			break;
+-		}
+-	}
+-
+-	if (rxflags && injected)
+-		return;
+-
+-	if (!injected)
+-		handle_frame(drv, buf + iter._max_length,
+-			     len - iter._max_length, datarate, ssi_signal);
+-	else
+-		handle_tx_callback(drv->ctx, buf + iter._max_length,
+-				   len - iter._max_length, !failed);
+-}
+-
+-
+-/*
+- * we post-process the filter code later and rewrite
+- * this to the offset to the last instruction
+- */
+-#define PASS	0xFF
+-#define FAIL	0xFE
++#ifdef CONFIG_TESTING_OPTIONS
+ 
+ static struct sock_filter msock_filter_insns[] = {
+-	/*
+-	 * do a little-endian load of the radiotap length field
+-	 */
+-	/* load lower byte into A */
+-	BPF_STMT(BPF_LD  | BPF_B | BPF_ABS, 2),
+-	/* put it into X (== index register) */
+-	BPF_STMT(BPF_MISC| BPF_TAX, 0),
+-	/* load upper byte into A */
+-	BPF_STMT(BPF_LD  | BPF_B | BPF_ABS, 3),
+-	/* left-shift it by 8 */
+-	BPF_STMT(BPF_ALU | BPF_LSH | BPF_K, 8),
+-	/* or with X */
+-	BPF_STMT(BPF_ALU | BPF_OR | BPF_X, 0),
+-	/* put result into X */
+-	BPF_STMT(BPF_MISC| BPF_TAX, 0),
+-
+-	/*
+-	 * Allow management frames through, this also gives us those
+-	 * management frames that we sent ourselves with status
+-	 */
+-	/* load the lower byte of the IEEE 802.11 frame control field */
+-	BPF_STMT(BPF_LD  | BPF_B | BPF_IND, 0),
+-	/* mask off frame type and version */
+-	BPF_STMT(BPF_ALU | BPF_AND | BPF_K, 0xF),
+-	/* accept frame if it's both 0, fall through otherwise */
+-	BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0, PASS, 0),
+-
+-	/*
+-	 * TODO: add a bit to radiotap RX flags that indicates
+-	 * that the sending station is not associated, then
+-	 * add a filter here that filters on our DA and that flag
+-	 * to allow us to deauth frames to that bad station.
+-	 *
+-	 * For now allow all To DS data frames through.
+-	 */
+-	/* load the IEEE 802.11 frame control field */
+-	BPF_STMT(BPF_LD  | BPF_H | BPF_IND, 0),
+-	/* mask off frame type, version and DS status */
+-	BPF_STMT(BPF_ALU | BPF_AND | BPF_K, 0x0F03),
+-	/* accept frame if version 0, type 2 and To DS, fall through otherwise
+-	 */
+-	BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x0801, PASS, 0),
+-
+-#if 0
+-	/*
+-	 * drop non-data frames
+-	 */
+-	/* load the lower byte of the frame control field */
+-	BPF_STMT(BPF_LD   | BPF_B | BPF_IND, 0),
+-	/* mask off QoS bit */
+-	BPF_STMT(BPF_ALU  | BPF_AND | BPF_K, 0x0c),
+-	/* drop non-data frames */
+-	BPF_JUMP(BPF_JMP  | BPF_JEQ | BPF_K, 8, 0, FAIL),
+-#endif
+-	/* load the upper byte of the frame control field */
+-	BPF_STMT(BPF_LD   | BPF_B | BPF_IND, 1),
+-	/* mask off toDS/fromDS */
+-	BPF_STMT(BPF_ALU  | BPF_AND | BPF_K, 0x03),
+-	/* accept WDS frames */
+-	BPF_JUMP(BPF_JMP  | BPF_JEQ | BPF_K, 3, PASS, 0),
+-
+-	/*
+-	 * add header length to index
+-	 */
+-	/* load the lower byte of the frame control field */
+-	BPF_STMT(BPF_LD   | BPF_B | BPF_IND, 0),
+-	/* mask off QoS bit */
+-	BPF_STMT(BPF_ALU  | BPF_AND | BPF_K, 0x80),
+-	/* right shift it by 6 to give 0 or 2 */
+-	BPF_STMT(BPF_ALU  | BPF_RSH | BPF_K, 6),
+-	/* add data frame header length */
+-	BPF_STMT(BPF_ALU  | BPF_ADD | BPF_K, 24),
+-	/* add index, was start of 802.11 header */
+-	BPF_STMT(BPF_ALU  | BPF_ADD | BPF_X, 0),
+-	/* move to index, now start of LL header */
+-	BPF_STMT(BPF_MISC | BPF_TAX, 0),
+-
+-	/*
+-	 * Accept empty data frames, we use those for
+-	 * polling activity.
+-	 */
+-	BPF_STMT(BPF_LD  | BPF_W | BPF_LEN, 0),
+-	BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_X, 0, PASS, 0),
+-
+-	/*
+-	 * Accept EAPOL frames
+-	 */
+-	BPF_STMT(BPF_LD  | BPF_W | BPF_IND, 0),
+-	BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0xAAAA0300, 0, FAIL),
+-	BPF_STMT(BPF_LD  | BPF_W | BPF_IND, 4),
+-	BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x0000888E, PASS, FAIL),
+-
+-	/* keep these last two statements or change the code below */
+-	/* return 0 == "DROP" */
++	/* return 0 == "DROP", we don't want RX */
+ 	BPF_STMT(BPF_RET | BPF_K, 0),
+-	/* return ~0 == "keep all" */
+-	BPF_STMT(BPF_RET | BPF_K, ~0),
+ };
+ 
+-static struct sock_fprog msock_filter = {
++static const struct sock_fprog msock_filter = {
+ 	.len = ARRAY_SIZE(msock_filter_insns),
+ 	.filter = msock_filter_insns,
+ };
+@@ -283,32 +38,6 @@ static struct sock_fprog msock_filter = {
+ 
+ static int add_monitor_filter(int s)
+ {
+-	int idx;
+-
+-	/* rewrite all PASS/FAIL jump offsets */
+-	for (idx = 0; idx < msock_filter.len; idx++) {
+-		struct sock_filter *insn = &msock_filter_insns[idx];
+-
+-		if (BPF_CLASS(insn->code) == BPF_JMP) {
+-			if (insn->code == (BPF_JMP|BPF_JA)) {
+-				if (insn->k == PASS)
+-					insn->k = msock_filter.len - idx - 2;
+-				else if (insn->k == FAIL)
+-					insn->k = msock_filter.len - idx - 3;
+-			}
+-
+-			if (insn->jt == PASS)
+-				insn->jt = msock_filter.len - idx - 2;
+-			else if (insn->jt == FAIL)
+-				insn->jt = msock_filter.len - idx - 3;
+-
+-			if (insn->jf == PASS)
+-				insn->jf = msock_filter.len - idx - 2;
+-			else if (insn->jf == FAIL)
+-				insn->jf = msock_filter.len - idx - 3;
+-		}
+-	}
+-
+ 	if (setsockopt(s, SOL_SOCKET, SO_ATTACH_FILTER,
+ 		       &msock_filter, sizeof(msock_filter))) {
+ 		wpa_printf(MSG_ERROR, "nl80211: setsockopt(SO_ATTACH_FILTER) failed: %s",
+@@ -320,40 +49,29 @@ static int add_monitor_filter(int s)
+ }
+ 
+ 
+-void nl80211_remove_monitor_interface(struct wpa_driver_nl80211_data *drv)
++static void
++nl80211_remove_monitor_interface(struct wpa_driver_nl80211_data *drv,
++				 int ifidx, int sock)
+ {
+-	if (drv->monitor_refcount > 0)
+-		drv->monitor_refcount--;
+-	wpa_printf(MSG_DEBUG, "nl80211: Remove monitor interface: refcount=%d",
+-		   drv->monitor_refcount);
+-	if (drv->monitor_refcount > 0)
+-		return;
+-
+-	if (drv->monitor_ifidx >= 0) {
+-		nl80211_remove_iface(drv, drv->monitor_ifidx);
+-		drv->monitor_ifidx = -1;
+-	}
+-	if (drv->monitor_sock >= 0) {
+-		eloop_unregister_read_sock(drv->monitor_sock);
+-		close(drv->monitor_sock);
+-		drv->monitor_sock = -1;
+-	}
++	wpa_printf(MSG_DEBUG, "nl80211: Remove monitor interface");
++
++	if (ifidx >= 0)
++		nl80211_remove_iface(drv, ifidx);
++	if (sock >= 0)
++		close(sock);
+ }
+ 
+ 
+-int nl80211_create_monitor_interface(struct wpa_driver_nl80211_data *drv)
++static int nl80211_create_monitor_interface(struct wpa_driver_nl80211_data *drv,
++					    int *ifidx, int *sock)
+ {
+ 	char buf[IFNAMSIZ];
+ 	struct sockaddr_ll ll;
+ 	int optval;
+ 	socklen_t optlen;
+ 
+-	if (drv->monitor_ifidx >= 0) {
+-		drv->monitor_refcount++;
+-		wpa_printf(MSG_DEBUG, "nl80211: Re-use existing monitor interface: refcount=%d",
+-			   drv->monitor_refcount);
+-		return 0;
+-	}
++	*ifidx = -1;
++	*sock = -1;
+ 
+ 	if (os_strncmp(drv->first_bss->ifname, "p2p-", 4) == 0) {
+ 		/*
+@@ -379,23 +97,10 @@ int nl80211_create_monitor_interface(struct wpa_driver_nl80211_data *drv)
+ 
+ 	buf[IFNAMSIZ - 1] = '\0';
+ 
+-	drv->monitor_ifidx =
+-		nl80211_create_iface(drv, buf, NL80211_IFTYPE_MONITOR, NULL,
+-				     0, NULL, NULL, 0);
++	*ifidx = nl80211_create_iface(drv, buf, NL80211_IFTYPE_MONITOR, NULL,
++				      0, NULL, NULL, 0);
+ 
+-	if (drv->monitor_ifidx == -EOPNOTSUPP) {
+-		/*
+-		 * This is backward compatibility for a few versions of
+-		 * the kernel only that didn't advertise the right
+-		 * attributes for the only driver that then supported
+-		 * AP mode w/o monitor -- ath6kl.
+-		 */
+-		wpa_printf(MSG_DEBUG, "nl80211: Driver does not support "
+-			   "monitor interface type - try to run without it");
+-		drv->device_ap_sme = 1;
+-	}
+-
+-	if (drv->monitor_ifidx < 0)
++	if (*ifidx < 0)
+ 		return -1;
+ 
+ 	if (linux_set_iface_flags(drv->global->ioctl_sock, buf, 1))
+@@ -403,21 +108,21 @@ int nl80211_create_monitor_interface(struct wpa_driver_nl80211_data *drv)
+ 
+ 	memset(&ll, 0, sizeof(ll));
+ 	ll.sll_family = AF_PACKET;
+-	ll.sll_ifindex = drv->monitor_ifidx;
+-	drv->monitor_sock = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+-	if (drv->monitor_sock < 0) {
++	ll.sll_ifindex = *ifidx;
++	*sock = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
++	if (*sock < 0) {
+ 		wpa_printf(MSG_ERROR, "nl80211: socket[PF_PACKET,SOCK_RAW] failed: %s",
+ 			   strerror(errno));
+ 		goto error;
+ 	}
+ 
+-	if (add_monitor_filter(drv->monitor_sock)) {
++	if (add_monitor_filter(*sock)) {
+ 		wpa_printf(MSG_INFO, "Failed to set socket filter for monitor "
+ 			   "interface; do filtering in user space");
+ 		/* This works, but will cost in performance. */
+ 	}
+ 
+-	if (bind(drv->monitor_sock, (struct sockaddr *) &ll, sizeof(ll)) < 0) {
++	if (bind(*sock, (struct sockaddr *) &ll, sizeof(ll)) < 0) {
+ 		wpa_printf(MSG_ERROR, "nl80211: monitor socket bind failed: %s",
+ 			   strerror(errno));
+ 		goto error;
+@@ -425,30 +130,22 @@ int nl80211_create_monitor_interface(struct wpa_driver_nl80211_data *drv)
+ 
+ 	optlen = sizeof(optval);
+ 	optval = 20;
+-	if (setsockopt
+-	    (drv->monitor_sock, SOL_SOCKET, SO_PRIORITY, &optval, optlen)) {
++	if (setsockopt(*sock, SOL_SOCKET, SO_PRIORITY, &optval, optlen)) {
+ 		wpa_printf(MSG_ERROR, "nl80211: Failed to set socket priority: %s",
+ 			   strerror(errno));
+ 		goto error;
+ 	}
+ 
+-	if (eloop_register_read_sock(drv->monitor_sock, handle_monitor_read,
+-				     drv, NULL)) {
+-		wpa_printf(MSG_INFO, "nl80211: Could not register monitor read socket");
+-		goto error;
+-	}
+-
+-	drv->monitor_refcount++;
+ 	return 0;
+  error:
+-	nl80211_remove_monitor_interface(drv);
++	nl80211_remove_monitor_interface(drv, *ifidx, *sock);
+ 	return -1;
+ }
+ 
+ 
+-int nl80211_send_monitor(struct wpa_driver_nl80211_data *drv,
+-			 const void *data, size_t len,
+-			 int encrypt, int noack)
++static int _nl80211_send_monitor(int monitor_sock,
++				 const void *data, size_t len,
++				 int encrypt, int noack)
+ {
+ 	__u8 rtap_hdr[] = {
+ 		0x00, 0x00, /* radiotap version */
+@@ -484,20 +181,32 @@ int nl80211_send_monitor(struct wpa_driver_nl80211_data *drv,
+ 	if (encrypt)
+ 		rtap_hdr[8] |= IEEE80211_RADIOTAP_F_WEP;
+ 
+-	if (drv->monitor_sock < 0) {
+-		wpa_printf(MSG_DEBUG, "nl80211: No monitor socket available "
+-			   "for %s", __func__);
+-		return -1;
+-	}
+-
+ 	if (noack)
+ 		txflags |= IEEE80211_RADIOTAP_F_TX_NOACK;
+ 	WPA_PUT_LE16(&rtap_hdr[12], txflags);
+ 
+-	res = sendmsg(drv->monitor_sock, &msg, 0);
++	res = sendmsg(monitor_sock, &msg, 0);
+ 	if (res < 0) {
+ 		wpa_printf(MSG_INFO, "nl80211: sendmsg: %s", strerror(errno));
+ 		return -1;
+ 	}
+ 	return 0;
+ }
++
++
++int nl80211_send_monitor(struct wpa_driver_nl80211_data *drv,
++			 const void *data, size_t len,
++			 int encrypt, int noack)
++{
++	int res, ifidx, sock;
++
++	res = nl80211_create_monitor_interface(drv, &ifidx, &sock);
++	if (res < 0)
++		return res;
++
++	res = _nl80211_send_monitor(sock, data, len, encrypt, noack);
++	nl80211_remove_monitor_interface(drv, ifidx, sock);
++	return res;
++}
++
++#endif /* CONFIG_TESTING_OPTIONS */
+diff --git a/tests/hwsim/test_ap_pmf.py b/tests/hwsim/test_ap_pmf.py
+index ccbecb8e3..06ddc3d9d 100644
+--- a/tests/hwsim/test_ap_pmf.py
++++ b/tests/hwsim/test_ap_pmf.py
+@@ -520,7 +520,7 @@ def run_ap_pmf_valid(dev, apdev, disassociate, broadcast):
+ 
+ def start_wpas_ap(ssid):
+     wpas = WpaSupplicant(global_iface='/tmp/wpas-wlan5')
+-    wpas.interface_add("wlan5", drv_params="use_monitor=1")
++    wpas.interface_add("wlan5")
+     id = wpas.add_network()
+     wpas.set_network(id, "mode", "2")
+     wpas.set_network_quoted(id, "ssid", ssid)
+diff --git a/tests/hwsim/test_eht.py b/tests/hwsim/test_eht.py
+index ef796bce7..c1bab3f36 100644
+--- a/tests/hwsim/test_eht.py
++++ b/tests/hwsim/test_eht.py
+@@ -404,8 +404,14 @@ def test_eht_mld_owe_two_links_scan_second(dev, apdev):
+     """EHT MLD AP with MLD client OWE connection using two links; scan only second"""
+     _eht_mld_owe_two_links(dev, apdev, scan_only_second_link=True)
+ 
++@long_duration_test
++def test_eht_mld_owe_two_links_no_assoc_timeout(dev, apdev):
++    """Verify that AP MLD does not time out two link association"""
++    _eht_mld_owe_two_links(dev, apdev, wait_for_timeout=True)
++
+ def _eht_mld_owe_two_links(dev, apdev, second_link_disabled=False,
+-                           only_one_link=False, scan_only_second_link=False):
++                           only_one_link=False, scan_only_second_link=False,
++                           wait_for_timeout=False):
+     with HWSimRadio(use_mlo=True) as (hapd0_radio, hapd0_iface), \
+         HWSimRadio(use_mlo=True) as (hapd1_radio, hapd1_iface), \
+         HWSimRadio(use_mlo=True) as (wpas_radio, wpas_iface):
+@@ -456,6 +462,11 @@ def _eht_mld_owe_two_links(dev, apdev, second_link_disabled=False,
+         if only_one_link:
+             wpas.set("bssid_filter", "")
+ 
++        if wait_for_timeout:
++            ev = wpas.wait_event(["CTRL-EVENT-DISCONNECTED"], timeout=65)
++            if ev is not None:
++                raise Exception("Unexpected disconnection")
++
+ def test_eht_mld_owe_two_links_one_disabled(dev, apdev):
+     """AP MLD with MLD client OWE connection when one of the AP MLD links is disabled"""
+     _eht_mld_owe_two_links(dev, apdev, second_link_disabled=True)
+diff --git a/tests/hwsim/test_monitor_interface.py b/tests/hwsim/test_monitor_interface.py
+deleted file mode 100644
+index e1a48aeb0..000000000
+--- a/tests/hwsim/test_monitor_interface.py
++++ /dev/null
+@@ -1,94 +0,0 @@
+-# AP mode using the older monitor interface design
+-# Copyright (c) 2013, Jouni Malinen <j@w1.fi>
+-#
+-# This software may be distributed under the terms of the BSD license.
+-# See README for more details.
+-
+-import binascii
+-from remotehost import remote_compatible
+-import logging
+-logger = logging.getLogger()
+-import time
+-
+-import hwsim_utils
+-import hostapd
+-from wpasupplicant import WpaSupplicant
+-from utils import radiotap_build, start_monitor, stop_monitor
+-
+-def test_monitor_iface_open(dev, apdev):
+-    """Open connection using cfg80211 monitor interface on AP"""
+-    wpas = WpaSupplicant(global_iface='/tmp/wpas-wlan5')
+-    wpas.interface_add("wlan5", drv_params="use_monitor=1")
+-    id = wpas.add_network()
+-    wpas.set_network(id, "mode", "2")
+-    wpas.set_network_quoted(id, "ssid", "monitor-iface")
+-    wpas.set_network(id, "key_mgmt", "NONE")
+-    wpas.set_network(id, "frequency", "2412")
+-    wpas.connect_network(id)
+-
+-    dev[0].connect("monitor-iface", key_mgmt="NONE", scan_freq="2412")
+-
+-def test_monitor_iface_wpa2_psk(dev, apdev):
+-    """WPA2-PSK connection using cfg80211 monitor interface on AP"""
+-    wpas = WpaSupplicant(global_iface='/tmp/wpas-wlan5')
+-    wpas.interface_add("wlan5", drv_params="use_monitor=1")
+-    id = wpas.add_network()
+-    wpas.set_network(id, "mode", "2")
+-    wpas.set_network_quoted(id, "ssid", "monitor-iface-wpa2")
+-    wpas.set_network(id, "proto", "WPA2")
+-    wpas.set_network(id, "key_mgmt", "WPA-PSK")
+-    wpas.set_network_quoted(id, "psk", "12345678")
+-    wpas.set_network(id, "pairwise", "CCMP")
+-    wpas.set_network(id, "group", "CCMP")
+-    wpas.set_network(id, "frequency", "2412")
+-    wpas.connect_network(id)
+-
+-    dev[0].connect("monitor-iface-wpa2", psk="12345678", scan_freq="2412")
+-
+-def test_monitor_iface_multi_bss(dev, apdev):
+-    """AP mode mmonitor interface with hostapd multi-BSS setup"""
+-    params = {"ssid": "monitor-iface", "driver_params": "use_monitor=1"}
+-    hapd = hostapd.add_ap(apdev[0], params)
+-    hostapd.add_bss(apdev[0], apdev[0]['ifname'] + '-2', 'bss-2.conf')
+-    dev[0].connect("monitor-iface", key_mgmt="NONE", scan_freq="2412")
+-    dev[1].connect("bss-2", key_mgmt="NONE", scan_freq="2412")
+-
+-@remote_compatible
+-def test_monitor_iface_unknown_sta(dev, apdev):
+-    """AP mode monitor interface and Data frame from unknown STA"""
+-    ssid = "monitor-iface-pmf"
+-    passphrase = "12345678"
+-    params = hostapd.wpa2_params(ssid=ssid, passphrase=passphrase)
+-    params["wpa_key_mgmt"] = "WPA-PSK-SHA256"
+-    params["ieee80211w"] = "2"
+-    params['driver_params'] = "use_monitor=1"
+-    hapd = hostapd.add_ap(apdev[0], params)
+-
+-    bssid = apdev[0]['bssid']
+-    addr = dev[0].p2p_interface_addr()
+-    dev[0].connect(ssid, psk=passphrase, ieee80211w="2",
+-                   key_mgmt="WPA-PSK-SHA256", proto="WPA2",
+-                   scan_freq="2412")
+-    dev[0].request("DROP_SA")
+-    # This protected Deauth will be ignored by the STA
+-    hapd.request("DEAUTHENTICATE " + addr)
+-    # But the unprotected Deauth from TX frame-from-unassoc-STA will now be
+-    # processed
+-    try:
+-        sock = start_monitor(apdev[1]["ifname"])
+-        radiotap = radiotap_build()
+-
+-        bssid = hapd.own_addr().replace(':', '')
+-        addr = dev[0].own_addr().replace(':', '')
+-
+-        # Inject Data frame from STA to AP since we not have SA in place
+-        # anymore for normal data TX
+-        frame = binascii.unhexlify("48010000" + bssid + addr + bssid + "0000")
+-        sock.send(radiotap + frame)
+-    finally:
+-        stop_monitor(apdev[1]["ifname"])
+-
+-    ev = dev[0].wait_event(["CTRL-EVENT-DISCONNECTED"], timeout=5)
+-    if ev is None:
+-        raise Exception("No disconnection")
+-    dev[0].request("DISCONNECT")
+diff --git a/tests/hwsim/test_owe.py b/tests/hwsim/test_owe.py
+index 987d1d517..891dd011a 100644
+--- a/tests/hwsim/test_owe.py
++++ b/tests/hwsim/test_owe.py
+@@ -890,6 +890,7 @@ def test_owe_invalid_assoc_resp(dev, apdev):
+     """Opportunistic Wireless Encryption - invalid Association Response frame"""
+     check_owe_capab(dev[0])
+     params = {"ssid": "owe",
++              "ieee80211n": "0",
+               "wpa": "2",
+               "ieee80211w": "2",
+               "wpa_key_mgmt": "OWE",
+diff --git a/wpa_supplicant/events.c b/wpa_supplicant/events.c
+index a6b25a86f..ec29deae1 100644
+--- a/wpa_supplicant/events.c
++++ b/wpa_supplicant/events.c
+@@ -442,7 +442,7 @@ void wpa_supplicant_mark_disassoc(struct wpa_supplicant *wpa_s)
+ }
+ 
+ 
+-static void wpa_find_assoc_pmkid(struct wpa_supplicant *wpa_s, bool authorized)
++static void wpa_find_assoc_pmkid(struct wpa_supplicant *wpa_s)
+ {
+ 	struct wpa_ie_data ie;
+ 	int pmksa_set = -1;
+@@ -467,8 +467,7 @@ static void wpa_find_assoc_pmkid(struct wpa_supplicant *wpa_s, bool authorized)
+ 						    true);
+ 		if (pmksa_set == 0) {
+ 			eapol_sm_notify_pmkid_attempt(wpa_s->eapol);
+-			if (authorized)
+-				wpa_sm_set_pmk_from_pmksa(wpa_s->wpa);
++			wpa_sm_set_pmk_from_pmksa(wpa_s->wpa);
+ 			break;
+ 		}
+ 	}
+@@ -3559,8 +3558,7 @@ static int wpa_supplicant_event_associnfo(struct wpa_supplicant *wpa_s,
+ 			if (wpa_sm_set_assoc_wpa_ie(wpa_s->wpa, p, len))
+ 				break;
+ 			found = 1;
+-			wpa_find_assoc_pmkid(wpa_s,
+-					     data->assoc_info.authorized);
++			wpa_find_assoc_pmkid(wpa_s);
+ 		}
+ #ifndef CONFIG_NO_WPA
+ 		if (!found_x && p[0] == WLAN_EID_RSNX) {
+@@ -4720,10 +4718,6 @@ static void wpa_supplicant_event_disassoc_finish(struct wpa_supplicant *wpa_s,
+ 			return; /* P2P group removed */
+ 		wpas_auth_failed(wpa_s, "WRONG_KEY", wpa_s->pending_bssid);
+ 		wpas_notify_psk_mismatch(wpa_s);
+-#ifdef CONFIG_DPP2
+-		wpas_dpp_send_conn_status_result(wpa_s,
+-						 DPP_STATUS_AUTH_FAILURE);
+-#endif /* CONFIG_DPP2 */
+ 	}
+ 	if (!wpa_s->disconnected &&
+ 	    (!wpa_s->auto_reconnect_disabled ||
+@@ -4778,6 +4772,9 @@ static void wpa_supplicant_event_disassoc_finish(struct wpa_supplicant *wpa_s,
+ 	else
+ 		wpa_s->disconnect_reason = reason_code;
+ 	wpas_notify_disconnect_reason(wpa_s);
++#ifdef CONFIG_DPP2
++	wpas_dpp_send_conn_status_result(wpa_s, DPP_STATUS_AUTH_FAILURE);
++#endif /* CONFIG_DPP2 */
+ 	if (wpa_supplicant_dynamic_keys(wpa_s)) {
+ 		wpa_dbg(wpa_s, MSG_DEBUG, "Disconnect event - remove keys");
+ 		wpa_clear_keys(wpa_s, wpa_s->bssid);
+diff --git a/wpa_supplicant/gas_query.c b/wpa_supplicant/gas_query.c
+index 7d2993179..88564d518 100644
+--- a/wpa_supplicant/gas_query.c
++++ b/wpa_supplicant/gas_query.c
+@@ -147,6 +147,10 @@ static void gas_query_free(struct gas_query_pending *query, int del_list)
+ 		gas->work = NULL;
+ 	}
+ 
++	eloop_cancel_timeout(gas_query_tx_comeback_timeout, gas, query);
++	eloop_cancel_timeout(gas_query_timeout, gas, query);
++	eloop_cancel_timeout(gas_query_rx_comeback_timeout, gas, query);
++
+ 	wpabuf_free(query->req);
+ 	wpabuf_free(query->adv_proto);
+ 	wpabuf_free(query->resp);
+@@ -166,9 +170,6 @@ static void gas_query_done(struct gas_query *gas,
+ 		gas->current = NULL;
+ 	if (query->offchannel_tx_started)
+ 		offchannel_send_action_done(gas->wpa_s);
+-	eloop_cancel_timeout(gas_query_tx_comeback_timeout, gas, query);
+-	eloop_cancel_timeout(gas_query_timeout, gas, query);
+-	eloop_cancel_timeout(gas_query_rx_comeback_timeout, gas, query);
+ 	dl_list_del(&query->list);
+ 	query->cb(query->ctx, query->addr, query->dialog_token, result,
+ 		  query->adv_proto, query->resp, query->status_code);
+-- 
+2.45.2
+

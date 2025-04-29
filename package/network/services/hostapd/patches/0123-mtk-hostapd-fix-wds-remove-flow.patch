@@ -1,0 +1,43 @@
+From 7b9009d822bfa67e814b17ec72e4d30593c4519a Mon Sep 17 00:00:00 2001
+From: Peter Chiu <chui-hao.chiu@mediatek.com>
+Date: Fri, 23 Aug 2024 14:30:00 +0800
+Subject: [PATCH 123/210] mtk: hostapd: fix wds remove flow
+
+Fix the params set to set_wds_sta to prevent ifname_wds being null.
+If ifname_wds is null, the wds interface cannot be remove.
+
+Signed-off-by: Peter Chiu <chui-hao.chiu@mediatek.com>
+---
+ src/ap/ap_drv_ops.c          | 2 +-
+ src/drivers/driver_nl80211.c | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/ap/ap_drv_ops.c b/src/ap/ap_drv_ops.c
+index f34b4cfda..ec5ed2fcf 100644
+--- a/src/ap/ap_drv_ops.c
++++ b/src/ap/ap_drv_ops.c
+@@ -400,7 +400,7 @@ int hostapd_set_wds_sta(struct hostapd_data *hapd, char *ifname_wds,
+ 			const u8 *addr, int aid, int val)
+ {
+ 	const char *bridge = NULL;
+-	char ifName[IFNAMSIZ + 1];
++	char ifName[IFNAMSIZ + 1] = {0};
+ 
+ 	int mRet = 0;
+ 
+diff --git a/src/drivers/driver_nl80211.c b/src/drivers/driver_nl80211.c
+index b2de9c3c1..77a020e43 100644
+--- a/src/drivers/driver_nl80211.c
++++ b/src/drivers/driver_nl80211.c
+@@ -8763,7 +8763,7 @@ static int i802_set_wds_sta(void *priv, const u8 *addr, int aid, int val,
+ {
+ 	struct i802_bss *bss = priv;
+ 	struct wpa_driver_nl80211_data *drv = bss->drv;
+-	char name[IFNAMSIZ + 1];
++	char name[IFNAMSIZ + 1] = {0};
+ 	union wpa_event_data event;
+ 	bool add_br = false;
+ 	int ret;
+-- 
+2.45.2
+

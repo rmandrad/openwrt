@@ -78,6 +78,10 @@ $(obj)/qconf-moc.cc: $(src)/qconf.h FORCE | $(obj)/qconf-bin
 
 targets += qconf-moc.cc
 
+# aconf: Used for defconfig merging and incremental subtraction
+hostprogs	+= aconf
+aconf-objs	:= aconf.o $(common-objs)
+
 # check if necessary packages are available, and configure build flags
 cmd_conf_cfg = $< $(addprefix $(obj)/$*conf-, cflags libs bin); touch $(obj)/$*conf-bin
 

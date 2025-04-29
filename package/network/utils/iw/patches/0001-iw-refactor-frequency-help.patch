@@ -1,0 +1,169 @@
+From cce989770bf3375bbe4398a5ce80d9a9718460a3 Mon Sep 17 00:00:00 2001
+From: Johannes Berg <johannes.berg@intel.com>
+Date: Fri, 17 May 2024 12:04:06 +0200
+Subject: [PATCH 01/22] iw: refactor frequency help
+
+The channel parsing is the same in most places, refactor
+the help strings for that to not duplicate them in all
+the commands using them. This also corrects the help for
+a number of commands that never saw 320 MHz support.
+
+Reviewed-by: Miriam Rachel Korenblit <miriam.rachel.korenblit@intel.com>
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+---
+ ap.c   | 10 ++++++----
+ iw.h   | 13 +++++++++++++
+ phy.c  | 38 +++++++++++++-------------------------
+ util.c |  4 ++--
+ 4 files changed, 34 insertions(+), 31 deletions(-)
+
+diff --git a/ap.c b/ap.c
+index 748576d..bf72fe2 100644
+--- a/ap.c
++++ b/ap.c
+@@ -144,12 +144,14 @@ static int handle_start_ap(struct nl80211_state *state,
+  nla_put_failure:
+ 	return -ENOSPC;
+ }
+-COMMAND(ap, start, "",
+-	NL80211_CMD_NEW_BEACON, 0, CIB_NETDEV, handle_start_ap,
+-	"<SSID> <control freq> [5|10|20|40|80|80+80|160] [<center1_freq> [<center2_freq>]]"
++COMMAND(ap, start,
++	"<SSID> "
++	PARSE_FREQ_ARGS("<SSID> ",
+ 	" <beacon interval in TU> <DTIM period> [hidden-ssid|zeroed-ssid] head"
+ 	" <beacon head in hexadecimal> [tail <beacon tail in hexadecimal>]"
+-	" [inactivity-time <inactivity time in seconds>] [key0:abcde d:1:6162636465]\n");
++	" [inactivity-time <inactivity time in seconds>] [key0:abcde d:1:6162636465]"),
++	NL80211_CMD_NEW_BEACON, 0, CIB_NETDEV, handle_start_ap,
++	"Start an AP. Note that this usually requires hostapd or similar.\n");
+ 
+ static int handle_stop_ap(struct nl80211_state *state,
+ 			  struct nl_msg *msg,
+diff --git a/iw.h b/iw.h
+index 7e9107e..82eee7c 100644
+--- a/iw.h
++++ b/iw.h
+@@ -209,6 +209,19 @@ int parse_hex_mask(char *hexmask, unsigned char **result, size_t *result_len,
+ unsigned char *parse_hex(char *hex, size_t *outlen);
+ 
+ int parse_keys(struct nl_msg *msg, char **argv[], int *argc);
++
++#define _PARSE_FREQ_ARGS_OPT1 "<freq> [NOHT|HT20|HT40+|HT40-|5MHz|10MHz|80MHz|160MHz|320MHz]"
++#define _PARSE_FREQ_ARGS_OPT2 "<control freq> [5|10|20|40|80|80+80|160|320] [<center1_freq> [<center2_freq>]]"
++#define PARSE_FREQ_ARGS(pfx, sfx) \
++	pfx _PARSE_FREQ_ARGS_OPT1 sfx "\n" \
++	pfx _PARSE_FREQ_ARGS_OPT2 sfx
++#define _PARSE_FREQ_KHZ_ARGS_OPT1 "<freq in KHz> [1MHz|2MHz|4MHz|8MHz|16MHz]"
++#define _PARSE_FREQ_KHZ_ARGS_OPT2 "<control freq in KHz> [1|2|4|8|16] [<center1_freq> [<center2_freq>]]"
++#define PARSE_FREQ_KHZ_ARGS(pfx, sfx) \
++	pfx _PARSE_FREQ_KHZ_ARGS_OPT1 sfx "\n" \
++	pfx _PARSE_FREQ_KHZ_ARGS_OPT2 sfx
++#define PARSE_CHAN_ARGS(pfx) \
++	pfx "<channel> [NOHT|HT20|HT40+|HT40-|5MHz|10MHz|80MHz|160MHz|320MHz]"
+ int parse_freqchan(struct chandef *chandef, bool chan, int argc, char **argv,
+ 		    int *parsed, bool freq_in_khz);
+ enum nl80211_chan_width str_to_bw(const char *str);
+diff --git a/phy.c b/phy.c
+index 4722125..584b103 100644
+--- a/phy.c
++++ b/phy.c
+@@ -198,15 +198,10 @@ static int handle_freq(struct nl80211_state *state, struct nl_msg *msg,
+ 	return put_chandef(msg, &chandef);
+ }
+ 
+-COMMAND(set, freq,
+-	"<freq> [NOHT|HT20|HT40+|HT40-|5MHz|10MHz|80MHz|160MHz|320MHz]\n"
+-	"<control freq> [5|10|20|40|80|80+80|160] [<center1_freq> [<center2_freq>]]",
++COMMAND(set, freq, PARSE_FREQ_ARGS("", ""),
+ 	NL80211_CMD_SET_WIPHY, 0, CIB_PHY, handle_freq,
+-	"Set frequency/channel the hardware is using, including HT\n"
+-	"configuration.");
+-COMMAND(set, freq,
+-	"<freq> [NOHT|HT20|HT40+|HT40-|5MHz|10MHz|80MHz|160MHz|320MHz]\n"
+-	"<control freq> [5|10|20|40|80|80+80|160] [<center1_freq> [<center2_freq>]]",
++	"Set frequency/channel configuration the hardware is using.");
++COMMAND(set, freq, PARSE_FREQ_ARGS("", ""),
+ 	NL80211_CMD_SET_WIPHY, 0, CIB_NETDEV, handle_freq, NULL);
+ 
+ static int handle_freq_khz(struct nl80211_state *state, struct nl_msg *msg,
+@@ -223,15 +218,11 @@ static int handle_freq_khz(struct nl80211_state *state, struct nl_msg *msg,
+ 	return put_chandef(msg, &chandef);
+ }
+ 
+-COMMAND(set, freq_khz,
+-	"<freq> [1MHz|2MHz|4MHz|8MHz|16MHz]\n"
+-	"<control freq> [1|2|4|8|16] [<center1_freq> [<center2_freq>]]",
++COMMAND(set, freq_khz, PARSE_FREQ_KHZ_ARGS("", ""),
+ 	NL80211_CMD_SET_WIPHY, 0, CIB_PHY, handle_freq_khz,
+ 	"Set frequency in kHz the hardware is using\n"
+ 	"configuration.");
+-COMMAND(set, freq_khz,
+-	"<freq> [1MHz|2MHz|4MHz|8MHz|16MHz]\n"
+-	"<control freq> [1|2|4|8|16] [<center1_freq> [<center2_freq>]]",
++COMMAND(set, freq_khz, PARSE_FREQ_KHZ_ARGS("", ""),
+ 	NL80211_CMD_SET_WIPHY, 0, CIB_NETDEV, handle_freq_khz, NULL);
+ 
+ static int handle_chan(struct nl80211_state *state, struct nl_msg *msg,
+@@ -247,9 +238,9 @@ static int handle_chan(struct nl80211_state *state, struct nl_msg *msg,
+ 
+ 	return put_chandef(msg, &chandef);
+ }
+-COMMAND(set, channel, "<channel> [NOHT|HT20|HT40+|HT40-|5MHz|10MHz|80MHz|160MHz]",
++COMMAND(set, channel, PARSE_CHAN_ARGS(""),
+ 	NL80211_CMD_SET_WIPHY, 0, CIB_PHY, handle_chan, NULL);
+-COMMAND(set, channel, "<channel> [NOHT|HT20|HT40+|HT40-|5MHz|10MHz|80MHz|160MHz]",
++COMMAND(set, channel, PARSE_CHAN_ARGS(""),
+ 	NL80211_CMD_SET_WIPHY, 0, CIB_NETDEV, handle_chan, NULL);
+ 
+ 
+@@ -403,22 +394,19 @@ err_out:
+ 		free(cac_trigger_argv);
+ 	return err;
+ }
+-TOPLEVEL(cac, "channel <channel> [NOHT|HT20|HT40+|HT40-|5MHz|10MHz|80MHz]\n"
+-	      "freq <freq> [NOHT|HT20|HT40+|HT40-|5MHz|10MHz|80MHz]\n"
+-	      "freq <control freq> [5|10|20|40|80|80+80|160] [<center1_freq> [<center2_freq>]]",
++TOPLEVEL(cac, PARSE_CHAN_ARGS("channel ") "\n"
++              PARSE_FREQ_ARGS("freq ", ""),
+ 	 0, 0, CIB_NETDEV, handle_cac, NULL);
+ COMMAND(cac, trigger,
+-	"channel <channel> [NOHT|HT20|HT40+|HT40-|5MHz|10MHz|80MHz]\n"
+-	"freq <frequency> [NOHT|HT20|HT40+|HT40-|5MHz|10MHz|80MHz]\n"
+-	"freq <frequency> [5|10|20|40|80|80+80|160] [<center1_freq> [<center2_freq>]]",
++	PARSE_CHAN_ARGS("channel ") "\n"
++	PARSE_FREQ_ARGS("freq ", ""),
+ 	NL80211_CMD_RADAR_DETECT, 0, CIB_NETDEV, handle_cac_trigger,
+ 	"Start or trigger a channel availability check (CAC) looking to look for\n"
+ 	"radars on the given channel.");
+ 
+ COMMAND(cac, background,
+-	"channel <channel> [NOHT|HT20|HT40+|HT40-|5MHz|10MHz|80MHz]\n"
+-	"freq <frequency> [NOHT|HT20|HT40+|HT40-|5MHz|10MHz|80MHz]\n"
+-	"freq <frequency> [5|10|20|40|80|80+80|160] [<center1_freq> [<center2_freq>]]",
++	PARSE_CHAN_ARGS("channel ") "\n"
++	PARSE_FREQ_ARGS("freq ", ""),
+ 	NL80211_CMD_RADAR_DETECT, 0, CIB_NETDEV, handle_cac_background,
+ 	"Start background channel availability check (CAC) looking to look for\n"
+ 	"radars on the given channel.");
+diff --git a/util.c b/util.c
+index d36dbdc..f358317 100644
+--- a/util.c
++++ b/util.c
+@@ -593,11 +593,11 @@ static int parse_freqs(struct chandef *chandef, int argc, char **argv,
+  * user by giving "NOHT" instead.
+  *
+  * The working specifier if chan is set are:
+- *   <channel> [NOHT|HT20|HT40+|HT40-|5MHz|10MHz|80MHz|160MHz]
++ *   <channel> [NOHT|HT20|HT40+|HT40-|5MHz|10MHz|80MHz|160MHz|320MHz]
+  *
+  * And if frequency is set:
+  *   <freq> [NOHT|HT20|HT40+|HT40-|5MHz|10MHz|80MHz|160MHz|320MHz]
+- *   <control freq> [5|10|20|40|80|80+80|160] [<center1_freq> [<center2_freq>]]
++ *   <control freq> [5|10|20|40|80|80+80|160|320] [<center1_freq> [<center2_freq>]]
+  *
+  * If the mode/channel width is not given the NOHT is assumed.
+  *
+-- 
+2.45.2
+

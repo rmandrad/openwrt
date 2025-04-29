@@ -1,0 +1,33 @@
+From 06033e37efed5d459f26c380081a39b7582fdaaf Mon Sep 17 00:00:00 2001
+From: Howard Hsu <howard-yh.hsu@mediatek.com>
+Date: Tue, 15 Apr 2025 16:03:56 +0800
+Subject: [PATCH 02/92] mtk: mt76: mt7996: remove HE Phy caps Partial Bandwidth
+ UL MU-MIMO
+
+Remove HE Phy caps Partial Bandwidth UL MU-MIMO. Although hardware can
+support, ap will not transmit a trigger frame soliciting an HE TB PPDU
+that uses UL MU-MIMO within an RU that does not span the entire PPDU bw.
+
+Signed-off-by: Howard Hsu <howard-yh.hsu@mediatek.com>
+
+---
+ mt7996/init.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/mt7996/init.c b/mt7996/init.c
+index e0abe6fe..6e233fab 100644
+--- a/mt7996/init.c
++++ b/mt7996/init.c
+@@ -1117,8 +1117,7 @@ mt7996_set_stream_he_txbf_caps(struct mt7996_phy *phy,
+ 	elem->phy_cap_info[7] &= ~IEEE80211_HE_PHY_CAP7_MAX_NC_MASK;
+ 
+ 	c = IEEE80211_HE_PHY_CAP2_NDP_4x_LTF_AND_3_2US |
+-	    IEEE80211_HE_PHY_CAP2_UL_MU_FULL_MU_MIMO |
+-	    IEEE80211_HE_PHY_CAP2_UL_MU_PARTIAL_MU_MIMO;
++	    IEEE80211_HE_PHY_CAP2_UL_MU_FULL_MU_MIMO;
+ 	elem->phy_cap_info[2] |= c;
+ 
+ 	c = IEEE80211_HE_PHY_CAP4_SU_BEAMFORMEE;
+-- 
+2.45.2
+

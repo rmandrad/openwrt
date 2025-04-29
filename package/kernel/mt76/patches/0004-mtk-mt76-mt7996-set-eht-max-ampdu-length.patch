@@ -1,0 +1,35 @@
+From ba7274f5fc8a1bb4d5df70536a79854f38641fd3 Mon Sep 17 00:00:00 2001
+From: Peter Chiu <chui-hao.chiu@mediatek.com>
+Date: Mon, 16 Dec 2024 14:57:55 +0800
+Subject: [PATCH 04/92] mtk: mt76: mt7996: set eht max ampdu length
+
+Set eht max ampdu length to 1. Without this patch, peer station cannot
+get the correct eht capability and the 2G throughput cannot meet peak.
+
+In the past, firmware does not check this field and set this field to 1
+directly. However, it would lead to IOT issue when station cannot suppot
+eht max ampdu length = 1. So firmware remove this issue and this field
+need to be set by driver.
+
+Signed-off-by: Peter Chiu <chui-hao.chiu@mediatek.com>
+---
+ mt7996/init.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/mt7996/init.c b/mt7996/init.c
+index e6064903..900f9e4b 100644
+--- a/mt7996/init.c
++++ b/mt7996/init.c
+@@ -1327,6 +1327,9 @@ mt7996_init_eht_caps(struct mt7996_phy *phy, enum nl80211_band band,
+ 		u8_encode_bits(IEEE80211_EHT_MAC_CAP0_MAX_MPDU_LEN_11454,
+ 			       IEEE80211_EHT_MAC_CAP0_MAX_MPDU_LEN_MASK);
+ 
++	eht_cap_elem->mac_cap_info[1] |=
++		IEEE80211_EHT_MAC_CAP1_MAX_AMPDU_LEN_MASK;
++
+ 	eht_cap_elem->phy_cap_info[0] =
+ 		IEEE80211_EHT_PHY_CAP0_NDP_4_EHT_LFT_32_GI |
+ 		IEEE80211_EHT_PHY_CAP0_SU_BEAMFORMER |
+-- 
+2.45.2
+

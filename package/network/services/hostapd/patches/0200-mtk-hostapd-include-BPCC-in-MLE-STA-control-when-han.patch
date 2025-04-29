@@ -1,0 +1,62 @@
+From 57d027dd08056019a43ebc27a508757303e7ac57 Mon Sep 17 00:00:00 2001
+From: Michael-CY Lee <michael-cy.lee@mediatek.com>
+Date: Mon, 31 Mar 2025 14:01:51 +0800
+Subject: [PATCH 200/210] mtk: hostapd: include BPCC in MLE STA control when
+ handling ASSOC response
+
+In MLE's STA control field, BPCC should be set only for the association
+response.
+
+To prevent adding more augments on the function
+hostapd_eid_eht_basic_ml_common(), mld_info->mld_sta, which is
+set to true when handling association request in hostapd, is used help
+determine that if the current frame is an association response.
+
+Signed-off-by: Michael-CY Lee <michael-cy.lee@mediatek.com>
+---
+ src/ap/ieee802_11_eht.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/src/ap/ieee802_11_eht.c b/src/ap/ieee802_11_eht.c
+index 4cd0b96c6..e26102864 100644
+--- a/src/ap/ieee802_11_eht.c
++++ b/src/ap/ieee802_11_eht.c
+@@ -622,7 +622,7 @@ static u8 * hostapd_eid_eht_basic_ml_common(struct hostapd_data *hapd,
+ 		 * beacon interval (2) + TSF offset (8) + DTIM info (2) + BSS
+ 		 * parameters change counter (1) + station profile length.
+ 		 */
+-		size_t sta_info_len = include_mld_id ? 21 : 22;
++		size_t sta_info_len = mld_info->mld_sta ? 22 : 21;
+ 		size_t total_len = sta_info_len +
+ 			link->resp_sta_profile_len;
+ 
+@@ -653,7 +653,7 @@ static u8 * hostapd_eid_eht_basic_ml_common(struct hostapd_data *hapd,
+ 			EHT_PER_STA_CTRL_BEACON_INTERVAL_PRESENT_MSK |
+ 			EHT_PER_STA_CTRL_DTIM_INFO_PRESENT_MSK;
+ 
+-		if (!include_mld_id)
++		if (mld_info->mld_sta)
+ 			control |= EHT_PER_STA_CTRL_BSS_PARAM_CNT_PRESENT_MSK;
+ 		wpabuf_put_le16(buf, control);
+ 
+@@ -676,7 +676,7 @@ static u8 * hostapd_eid_eht_basic_ml_common(struct hostapd_data *hapd,
+ 		wpabuf_put_u8(buf, link_bss->conf->dtim_period);
+ 
+ 		/* BSS Parameters Change Count */
+-		if (!include_mld_id)
++		if (mld_info->mld_sta)
+ 			wpabuf_put_u8(buf, link_bss->eht_mld_bss_param_change);
+ 
+ 		if (!link->resp_sta_profile)
+@@ -930,7 +930,7 @@ static size_t hostapd_eid_eht_ml_len(struct mld_info *info,
+ 	for (link_id = 0; info && link_id < ARRAY_SIZE(info->links);
+ 	     link_id++) {
+ 		struct mld_link_info *link;
+-		size_t sta_len = include_mld_id ? 21 : 22;
++		size_t sta_len = info->mld_sta ? 22 : 21;
+ 
+ 		link = &info->links[link_id];
+ 		if (!link->valid)
+-- 
+2.45.2
+

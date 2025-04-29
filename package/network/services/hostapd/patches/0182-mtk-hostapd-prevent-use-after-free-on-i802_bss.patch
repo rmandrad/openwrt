@@ -1,0 +1,41 @@
+From a193f7f19cb5766b9ce0ee86f13e9cf7c3e9b6d9 Mon Sep 17 00:00:00 2001
+From: Michael-CY Lee <michael-cy.lee@mediatek.com>
+Date: Wed, 5 Mar 2025 10:48:44 +0800
+Subject: [PATCH 182/210] mtk: hostapd: prevent use-after-free on i802_bss
+
+The function wpa_driver_nl80211_if_remove might free the bss, and after
+the call the bss is used to notify event, which might lead to hostapd
+crash.
+
+Prevent the problem by save the bss->ctx as local varaible and use it to
+do the notification.
+
+Signed-off-by: Michael-CY Lee <michael-cy.lee@mediatek.com>
+---
+ src/drivers/driver_nl80211.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/drivers/driver_nl80211.c b/src/drivers/driver_nl80211.c
+index 4939f9069..348ea38a9 100644
+--- a/src/drivers/driver_nl80211.c
++++ b/src/drivers/driver_nl80211.c
+@@ -11305,6 +11305,7 @@ static int driver_nl80211_link_remove(void *priv, enum wpa_driver_if_type type,
+ 		drv->ctx = bss->ctx;
+ 
+ 	if (!bss->valid_links) {
++		void *ctx = bss->ctx;
+ 		wpa_printf(MSG_DEBUG,
+ 			   "nl80211: No more links remaining, so remove interface");
+ 		ret = wpa_driver_nl80211_if_remove(bss, type, ifname);
+@@ -11312,7 +11313,7 @@ static int driver_nl80211_link_remove(void *priv, enum wpa_driver_if_type type,
+ 			return ret;
+ 
+ 		/* Notify that the MLD interface is removed */
+-		wpa_supplicant_event(bss->ctx, EVENT_MLD_INTERFACE_FREED, NULL);
++		wpa_supplicant_event(ctx, EVENT_MLD_INTERFACE_FREED, NULL);
+ 	}
+ 
+ 	return 0;
+-- 
+2.45.2
+

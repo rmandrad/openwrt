@@ -1,0 +1,73 @@
+From d75a580368a0ea4a2cc5092c5c60c33be9e04d9a Mon Sep 17 00:00:00 2001
+From: Michael-CY Lee <michael-cy.lee@mediatek.com>
+Date: Tue, 14 Jan 2025 11:44:16 +0800
+Subject: [PATCH 158/210] mtk: hostapd: refactor hostapd_cleanup_driver to
+ prevent crash
+
+This commit fixes upstream commit 00c2c2(hostapd: Maintain single
+wpa_driver_nl80211_data (drv) object across interfaces).
+
+After the upstream commit, hostapd_iface might share
+wpa_driver_nl80211_data (drv) object with others, so when it comes to
+cleanup its driver, it is necessary to check whether the drv is shared,
+and do not clean the driver if so. Instead, do remove link or interface
+removal according to iface->bss[0]'s type (MLD or not).
+
+Without this commit, the wpa_driver_nl80211_data (drv) object might be
+freed along with hostapd_iface de-initialization flow (start from
+hostapd_remove_iface), which might lead to hsotapd crash later.
+
+Signed-off-by: Michael-CY Lee <michael-cy.lee@mediatek.com>
+---
+ src/ap/hostapd.c | 26 +++++++++++++++++---------
+ 1 file changed, 17 insertions(+), 9 deletions(-)
+
+diff --git a/src/ap/hostapd.c b/src/ap/hostapd.c
+index e5d0db8d4..0a5bda728 100644
+--- a/src/ap/hostapd.c
++++ b/src/ap/hostapd.c
+@@ -3636,6 +3636,11 @@ hostapd_interface_init_bss(struct hapd_interfaces *interfaces, const char *phy,
+ static void hostapd_cleanup_driver(const struct wpa_driver_ops *driver,
+ 				   void *drv_priv, struct hostapd_iface *iface)
+ {
++#ifdef CONFIG_IEEE80211BE
++	bool mld_ap;
++	int link_id;
++#endif /* CONFIG_IEEE80211BE */
++
+ 	if (!driver || !driver->hapd_deinit || !drv_priv)
+ 		return;
+ 
+@@ -3644,17 +3649,20 @@ static void hostapd_cleanup_driver(const struct wpa_driver_ops *driver,
+ 	 * even if that's the last BSS in the interface, the driver (drv) could
+ 	 * be in use for a different AP MLD. Hence, need to check if drv is
+ 	 * still being used by some other BSS before de-initiallizing. */
+-	if (!iface->bss[0]->conf->mld_ap) {
+-		driver->hapd_deinit(drv_priv);
+-	} else if (driver->is_drv_shared &&
+-		   !driver->is_drv_shared(drv_priv,
+-					  iface->bss[0]->mld_link_id)) {
++	mld_ap = iface->bss[0]->conf->mld_ap;
++	link_id = mld_ap ? iface->bss[0]->mld_link_id : -1;
++	if (driver->is_drv_shared &&
++	    !driver->is_drv_shared(drv_priv, link_id)) {
+ 		driver->hapd_deinit(drv_priv);
+ 		hostapd_mld_interface_freed(iface->bss[0]);
+-	} else if (hostapd_if_link_remove(iface->bss[0],
+-					  WPA_IF_AP_BSS,
+-					  iface->bss[0]->conf->iface,
+-					  iface->bss[0]->mld_link_id)) {
++	} else if (mld_ap) {
++		if (hostapd_if_link_remove(iface->bss[0], WPA_IF_AP_BSS,
++					   iface->bss[0]->conf->iface, link_id))
++			wpa_printf(MSG_WARNING, "Failed to remove link interface %s",
++				   iface->bss[0]->conf->iface);
++
++	} else if (hostapd_if_remove(iface->bss[0], WPA_IF_AP_BSS,
++				     iface->bss[0]->conf->iface)) {
+ 		wpa_printf(MSG_WARNING, "Failed to remove BSS interface %s",
+ 			   iface->bss[0]->conf->iface);
+ 	}
+-- 
+2.45.2
+

@@ -1,0 +1,41 @@
+From 322014db2258162f7f83db690cc5d82add6ad20e Mon Sep 17 00:00:00 2001
+From: Rex Lu <rex.lu@mediatek.com>
+Date: Tue, 8 Apr 2025 13:03:51 +0800
+Subject: [PATCH] dts mt7987 wed changes
+
+---
+ arch/arm64/boot/dts/mediatek/mt7987-netsys.dtsi |  1 +
+ arch/arm64/boot/dts/mediatek/mt7987.dtsi        | 12 +++---------
+ 2 files changed, 4 insertions(+), 9 deletions(-)
+
+--- a/arch/arm64/boot/dts/mediatek/mt7987-netsys.dtsi
++++ b/arch/arm64/boot/dts/mediatek/mt7987-netsys.dtsi
+@@ -52,6 +52,7 @@
+ 					 <&apmixedsys CLK_APMIXED_SGMPLL>,
+ 					 <&apmixedsys CLK_APMIXED_SGMPLL>;
+ 		mediatek,ethsys = <&ethsys>;
++		mediatek,wed = <&wed0>;
+ 		mediatek,infracfg = <&topmisc>;
+ 		pinctrl-names = "default";
+ 		pinctrl-0 = <&mdio0_pins>;
+--- a/arch/arm64/boot/dts/mediatek/mt7987.dtsi
++++ b/arch/arm64/boot/dts/mediatek/mt7987.dtsi
+@@ -658,15 +658,9 @@
+ 			status = "disabled";
+ 		};
+ 
+-		wed: wed {
+-			compatible = "mediatek,wed";
+-			wed_num = <1>;
+-		};
+-
+-		wed0: wed0@15010000 {
+-			compatible = "mediatek,wed0";
+-			/* add this property for wed get the pci slot number */
+-			pci_slot_map = <0>;
++		wed0: wed@15010000 {
++			compatible = "mediatek,mt7987-wed",
++				     "syscon";
+ 			reg = <0 0x15010000 0 0x2000>;
+ 			interrupt-parent = <&gic>;
+ 			interrupts = <GIC_SPI 205 IRQ_TYPE_LEVEL_HIGH>;

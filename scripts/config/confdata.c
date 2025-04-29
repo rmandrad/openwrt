@@ -223,7 +223,7 @@ static const char *conf_get_rustccfg_name(void)
 	return name ? name : "include/generated/rustc_cfg";
 }
 
-static int conf_set_sym_val(struct symbol *sym, int def, int def_flags, char *p)
+int conf_set_sym_val(struct symbol *sym, int def, int def_flags, char *p)
 {
 	char *p2;
 
@@ -307,7 +307,7 @@ static int add_byte(int c, char **lineptr, size_t slen, size_t *n)
 	return 0;
 }
 
-static ssize_t compat_getline(char **lineptr, size_t *n, FILE *stream)
+ssize_t compat_getline(char **lineptr, size_t *n, FILE *stream)
 {
 	char *line = *lineptr;
 	size_t slen = 0;
@@ -718,7 +718,7 @@ static void __print_symbol(FILE *fp, struct symbol *sym, enum output_n output_n,
 	free(escaped);
 }
 
-static void print_symbol_for_dotconfig(FILE *fp, struct symbol *sym)
+void print_symbol_for_dotconfig(FILE *fp, struct symbol *sym)
 {
 	__print_symbol(fp, sym, OUTPUT_N_AS_UNSET, true);
 }

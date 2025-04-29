@@ -54,7 +54,8 @@ function iface_remove(cfg)
 		return;
 
 	for (let bss in cfg.bss)
-		wdev_remove(bss.ifname);
+		if (!bss.mld_ap || bss.mld_primary == 1)
+			wdev_remove(bss.ifname);
 }
 
 function iface_gen_config(config, start_disabled)
@@ -87,6 +88,9 @@ start_disabled=1
 function iface_freq_info(iface, config, params)
 {
 	let freq = params.frequency;
+	let bw320_offset = params.bw320_offset;
+	let radio_idx = params.radio_idx;
+	let punct_bitmap = params.punct_bitmap;
 	if (!freq)
 		return null;
 
@@ -95,25 +99,29 @@ function iface_freq_info(iface, config, params)
 		sec_offset = 0;
 
 	let width = 0;
-	for (let line in config.radio.data) {
-		if (!sec_offset && match(line, /^ht_capab=.*HT40/)) {
-			sec_offset = null; // auto-detect
-			continue;
+	if (params.ch_width >= 0){
+		width = params.ch_width;
+	} else {
+		for (let line in config.radio.data) {
+			if (!sec_offset && match(line, /^ht_capab=.*HT40/)) {
+				sec_offset = null; // auto-detect
+				continue;
+			}
+
+			let val = match(line, /^(vht_oper_chwidth|he_oper_chwidth|eht_oper_chwidth)=(\d+)/);
+			if (!val)
+				continue;
+
+			val = int(val[2]);
+			if (val > width)
+				width = val;
 		}
-
-		let val = match(line, /^(vht_oper_chwidth|he_oper_chwidth)=(\d+)/);
-		if (!val)
-			continue;
-
-		val = int(val[2]);
-		if (val > width)
-			width = val;
 	}
 
 	if (freq < 4000)
 		width = 0;
 
-	return hostapd.freq_info(freq, sec_offset, width);
+	return hostapd.freq_info(freq, sec_offset, width, bw320_offset, radio_idx, punct_bitmap);
 }
 
 function iface_add(phy, config, phy_status)
@@ -176,17 +184,20 @@ function __iface_pending_next(pending, state, ret, data)
 		iface_update_supplicant_macaddr(phydev, config);
 		return "create_bss";
 	case "create_bss":
-		let err = phydev.wdev_add(bss.ifname, {
-			mode: "ap",
-			radio: phydev.radio,
-		});
-		if (err) {
-			hostapd.printf(`Failed to create ${bss.ifname} on phy ${phy}: ${err}`);
-			return null;
+		if (!bss.mld_ap || bss.mld_primary == 1) {
+			let err = phydev.wdev_add(bss.ifname, {
+				mode: "ap",
+				radio: phydev.radio,
+				mld_radio_mask: bss.mld_radio_mask,
+			});
+			if (err) {
+				hostapd.printf(`Failed to create ${bss.ifname} on phy ${phy}: ${err}`);
+				return null;
+			}
 		}
 
 		pending.call("wpa_supplicant", "phy_status", {
-			phy: phydev.phy,
+			phy: bss.mld_ap ? "phy0" : phydev.phy,
 			radio: phydev.radio ?? -1,
 		});
 		return "check_phy";
@@ -199,19 +210,28 @@ function __iface_pending_next(pending, state, ret, data)
 			hostapd.printf(`Failed to bring up phy ${phy} ifname=${bss.ifname} with supplicant provided frequency`);
 		}
 		pending.call("wpa_supplicant", "phy_set_state", {
-			phy: phydev.phy,
-			radio: phydev.radio ?? -1,
+			phy: bss.mld_ap ? "phy0" : phydev.phy,
+			radio: bss.mld_ap ? 0 : phydev.radio ?? -1,
 			stop: true
 		});
 		return "wpas_stopped";
 	case "wpas_stopped":
 		if (!iface_add(phy, config))
 			hostapd.printf(`hostapd.add_iface failed for phy ${phy} ifname=${bss.ifname}`);
-		pending.call("wpa_supplicant", "phy_set_state", {
-			phy: phydev.phy,
-			radio: phydev.radio ?? -1,
-			stop: false
-		});
+		let iface = hostapd.interfaces[phy];
+		if (!bss.mld_ap) {
+			pending.call("wpa_supplicant", "phy_set_state", {
+				phy: phydev.phy,
+				radio: phydev.radio ?? -1,
+				stop: false
+			});
+		} else if (!iface || iface.is_mld_finished()) {
+			pending.call("wpa_supplicant", "phy_set_state", {
+				phy: "phy0",
+				radio: 0,
+				stop: false
+			});
+		}
 		return null;
 	case "done":
 	default:
@@ -279,7 +299,6 @@ function iface_macaddr_init(phydev, config, macaddr_list)
 {
 	let macaddr_data = {
 		num_global: config.num_global_macaddr ?? 1,
-		macaddr_base: config.macaddr_base,
 		mbssid: config.mbssid ?? 0,
 	};
 
@@ -748,12 +767,9 @@ function iface_load_config(phy, radio, filename)
 			continue;
 		}
 
-		if (val[0] == "#num_global_macaddr")
+		if (val[0] == "#num_global_macaddr" ||
+		    val[0] == "mbssid")
 			config[substr(val[0], 1)] = int(val[1]);
-		else if (val[0] == "#macaddr_base")
-			config[substr(val[0], 1)] = val[1];
-		else if (val[0] == "mbssid")
-			config[val[0]] = int(val[1]);
 
 		push(config.radio.data, line);
 	}
@@ -771,6 +787,15 @@ function iface_load_config(phy, radio, filename)
 			continue;
 		}
 
+		if (val[0] == "mld_ap" && int(val[1]) == 1)
+			bss.mld_ap = 1;
+
+		if (val[0] == "#mld_primary" && int(val[1]) == 1)
+			bss.mld_primary = 1;
+
+		if (val[0] == "#mld_radio_mask" && int(val[1]))
+			bss.mld_radio_mask = int(val[1]);
+
 		if (val[0] == "nas_identifier")
 			bss.nasid = val[1];
 
@@ -785,6 +810,20 @@ function iface_load_config(phy, radio, filename)
 		push(bss.data, line);
 	}
 	f.close();
+
+	let first_mld_bss = 0;
+	for (first_mld_bss = 0; first_mld_bss < length(config.bss); first_mld_bss++) {
+		if (config.bss[first_mld_bss].mld_ap == 1)
+			break;
+	}
+
+	if (length(config.bss) > 1 && config.bss[0].mld_ap != 1 &&
+	    first_mld_bss != length(config.bss)) {
+		let tmp_bss = config.bss[0];
+		config.bss[0] = config.bss[first_mld_bss];
+		config.bss[first_mld_bss] = tmp_bss;
+		hostapd.printf(`mtk: ucode: switch bss[${first_mld_bss}] to first`);
+	}
 
 	return config;
 }
@@ -847,13 +886,28 @@ let main_obj = {
 			up: true,
 			frequency: 0,
 			sec_chan_offset: 0,
+			ch_width: -1,
+			bw320_offset: 1,
+			radio_idx: 0,
 			csa: true,
 			csa_count: 0,
+			punct_bitmap: 0,
 		},
 		call: ex_wrap(function(req) {
 			let phy = phy_name(req.args.phy, req.args.radio);
 			if (req.args.up == null || !phy)
 				return libubus.STATUS_INVALID_ARGUMENT;
+
+			hostapd.printf(`ucode: mtk: apsta state update`);
+			hostapd.printf(`    * phy: ${req.args.phy}`);
+			hostapd.printf(`    * up: ${req.args.up}`);
+			hostapd.printf(`    * freqeuncy: ${req.args.frequency}`);
+			hostapd.printf(`    * sec_chan_offset: ${req.args.sec_chan_offset}`);
+			hostapd.printf(`    * ch_width: ${req.args.ch_width}`);
+			hostapd.printf(`    * bw320_offset: ${req.args.bw320_offset}`);
+			hostapd.printf(`    * radio_idx: ${req.args.radio_idx}`);
+			hostapd.printf(`    * csa: ${req.args.csa}`);
+			hostapd.printf(`    * punct_bitmap: ${req.args.punct_bitmap}`);
 
 			let config = hostapd.data.config[phy];
 			if (!config || !config.bss || !config.bss[0] || !config.bss[0].ifname)

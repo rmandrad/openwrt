@@ -1881,7 +1881,9 @@ $(eval $(call KernelPackage,usb-xhci-hcd))
 define KernelPackage/usb-xhci-mtk
   TITLE:=xHCI support for MediaTek SoCs
   DEPENDS:=+kmod-usb-xhci-hcd
-  KCONFIG:=CONFIG_USB_XHCI_MTK
+  KCONFIG:= \
+        CONFIG_USB_XHCI_MTK \
+        CONFIG_USB_XHCI_MTK_DEBUGFS=n
   HIDDEN:=1
   FILES:= \
 	 $(LINUX_DIR)/drivers/usb/host/xhci-mtk-hcd.ko

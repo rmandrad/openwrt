@@ -1,0 +1,38 @@
+From cb586248b16541029cc724da51da88b354e7ded8 Mon Sep 17 00:00:00 2001
+From: Howard Hsu <howard-yh.hsu@mediatek.com>
+Date: Mon, 20 May 2024 14:59:45 +0800
+Subject: [PATCH 090/210] mtk: hostapd: adjust Basic EHT-MCS and Nss Set in EHT
+ Oper IE
+
+Adjust basic EHT-MCS and Nss set in EHT Operation IE. Only set Rx/Tx Max
+Nss that supports EHT-MCS 0-7 to 1, and the other field shall be set to
+0 (0x11). Without this commit, Intel BE200L in WiFi7 R1 Lab will not send
+auth to ap. The reason why we only set EHT-MCS 0-7 as 1 is we align the IE
+value with other testbed ap.
+
+Please note that this patch is for WiFi7 cert Intel BE200L connection
+issue. hostapd shall support configure this IE by hostapd configuration,
+just like he_basic_mcs_nss_set in HE operation IE.
+
+Signed-off-by: Howard Hsu <howard-yh.hsu@mediatek.com>
+---
+ src/ap/ieee802_11_eht.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/src/ap/ieee802_11_eht.c b/src/ap/ieee802_11_eht.c
+index a051b0bdc..1cd593703 100644
+--- a/src/ap/ieee802_11_eht.c
++++ b/src/ap/ieee802_11_eht.c
+@@ -237,9 +237,6 @@ u8 * hostapd_eid_eht_operation(struct hostapd_data *hapd, u8 *eid)
+ 
+ 	/* TODO: Fill in appropriate EHT-MCS max Nss information */
+ 	oper->basic_eht_mcs_nss_set[0] = 0x11;
+-	oper->basic_eht_mcs_nss_set[1] = 0x11;
+-	oper->basic_eht_mcs_nss_set[2] = 0x11;
+-	oper->basic_eht_mcs_nss_set[3] = 0x11;
+ 
+ 	if (!eht_oper_info_present)
+ 		return pos + elen;
+-- 
+2.45.2
+

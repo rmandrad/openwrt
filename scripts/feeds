@@ -120,16 +120,22 @@ sub update_location($$)
 	return 0;
 }
 
-sub update_index($)
+sub update_index($$)
 {
 	my $name = shift;
+	my $subdir = shift;
+	my $real_subdir = "";
 
 	-d "./feeds/$name.tmp" or mkdir "./feeds/$name.tmp" or return 1;
 	-d "./feeds/$name.tmp/info" or mkdir "./feeds/$name.tmp/info" or return 1;
 
+	if (length( $subdir || '' )) {
+		$real_subdir = "/$subdir";
+	}
+
 	system("$mk -s prepare-mk OPENWRT_BUILD= TMP_DIR=\"$ENV{TOPDIR}/feeds/$name.tmp\"");
-	system("$mk -s -f include/scan.mk IS_TTY=1 SCAN_TARGET=\"packageinfo\" SCAN_DIR=\"feeds/$name\" SCAN_NAME=\"package\" SCAN_DEPTH=5 SCAN_EXTRA=\"\" TMP_DIR=\"$ENV{TOPDIR}/feeds/$name.tmp\"");
-	system("$mk -s -f include/scan.mk IS_TTY=1 SCAN_TARGET=\"targetinfo\" SCAN_DIR=\"feeds/$name\" SCAN_NAME=\"target\" SCAN_DEPTH=5 SCAN_EXTRA=\"\" SCAN_MAKEOPTS=\"TARGET_BUILD=1\" TMP_DIR=\"$ENV{TOPDIR}/feeds/$name.tmp\"");
+	system("$mk -s -f include/scan.mk IS_TTY=1 SCAN_TARGET=\"packageinfo\" SCAN_DIR=\"feeds/$name$real_subdir\" SCAN_NAME=\"package\" SCAN_DEPTH=5 SCAN_EXTRA=\"\" TMP_DIR=\"$ENV{TOPDIR}/feeds/$name.tmp\"");
+	system("$mk -s -f include/scan.mk IS_TTY=1 SCAN_TARGET=\"targetinfo\" SCAN_DIR=\"feeds/$name$real_subdir\" SCAN_NAME=\"target\" SCAN_DEPTH=5 SCAN_EXTRA=\"\" SCAN_MAKEOPTS=\"TARGET_BUILD=1\" TMP_DIR=\"$ENV{TOPDIR}/feeds/$name.tmp\"");
 	system("ln -sf $name.tmp/.packageinfo ./feeds/$name.index");
 	system("ln -sf $name.tmp/.targetinfo ./feeds/$name.targetindex");
 
@@ -861,15 +867,17 @@ sub update {
 	my @index_feeds;
 	foreach my $feed (@feeds) {
 		my ($type, $name, $src) = @$feed;
+		my $subdir = $feed->[3]{subdir};
 		next unless $#ARGV == -1 or $opts{a} or $argv_feeds{$name};
 		if (not $opts{i}) {
 			update_feed($type, $name, $src, $opts{f}, $opts{r}, $opts{s}) == 0 or $failed=1;
 		}
-		push @index_feeds, $name;
+		push @index_feeds, [ $name, $subdir ];
 	}
-	foreach my $name (@index_feeds) {
+	foreach my $index_feed (@index_feeds) {
+		my ($name, $subdir) = @$index_feed;
 		warn "Create index file './feeds/$name.index' \n";
-		update_index($name) == 0 or do {
+		update_index($name, $subdir) == 0 or do {
 			warn "failed.\n";
 			$failed=1;
 		};

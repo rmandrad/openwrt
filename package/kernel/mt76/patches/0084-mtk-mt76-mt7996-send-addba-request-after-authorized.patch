@@ -1,0 +1,30 @@
+From cd9ffa06a72e3c5bd5cfa01730d97ae7e4ea10a8 Mon Sep 17 00:00:00 2001
+From: Peter Chiu <chui-hao.chiu@mediatek.com>
+Date: Wed, 19 Mar 2025 13:45:31 +0800
+Subject: [PATCH 84/92] mtk: mt76: mt7996: send addba request after authorized
+
+Send addba request after authorized to prevent sending addba before
+associate and lead to ping fail issue.
+
+Signed-off-by: Peter Chiu <chui-hao.chiu@mediatek.com>
+---
+ mt7996/mac.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/mt7996/mac.c b/mt7996/mac.c
+index 710980d4..612ee96c 100644
+--- a/mt7996/mac.c
++++ b/mt7996/mac.c
+@@ -1490,7 +1490,8 @@ mt7996_mac_add_txs_skb(struct mt7996_dev *dev, struct mt76_wcid *wcid,
+ 		goto unlock;
+ 	}
+ 
+-	if (mtk_wed_device_active(&dev->mt76.mmio.wed) && wcid->sta) {
++	if (mtk_wed_device_active(&dev->mt76.mmio.wed) && wcid->sta &&
++	    (wcid->tx_info & MT_WCID_TX_INFO_SET)) {
+ 		/* Do not check TX BA status for mgmt frames which are sent at a
+ 		 * fixed rate
+ 		 */
+-- 
+2.45.2
+

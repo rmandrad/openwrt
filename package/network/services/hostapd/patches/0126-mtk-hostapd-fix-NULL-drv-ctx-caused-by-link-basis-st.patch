@@ -1,0 +1,34 @@
+From aaf2da31d3ac0d85ab5a698fe4b23b9b1e030374 Mon Sep 17 00:00:00 2001
+From: Shayne Chen <shayne.chen@mediatek.com>
+Date: Tue, 3 Sep 2024 11:54:24 +0800
+Subject: [PATCH 126/210] mtk: hostapd: fix NULL drv->ctx caused by link basis
+ stop AP event
+
+Hostapd has added code to handle link basis stop AP event from
+"nl80211: MLO: Process stop AP event on link basis".
+
+This will potentially cause drv->ctx being NULL in some corner cases and
+let hostapd crash during disabling.
+
+Signed-off-by: Shayne Chen <shayne.chen@mediatek.com>
+---
+ src/drivers/driver_nl80211_event.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/drivers/driver_nl80211_event.c b/src/drivers/driver_nl80211_event.c
+index 68119c876..117356513 100644
+--- a/src/drivers/driver_nl80211_event.c
++++ b/src/drivers/driver_nl80211_event.c
+@@ -2525,6 +2525,9 @@ static void nl80211_stop_ap(struct i802_bss *bss, struct nlattr **tb)
+ 		 * will return an error. Ignore that since nl80211_remove_link()
+ 		 * is called here only to update the bss->links[] state. */
+ 		nl80211_remove_link(bss, link_id);
++		bss->ctx = bss->flink->ctx;
++		if (bss->drv->first_bss == bss && bss->valid_links)
++			bss->drv->ctx = bss->ctx;
+ 	}
+ 
+ 	wpa_supplicant_event(ctx, EVENT_INTERFACE_UNAVAILABLE, NULL);
+-- 
+2.45.2
+

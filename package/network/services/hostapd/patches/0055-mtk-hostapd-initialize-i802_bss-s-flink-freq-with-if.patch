@@ -1,0 +1,122 @@
+From 3b2f982cc6946f4897de8c5b0252c3c961c5dc61 Mon Sep 17 00:00:00 2001
+From: Bo Jiao <Bo.Jiao@mediatek.com>
+Date: Thu, 19 Oct 2023 13:38:11 +0800
+Subject: [PATCH 055/210] mtk: hostapd: initialize i802_bss's flink->freq with
+ iface freq.
+
+Signed-off-by: Bo Jiao <Bo.Jiao@mediatek.com>
+---
+ src/ap/ap_drv_ops.c          | 6 +++---
+ src/ap/ap_drv_ops.h          | 2 +-
+ src/ap/hostapd.c             | 2 +-
+ src/drivers/driver.h         | 2 +-
+ src/drivers/driver_nl80211.c | 4 ++--
+ wpa_supplicant/driver_i.h    | 2 +-
+ 6 files changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/src/ap/ap_drv_ops.c b/src/ap/ap_drv_ops.c
+index d6364b7eb..a972b4c49 100644
+--- a/src/ap/ap_drv_ops.c
++++ b/src/ap/ap_drv_ops.c
+@@ -375,7 +375,7 @@ int hostapd_vlan_if_add(struct hostapd_data *hapd, const char *ifname)
+ 	char force_ifname[IFNAMSIZ];
+ 	u8 if_addr[ETH_ALEN];
+ 	return hostapd_if_add(hapd, WPA_IF_AP_VLAN, ifname, hapd->own_addr,
+-			      NULL, NULL, force_ifname, if_addr, NULL, 0);
++			      NULL, NULL, force_ifname, if_addr, NULL, 0, hapd->iface->freq);
+ }
+ 
+ 
+@@ -597,13 +597,13 @@ int hostapd_set_ssid(struct hostapd_data *hapd, const u8 *buf, size_t len)
+ int hostapd_if_add(struct hostapd_data *hapd, enum wpa_driver_if_type type,
+ 		   const char *ifname, const u8 *addr, void *bss_ctx,
+ 		   void **drv_priv, char *force_ifname, u8 *if_addr,
+-		   const char *bridge, int use_existing)
++		   const char *bridge, int use_existing, int freq)
+ {
+ 	if (hapd->driver == NULL || hapd->driver->if_add == NULL)
+ 		return -1;
+ 	return hapd->driver->if_add(hapd->drv_priv, type, ifname, addr,
+ 				    bss_ctx, drv_priv, force_ifname, if_addr,
+-				    bridge, use_existing, 1);
++				    bridge, use_existing, 1, freq);
+ }
+ 
+ 
+diff --git a/src/ap/ap_drv_ops.h b/src/ap/ap_drv_ops.h
+index 87951404b..d10b2fdec 100644
+--- a/src/ap/ap_drv_ops.h
++++ b/src/ap/ap_drv_ops.h
+@@ -62,7 +62,7 @@ int hostapd_set_ssid(struct hostapd_data *hapd, const u8 *buf, size_t len);
+ int hostapd_if_add(struct hostapd_data *hapd, enum wpa_driver_if_type type,
+ 		   const char *ifname, const u8 *addr, void *bss_ctx,
+ 		   void **drv_priv, char *force_ifname, u8 *if_addr,
+-		   const char *bridge, int use_existing);
++		   const char *bridge, int use_existing, int freq);
+ int hostapd_if_remove(struct hostapd_data *hapd, enum wpa_driver_if_type type,
+ 		      const char *ifname);
+ int hostapd_if_link_remove(struct hostapd_data *hapd,
+diff --git a/src/ap/hostapd.c b/src/ap/hostapd.c
+index 7b8d30fcd..b079b88b3 100644
+--- a/src/ap/hostapd.c
++++ b/src/ap/hostapd.c
+@@ -1507,7 +1507,7 @@ int hostapd_setup_bss(struct hostapd_data *hapd, int first, bool start_beacon)
+ 				   conf->iface, addr, hapd,
+ 				   &hapd->drv_priv, force_ifname, if_addr,
+ 				   conf->bridge[0] ? conf->bridge : NULL,
+-				   first == -1)) {
++				   first == -1, hapd->iface->freq)) {
+ 			wpa_printf(MSG_ERROR, "Failed to add BSS (BSSID="
+ 				   MACSTR ")", MAC2STR(hapd->own_addr));
+ 			hapd->interface_added = 0;
+diff --git a/src/drivers/driver.h b/src/drivers/driver.h
+index 533a2abe5..aea4b808b 100644
+--- a/src/drivers/driver.h
++++ b/src/drivers/driver.h
+@@ -4000,7 +4000,7 @@ struct wpa_driver_ops {
+ 	int (*if_add)(void *priv, enum wpa_driver_if_type type,
+ 		      const char *ifname, const u8 *addr, void *bss_ctx,
+ 		      void **drv_priv, char *force_ifname, u8 *if_addr,
+-		      const char *bridge, int use_existing, int setup_ap);
++		      const char *bridge, int use_existing, int setup_ap, int freq);
+ 
+ 	/**
+ 	 * if_remove - Remove a virtual interface
+diff --git a/src/drivers/driver_nl80211.c b/src/drivers/driver_nl80211.c
+index 9a3e1f6ad..f79f14cdc 100644
+--- a/src/drivers/driver_nl80211.c
++++ b/src/drivers/driver_nl80211.c
+@@ -9029,7 +9029,7 @@ static int wpa_driver_nl80211_if_add(void *priv, enum wpa_driver_if_type type,
+ 				     void *bss_ctx, void **drv_priv,
+ 				     char *force_ifname, u8 *if_addr,
+ 				     const char *bridge, int use_existing,
+-				     int setup_ap)
++				     int setup_ap, int freq)
+ {
+ 	enum nl80211_iftype nlmode;
+ 	struct i802_bss *bss = priv;
+@@ -9149,7 +9149,7 @@ static int wpa_driver_nl80211_if_add(void *priv, enum wpa_driver_if_type type,
+ 		new_bss->valid_links = 0;
+ 		os_memcpy(new_bss->flink->addr, new_bss->addr, ETH_ALEN);
+ 
+-		new_bss->flink->freq = drv->first_bss->flink->freq;
++		new_bss->flink->freq = (freq == -1) ? drv->first_bss->flink->freq : freq;
+ 		new_bss->ctx = bss_ctx;
+ 		new_bss->added_if = added;
+ 		drv->first_bss->next = new_bss;
+diff --git a/wpa_supplicant/driver_i.h b/wpa_supplicant/driver_i.h
+index 0a496486c..a00d57f1e 100644
+--- a/wpa_supplicant/driver_i.h
++++ b/wpa_supplicant/driver_i.h
+@@ -457,7 +457,7 @@ static inline int wpa_drv_if_add(struct wpa_supplicant *wpa_s,
+ 	if (wpa_s->driver->if_add)
+ 		return wpa_s->driver->if_add(wpa_s->drv_priv, type, ifname,
+ 					     addr, bss_ctx, NULL, force_ifname,
+-					     if_addr, bridge, 0, 0);
++					     if_addr, bridge, 0, 0, -1);
+ 	return -1;
+ }
+ 
+-- 
+2.45.2
+

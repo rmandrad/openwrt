@@ -1,0 +1,36 @@
+From c8b9e772aee35e1db245ec6baa7bce1c7b4110ff Mon Sep 17 00:00:00 2001
+From: Johannes Berg <johannes.berg@intel.com>
+Date: Fri, 17 May 2024 13:19:47 +0200
+Subject: [PATCH 03/22] util: clarify comment about 'parsed' pointer
+
+It took me a while to understand this (again?), so
+clarify the comment here.
+
+Reviewed-by: Miriam Rachel Korenblit <miriam.rachel.korenblit@intel.com>
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+---
+ util.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/util.c b/util.c
+index e43d590..1341a22 100644
+--- a/util.c
++++ b/util.c
+@@ -752,8 +752,12 @@ int parse_freqchan(struct chandef *chandef, bool chan, int argc, char **argv,
+ 		_parsed++;
+ 	}
+ 
+-	/* Error out if parsed is NULL. */
+-	if (!parsed && _parsed != argc)
++	/*
++	 * Either this must consume all args, or users must pass a
++	 * valid pointer as 'parsed' and use it to know how many of
++	 * the arguments this function consumed.
++	 */
++	if (_parsed != argc && !parsed)
+ 		return 1;
+ 
+ 	if (parsed)
+-- 
+2.45.2
+

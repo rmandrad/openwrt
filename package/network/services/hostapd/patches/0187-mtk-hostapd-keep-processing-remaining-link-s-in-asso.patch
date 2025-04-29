@@ -1,0 +1,44 @@
+From ecfd8ec12a2c43d0fff41a91f210ce65bce403b9 Mon Sep 17 00:00:00 2001
+From: Michael-CY Lee <michael-cy.lee@mediatek.com>
+Date: Fri, 7 Mar 2025 11:32:33 +0800
+Subject: [PATCH 187/210] mtk: hostapd: keep processing remaining link(s) in
+ association request
+
+Error might happen when handling one of the link(s) in association
+request, and the remaining link(s) should also be processed.
+
+Signed-off-by: Michael-CY Lee <michael-cy.lee@mediatek.com>
+---
+ src/ap/ieee802_11.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/src/ap/ieee802_11.c b/src/ap/ieee802_11.c
+index 7008429a2..c97ebaf5b 100644
+--- a/src/ap/ieee802_11.c
++++ b/src/ap/ieee802_11.c
+@@ -4815,6 +4815,7 @@ int hostapd_process_assoc_ml_info(struct hostapd_data *hapd,
+ {
+ #ifdef CONFIG_IEEE80211BE
+ 	unsigned int i;
++	int ret = 0;
+ 
+ 	if (!hostapd_is_mld_ap(hapd))
+ 		return 0;
+@@ -4854,12 +4855,12 @@ int hostapd_process_assoc_ml_info(struct hostapd_data *hapd,
+ 			if (ieee80211_ml_process_link(bss, sta, link,
+ 						      ies, ies_len, reassoc,
+ 						      offload))
+-				return -1;
++				ret = -1;
+ 		}
+ 	}
+ #endif /* CONFIG_IEEE80211BE */
+ 
+-	return 0;
++	return ret;
+ }
+ 
+ 
+-- 
+2.45.2
+

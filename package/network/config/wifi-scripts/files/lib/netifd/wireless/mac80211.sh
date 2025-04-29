@@ -29,12 +29,12 @@ drv_mac80211_init_device_config() {
 	config_add_string path phy 'macaddr:macaddr'
 	config_add_string tx_burst
 	config_add_string distance
-	config_add_string ifname_prefix
-	config_add_string macaddr_base
 	config_add_int radio beacon_int chanbw frag rts
+	config_add_int mbssid mu_onoff sr_enable sr_enhanced rnr obss_interval
 	config_add_int rxantenna txantenna txpower min_tx_power
 	config_add_int num_global_macaddr multiple_bssid
 	config_add_boolean noscan ht_coex acs_exclude_dfs background_radar
+	config_add_boolean noscan ht_coex acs_exclude_dfs background_radar background_cert_mode
 	config_add_array ht_capab
 	config_add_array channels
 	config_add_array scan_list
@@ -57,7 +57,12 @@ drv_mac80211_init_device_config() {
 		he_spr_sr_control \
 		he_spr_psr_enabled \
 		he_bss_color_enabled \
-		he_twt_required
+		he_twt_required \
+		he_twt_responder \
+		etxbfen \
+		itxbfen \
+		lpi_psd \
+		lpi_bcn_enhance
 	config_add_int \
 		beamformer_antennas \
 		beamformee_antennas \
@@ -68,7 +73,13 @@ drv_mac80211_init_device_config() {
 		rx_stbc \
 		tx_stbc \
 		he_bss_color \
-		he_spr_non_srg_obss_pd_max_offset
+		he_spr_non_srg_obss_pd_max_offset \
+		pp_bitmap \
+		pp_mode \
+		eml_disable \
+		eml_resp \
+		sku_idx \
+		lpi_sku_idx
 	config_add_boolean \
 		ldpc \
 		greenfield \
@@ -89,6 +100,7 @@ drv_mac80211_init_iface_config() {
 	config_add_int max_listen_int
 	config_add_int dtim_period
 	config_add_int start_disabled
+	config_add_int vif_txpower
 
 	# mesh
 	config_add_string mesh_id
@@ -144,12 +156,10 @@ mac80211_hostapd_setup_base() {
 	[ -n "$acs_exclude_dfs" ] && [ "$acs_exclude_dfs" -gt 0 ] &&
 		append base_cfg "acs_exclude_dfs=1" "$N"
 
-	json_get_vars noscan ht_coex min_tx_power:0 tx_burst
+	json_get_vars noscan ht_coex min_tx_power:0 tx_burst mbssid mu_onoff rnr obss_interval
+	json_get_vars etxbfen:1 itxbfen:0 eml_disable eml_resp lpi_psd sku_idx lpi_sku_idx lpi_bcn_enhance
 	json_get_values ht_capab_list ht_capab
 	json_get_values channel_list channels
-
-	[ "$auto_channel" = 0 ] && [ -z "$channel_list" ] && \
-		channel_list="$channel"
 
 	[ "$min_tx_power" -gt 0 ] && append base_cfg "min_tx_power=$min_tx_power" "$N"
 
@@ -161,35 +171,63 @@ mac80211_hostapd_setup_base() {
 	chan_ofs=0
 	[ "$band" = "6g" ] && chan_ofs=1
 
+	if [ "$band" = "6g" ]; then
+		nl_band=4
+	elif [ "$band" = "5g" ]; then
+		nl_band=2
+	else
+		nl_band=1
+	fi
+
 	if [ "$band" != "6g" ]; then
 		ieee80211n=1
 		ht_capab=
 		case "$htmode" in
 			VHT20|HT20|HE20|EHT20) ;;
-			HT40*|VHT40|VHT80|VHT160|HE40|HE80|HE160|EHT40|EHT80|EHT160)
+			HT40*|VHT40|VHT80|VHT160|HE40*|HE80|HE160|EHT40*|EHT80|EHT160)
 				case "$hwmode" in
 					a)
 						case "$(( (($channel / 4) + $chan_ofs) % 2 ))" in
 							1) ht_capab="[HT40+]";;
 							0) ht_capab="[HT40-]";;
 						esac
-					;;
+						case "$htmode" in
+							HT40-|HE40-|EHT40-)
+								if [ "$auto_channel" -gt 0 ]; then
+									ht_capab="[HT40-]"
+								fi
+								;;
+						esac
+						;;
 					*)
 						case "$htmode" in
-							HT40+) ht_capab="[HT40+]";;
-							HT40-) ht_capab="[HT40-]";;
+							HT40+|HE40+|EHT40+)
+								if [ "$channel" -gt 9 ]; then
+									echo "Could not set the center freq with this HT mode setting"
+									return 1
+								else
+									ht_capab="[HT40+]"
+								fi
+								;;
+							HT40-|HE40-|EHT40-)
+								if [ "$channel" -lt 5 -a "$auto_channel" -eq 0 ]; then
+									echo "Could not set the center freq with this HT mode setting"
+									return 1
+								else
+									ht_capab="[HT40-]"
+								fi
+								;;
 							*)
-								if [ "$channel" -lt 7 ]; then
+								if [ "$channel" -lt 7 -o "$auto_channel" -gt 0 ]; then
 									ht_capab="[HT40+]"
 								else
 									ht_capab="[HT40-]"
 								fi
-							;;
+								;;
 						esac
-					;;
+						;;
 				esac
-				[ "$auto_channel" -gt 0 ] && ht_capab="[HT40+]"
-			;;
+				;;
 			*) ieee80211n= ;;
 		esac
 
@@ -209,10 +247,13 @@ mac80211_hostapd_setup_base() {
 				max_amsdu:1 \
 				dsss_cck_40:1
 
+			[ "$ht_coex" -eq 1 ] && {
+				set_default obss_interval 300
+				append base_cfg "obss_interval=$obss_interval" "$N"
+			}
+
 			ht_cap_mask=0
-			for cap in $(iw phy "$phy" info | grep -E '^\s*Capabilities:' | cut -d: -f2); do
-				ht_cap_mask="$(($ht_cap_mask | $cap))"
-			done
+			ht_cap_mask=$(iw phy "$phy" info | grep "Band ${nl_band}:" -A 1 | grep 'Capabilities: ' | cut -d: -f2)
 
 			cap_rx_stbc=$((($ht_cap_mask >> 8) & 3))
 			[ "$rx_stbc" -lt "$cap_rx_stbc" ] && cap_rx_stbc="$rx_stbc"
@@ -286,34 +327,61 @@ mac80211_hostapd_setup_base() {
 		;;
 	esac
 	[ "$band" = "5g" ] && {
-		json_get_vars background_radar:0
+		json_get_vars \
+			background_radar:0 \
+			background_cert_mode:0 \
 
 		[ "$background_radar" -eq 1 ] && append base_cfg "enable_background_radar=1" "$N"
+		[ "$background_cert_mode" -eq 1 ] && append base_cfg "background_radar_mode=1" "$N"
 	}
-
-	eht_oper_chwidth=$vht_oper_chwidth
-	eht_center_seg0=$vht_center_seg0
 
 	[ "$band" = "6g" ] && {
 		op_class=
 		case "$htmode" in
 			HE20|EHT20) op_class=131;;
-			EHT320)
+			EHT320*)
 				case "$channel" in
-					1|5|9|13|17|21|25|29|33|37|41|45|49|53|57|61) idx=31;;
-					65|69|73|77|81|85|89|93|97|101|105|109|113|117|121|125) idx=95;;
-					129|133|137|141|145|149|153|157|161|165|169|173|177|181|185|189) idx=159;;
+					1|5|9|13|17|21|25|29| \
+					33|37|41|45|49|53|57|61) idx=31;;
+					65|69|73|77|81|85|89|93 |\
+					97|101|105|109|113|117|121|125) idx=95;;
+					129|133|137|141|145|149|153|157| \
+					161|165|169|173|177|181|185|189) idx=159;;
 					193|197|201|205|209|213|217|221) idx=191;;
+				esac
+				if [[ "$htmode" = "EHT320-1" && "$channel" -ge "193" ]] ||
+				   [[ "$htmode" = "EHT320-2" && "$channel" -le "29" ]]; then
+					echo "Could not set the center freq with this EHT setting"
+					return 1
+				elif [[ "$htmode" = "EHT320-2" && "$channel" -le "189" ]]; then
+					if [ "$channel" -gt $idx ]; then
+						idx=$(($idx + 32))
+					else
+						idx=$(($idx - 32))
+					fi
+				fi
+				vht_oper_chwidth=2
+				if [ "$channel" -gt $idx ]; then
+					vht_center_seg0=$(($idx + 16))
+				else
+					vht_center_seg0=$(($idx - 16))
+				fi
+				eht_oper_chwidth=9
+				eht_oper_centr_freq_seg0_idx=$idx
+
+				case $htmode in
+					EHT320-1) eht_bw320_offset=1;;
+					EHT320-2) eht_bw320_offset=2;;
+					EHT320) eht_bw320_offset=0;;
 				esac
 
 				op_class=137
-				eht_center_seg0=$idx
-				eht_oper_chwidth=9
 			;;
-			HE*|EHT*) op_class=$((132 + $vht_oper_chwidth));;
+			HE*|EHT*) op_class=$((132 + $vht_oper_chwidth))
 		esac
 		[ -n "$op_class" ] && append base_cfg "op_class=$op_class" "$N"
 	}
+
 	[ "$hwmode" = "a" ] || enable_ac=0
 	[ "$band" = "6g" ] && enable_ac=0
 
@@ -329,7 +397,7 @@ mac80211_hostapd_setup_base() {
 			mu_beamformee:1 \
 			vht_txop_ps:1 \
 			htc_vht:1 \
-			beamformee_antennas:4 \
+			beamformee_antennas:5 \
 			beamformer_antennas:4 \
 			rx_antenna_pattern:1 \
 			tx_antenna_pattern:1 \
@@ -339,7 +407,6 @@ mac80211_hostapd_setup_base() {
 			vht_link_adapt:3 \
 			vht160:2
 
-		set_default tx_burst 2.0
 		append base_cfg "ieee80211ac=1" "$N"
 		vht_cap=0
 		for cap in $(iw phy "$phy" info | awk -F "[()]" '/VHT Capabilities/ { print $2 }'); do
@@ -356,6 +423,12 @@ mac80211_hostapd_setup_base() {
 		[ "$vht_oper_chwidth" -lt 2 ] && {
 			vht160=0
 			short_gi_160=0
+		}
+
+		[ "$etxbfen" -eq 0 ] && {
+			su_beamformer=0
+			su_beamformee=0
+			mu_beamformer=0
 		}
 
 		mac80211_add_capabilities vht_capab $vht_cap \
@@ -383,7 +456,7 @@ mac80211_hostapd_setup_base() {
 		}
 
 		[ "$(($vht_cap & 0x1000))" -gt 0 -a "$su_beamformee" -gt 0 ] && {
-			cap_ant="$(( ( ($vht_cap >> 13) & 3 ) + 1 ))"
+			cap_ant="$(( ( ($vht_cap >> 13) & 7 ) + 1 ))"
 			[ "$cap_ant" -gt "$beamformee_antennas" ] && cap_ant="$beamformee_antennas"
 			[ "$cap_ant" -gt 1 ] && vht_capab="$vht_capab[BF-ANTENNA-$cap_ant]"
 		}
@@ -450,21 +523,27 @@ mac80211_hostapd_setup_base() {
 			he_su_beamformee:1 \
 			he_mu_beamformer:1 \
 			he_twt_required:0 \
+			he_twt_responder \
 			he_spr_sr_control:3 \
 			he_spr_psr_enabled:0 \
 			he_spr_non_srg_obss_pd_max_offset:0 \
-			he_bss_color:128 \
+			he_bss_color \
 			he_bss_color_enabled:1
 
-		he_phy_cap=$(iw phy "$phy" info | sed -n '/HE Iftypes: .*AP/,$p' | awk -F "[()]" '/HE PHY Capabilities/ { print $2 }' | head -1)
+		he_phy_cap=$(iw phy "$phy" info | sed -n '/Band '"${nl_band}"'/,$p' | sed -n '/HE Iftypes: .*AP/,$p' | awk -F "[()]" '/HE PHY Capabilities/ { print $2 }' | head -1)
 		he_phy_cap=${he_phy_cap:2}
-		he_mac_cap=$(iw phy "$phy" info | sed -n '/HE Iftypes: .*AP/,$p' | awk -F "[()]" '/HE MAC Capabilities/ { print $2 }' | head -1)
+		he_mac_cap=$(iw phy "$phy" info | sed -n '/Band '"${nl_band}"'/,$p' | sed -n '/HE Iftypes: .*AP/,$p' | awk -F "[()]" '/HE MAC Capabilities/ { print $2 }' | head -1)
 		he_mac_cap=${he_mac_cap:2}
 
 		append base_cfg "ieee80211ax=1" "$N"
 		[ "$hwmode" = "a" ] && {
 			append base_cfg "he_oper_chwidth=$vht_oper_chwidth" "$N"
 			append base_cfg "he_oper_centr_freq_seg0_idx=$vht_center_seg0" "$N"
+		}
+
+		[ "$etxbfen" -eq 0 ] && {
+			he_su_beamformer=0
+			he_mu_beamformer=0
 		}
 
 		mac80211_add_he_capabilities \
@@ -474,7 +553,14 @@ mac80211_hostapd_setup_base() {
 			he_spr_psr_enabled:${he_phy_cap:14:2}:0x1:$he_spr_psr_enabled \
 			he_twt_required:${he_mac_cap:0:2}:0x6:$he_twt_required
 
+		if [ -n "$he_twt_responder" ]; then
+			append base_cfg "he_twt_responder=$he_twt_responder" "$N"
+		fi
 		if [ "$he_bss_color_enabled" -gt 0 ]; then
+			if !([ "$he_bss_color" -gt 0 ] && [ "$he_bss_color" -le 64 ]); then
+				rand=$(head -n 1 /dev/urandom | tr -dc 0-9 | head -c 2 | sed 's/^0*//')
+				he_bss_color=$((rand % 63 + 1))
+			fi
 			append base_cfg "he_bss_color=$he_bss_color" "$N"
 			[ "$he_spr_non_srg_obss_pd_max_offset" -gt 0 ] && { \
 				append base_cfg "he_spr_non_srg_obss_pd_max_offset=$he_spr_non_srg_obss_pd_max_offset" "$N"
@@ -493,34 +579,71 @@ mac80211_hostapd_setup_base() {
 		append base_cfg "he_mu_edca_qos_info_q_ack=0" "$N"
 		append base_cfg "he_mu_edca_qos_info_queue_request=0" "$N"
 		append base_cfg "he_mu_edca_qos_info_txop_request=0" "$N"
-		append base_cfg "he_mu_edca_ac_be_aifsn=8" "$N"
+		append base_cfg "he_mu_edca_ac_be_aifsn=0" "$N"
 		append base_cfg "he_mu_edca_ac_be_aci=0" "$N"
 		append base_cfg "he_mu_edca_ac_be_ecwmin=9" "$N"
 		append base_cfg "he_mu_edca_ac_be_ecwmax=10" "$N"
-		append base_cfg "he_mu_edca_ac_be_timer=255" "$N"
-		append base_cfg "he_mu_edca_ac_bk_aifsn=15" "$N"
+		append base_cfg "he_mu_edca_ac_be_timer=3" "$N"
+		append base_cfg "he_mu_edca_ac_bk_aifsn=0" "$N"
 		append base_cfg "he_mu_edca_ac_bk_aci=1" "$N"
 		append base_cfg "he_mu_edca_ac_bk_ecwmin=9" "$N"
 		append base_cfg "he_mu_edca_ac_bk_ecwmax=10" "$N"
-		append base_cfg "he_mu_edca_ac_bk_timer=255" "$N"
+		append base_cfg "he_mu_edca_ac_bk_timer=3" "$N"
 		append base_cfg "he_mu_edca_ac_vi_ecwmin=5" "$N"
 		append base_cfg "he_mu_edca_ac_vi_ecwmax=7" "$N"
-		append base_cfg "he_mu_edca_ac_vi_aifsn=5" "$N"
+		append base_cfg "he_mu_edca_ac_vi_aifsn=0" "$N"
 		append base_cfg "he_mu_edca_ac_vi_aci=2" "$N"
-		append base_cfg "he_mu_edca_ac_vi_timer=255" "$N"
-		append base_cfg "he_mu_edca_ac_vo_aifsn=5" "$N"
+		append base_cfg "he_mu_edca_ac_vi_timer=3" "$N"
+		append base_cfg "he_mu_edca_ac_vo_aifsn=0" "$N"
 		append base_cfg "he_mu_edca_ac_vo_aci=3" "$N"
-		append base_cfg "he_mu_edca_ac_vo_ecwmin=5" "$N"
-		append base_cfg "he_mu_edca_ac_vo_ecwmax=7" "$N"
-		append base_cfg "he_mu_edca_ac_vo_timer=255" "$N"
+		append base_cfg "he_mu_edca_ac_vo_ecwmin=9" "$N"
+		append base_cfg "he_mu_edca_ac_vo_ecwmax=10" "$N"
+		append base_cfg "he_mu_edca_ac_vo_timer=3" "$N"
 	fi
 
+	set_default tx_burst 2
+
+	# 802.11be
+	enable_be=0
+	case "$htmode" in
+		EHT*) enable_be=1 ;;
+	esac
+
 	if [ "$enable_be" != "0" ]; then
+
+		json_get_vars \
+			pp_bitmap \
+			pp_mode
+
 		append base_cfg "ieee80211be=1" "$N"
+		if [ "$etxbfen" -eq 0 ]; then
+			append base_cfg "eht_su_beamformee=1" "$N"
+		else
+			append base_cfg "eht_su_beamformer=1" "$N"
+			append base_cfg "eht_su_beamformee=1" "$N"
+			append base_cfg "eht_mu_beamformer=1" "$N"
+		fi
 		[ "$hwmode" = "a" ] && {
-			append base_cfg "eht_oper_chwidth=$eht_oper_chwidth" "$N"
-			append base_cfg "eht_oper_centr_freq_seg0_idx=$eht_center_seg0" "$N"
+			case $htmode in
+				EHT320*)
+					append base_cfg "eht_oper_chwidth=$eht_oper_chwidth" "$N"
+					append base_cfg "eht_oper_centr_freq_seg0_idx=$eht_oper_centr_freq_seg0_idx" "$N"
+					append base_cfg "eht_bw320_offset=$eht_bw320_offset" "$N"
+				;;
+				*)
+					append base_cfg "eht_oper_chwidth=$vht_oper_chwidth" "$N"
+					append base_cfg "eht_oper_centr_freq_seg0_idx=$vht_center_seg0" "$N"
+				;;
+			esac
 		}
+
+		if [ -n "$pp_bitmap" ]; then
+			append base_cfg "punct_bitmap=$pp_bitmap" "$N"
+		fi
+
+		if [ -n "$pp_mode" ]; then
+			append base_cfg "pp_mode=$pp_mode" "$N"
+		fi
 	fi
 
 	hostapd_prepare_device_config "$hostapd_conf_file" nl80211
@@ -529,9 +652,18 @@ ${channel:+channel=$channel}
 ${channel_list:+chanlist=$channel_list}
 ${hostapd_noscan:+noscan=1}
 ${tx_burst:+tx_queue_data2_burst=$tx_burst}
+${mbssid:+mbssid=$mbssid}
+${mu_onoff:+mu_onoff=$mu_onoff}
+${itxbfen:+ibf_enable=$itxbfen}
+${rnr:+rnr=$rnr}
 ${multiple_bssid:+mbssid=$multiple_bssid}
+${eml_disable:+eml_disable=$eml_disable}
+${eml_resp:+eml_resp=$eml_resp}
+${lpi_psd:+lpi_psd=$lpi_psd}
+${lpi_bcn_enhance:+lpi_bcn_enhance=$lpi_bcn_enhance}
+${sku_idx:+sku_idx=$sku_idx}
+${lpi_sku_idx:+lpi_sku_idx=$lpi_sku_idx}
 #num_global_macaddr=$num_global_macaddr
-#macaddr_base=$macaddr_base
 $base_cfg
 
 EOF
@@ -557,15 +689,39 @@ mac80211_hostapd_setup_bss() {
 		append hostapd_cfg "wds_sta=1" "$N"
 		[ -n "$wds_bridge" ] && append hostapd_cfg "wds_bridge=$wds_bridge" "$N"
 	}
-	[ "$staidx" -gt 0 -o "$start_disabled" -eq 1 ] && append hostapd_cfg "start_disabled=1" "$N"
+	[ "$start_disabled" -eq 1 ] && append hostapd_cfg "start_disabled=1" "$N"
 
 	cat >> /var/run/hostapd-$phy$vif_phy_suffix.conf <<EOF
 $hostapd_cfg
 bssid=$macaddr
-${default_macaddr:+#default_macaddr}
 ${dtim_period:+dtim_period=$dtim_period}
 ${max_listen_int:+max_listen_interval=$max_listen_int}
 EOF
+}
+
+mac80211_generate_mbssid_mac() {
+	local phy="$1"
+	local transmitted_bssid="$2"
+	local id="${mbssidx:-0}"
+
+	local ref="$(cat /sys/class/ieee80211/${phy}/macaddress)"
+
+	if [ -z "$transmitted_bssid" ]; then
+		transmitted_bssid=$ref
+	fi
+
+	if [ $id -eq 0 ]; then
+		echo "$transmitted_bssid"
+		return
+	fi
+
+	local oIFS="$IFS"; IFS=":"; set -- $transmitted_bssid; IFS="$oIFS"
+
+	# Calculate nontransmitted bssid
+	b6="0x$6"
+	ref_b6=$(($b6 % $max_mbssid))
+	b6=$(($b6 - $ref_b6 + ($ref_b6 + $id) % $max_mbssid))
+	printf "%s:%s:%s:%s:%s:%02x" $1 $2 $3 $4 $5 $b6
 }
 
 mac80211_get_addr() {
@@ -579,7 +735,11 @@ mac80211_generate_mac() {
 	local phy="$1"
 	local id="${macidx:-0}"
 
-	wdev_tool "$phy$phy_suffix" get_macaddr id=$id num_global=$num_global_macaddr mbssid=${multiple_bssid:-0} macaddr_base=${macaddr_base}
+	if [ "$phy" = "mld" ]; then
+		id=60;
+		phy=phy0;
+	fi
+	wdev_tool "$phy$phy_suffix" get_macaddr id=$id num_global=$num_global_macaddr mbssid=${multiple_bssid:-0}
 }
 
 get_board_phy_name() (
@@ -663,15 +823,136 @@ mac80211_check_ap() {
 }
 
 mac80211_set_ifname() {
-	local prefix="$1"
-	local type="$2"
-	eval "ifname=\"$prefix$type\${idx_$type:-0}\"; idx_$type=\$((\${idx_$type:-0 } + 1))"
+	local phy="$1"
+	local prefix="$2"
+	eval "ifname=\"$phy-$prefix\${idx_$prefix:-0}\"; idx_$prefix=\$((\${idx_$prefix:-0 } + 1))"
+}
+
+find_colocated_sta() {
+	local own_radio_idx=$1
+
+	iface_list="$(cat /etc/config/wireless | grep wifi-iface | cut -d ' ' -f3 | tr -s "'\n" ' ')"
+	for iface in $iface_list
+	do
+		local mode="$(uci show wireless.$iface.mode | cut -d '=' -f2 | tr -d "'")"
+		local ifname="$(uci show wireless.$iface | grep ifname | cut -d '=' -f2 | tr -d "'")"
+		[ -n "$ifname" ] && [ "$mode" == "sta" ] && {
+			local mld_allowed_phy_bitmap="$(uci show wireless.$iface | grep mld_allowed_phy_bitmap | cut -d '=' -f2 | tr -d "'")"
+			[ -n "$mld_allowed_phy_bitmap" ] && [ $(($mld_allowed_phy_bitmap & $((1<<$own_radio_idx)))) ] && append active_ifnames "$ifname"
+		}
+	done
+}
+
+fill_mld_params() {
+	local target_mld_id=$1
+	local own_phy_idx=$(echo $2 | tr -d "phy")
+	local own_radio_idx=$3
+	local found_mld=0
+	local is_mld_link_id_set=0
+	local is_primary=1
+	local mld_allowed_links=0
+	local mld_radio_mask=0
+
+	iface_list="$(cat /etc/config/wireless | grep wifi-iface | cut -d ' ' -f3 | tr -s "'\n" ' ')"
+	for iface in $iface_list
+	do
+		local mld_id="$(uci show wireless.$iface | grep "mld_id" | cut -d '=' -f2 | tr -d "'")"
+		local mld_link_id="$(uci show wireless.$iface | grep "mld_link_id" | cut -d '=' -f2 | tr -d "'")"
+		local device="$(uci show wireless.$iface.device | cut -d '=' -f2 | tr -d "'")"
+		local iface_disabled="$(uci show wireless.$iface | grep "disabled" | cut -d '=' -f2 | tr -d "'")"
+		local ht_mode="$(uci show wireless.$device.htmode | cut -d '=' -f2 | tr -d "'")"
+		local partner_radio_idx="$(uci show wireless.$device.radio | cut -d '=' -f2 | tr -d "'")"
+
+		if [ "$iface_disabled" != "1" ] && [ "$mld_id" = "$target_mld_id" ] && [[ "$ht_mode" == "EHT"* ]]; then
+			if [ -n "$mld_link_id" ]; then
+				is_mld_link_id_set=1
+				mld_allowed_links=$(($mld_allowed_links + 2**$mld_link_id))
+			elif [ "$is_mld_link_id_set" -eq 1 ]; then
+				echo "MLD link id should be set on every link"
+				return 1
+			else
+				mld_allowed_links=$(($mld_allowed_links * 2 + 1))
+			fi
+
+			[ $partner_radio_idx -lt $own_radio_idx ] && is_primary=0
+			mld_radio_mask=$(($mld_radio_mask + 2**$partner_radio_idx))
+		fi
+	done
+
+	json_add_string "mld_primary" $is_primary
+	json_add_string "mld_allowed_links" $mld_allowed_links
+	json_add_string "mld_radio_mask" $mld_radio_mask
+
+        mld_list="$(cat /etc/config/wireless | grep wifi-mld | cut -d ' ' -f3 | tr -s "'\n" ' ')"
+        for m in $mld_list
+        do
+		local mld_id="$(uci show wireless.$m | grep "mld_id" | cut -d '=' -f2 | tr -d "'")"
+		[ $mld_id = $target_mld_id ] || continue
+		found_mld=1
+
+                option_list="$(uci show wireless.$m | tr -s "\n" ' ')"
+                for option in $option_list
+                do
+                        local key="$(echo $option | cut -d '.' -f3 | cut -d '=' -f1)"
+                        local val="$(echo $option | cut -d '.' -f3 | cut -d '=' -f2 | tr -d "'")"
+			[ -n "$key" ] && json_add_string $key $val
+                done
+        done
+
+	if [ $found_mld -eq 0 ]; then
+		echo "mld_id $target_mld_id is not found"
+		return 1
+	fi
+
+	if [ $target_mld_id -lt 1 ] || [ $target_mld_id -gt 16 ]; then
+		echo "mld_id is out of range (1, 16)"
+		return 1
+	fi
+
+	return 0
 }
 
 mac80211_prepare_vif() {
 	json_select config
+	json_get_vars mld_id
 
-	json_get_vars ifname mode ssid wds powersave macaddr enable wpa_psk_file sae_password_file vlan_file
+	if [ -n "$mld_id" ] && [[ "$htmode" != "EHT"* ]]; then
+		json_select config
+		json_select ..
+		return
+	fi
+
+	if [ -n "$mld_id" ]; then
+		fill_mld_params $mld_id $phy $radio || return
+
+		json_get_vars mld_addr
+		if [ -z "$mld_addr" ]; then
+			generated_mac=$(mac80211_generate_mac mld)
+			# Split the MAC address to get the first byte
+			b1="${generated_mac%%:*}"
+
+			# Convert the first byte to a decimal for arithmetic operations
+			b1_dec=$((0x$b1))
+
+			# Get the upper four bits (first digit in hexadecimal representation)
+			upper_nibble=$(($b1_dec & 0xF0))
+
+			# Rotate the upper four bits based on mld_id
+			# Modulus by 16 ensures that the rotation stays within the bounds of a nibble (4 bits)
+			rotated=$(( (upper_nibble + (($mld_id - 1) << 4)) & 0xF0 ))
+
+			# Combine the lower four bits with the rotated upper four bits
+			b1_rotated=$(($b1_dec & 0x0F | rotated))
+
+			# Reassemble the MAC address
+			result_mac="$(printf '%02X' $b1_rotated):${generated_mac#*:}"
+
+			# Add the MAC address to the JSON object
+			json_add_string mld_addr "$result_mac"
+		fi
+	fi
+
+	json_get_vars ifname mode ssid wds powersave macaddr enable wpa_psk_file sae_password_file vlan_file mld_primary
 
 	[ -n "$ifname" ] || {
 		local prefix;
@@ -682,7 +963,7 @@ mac80211_prepare_vif() {
 		monitor) prefix=mon;;
 		esac
 
-		mac80211_set_ifname "$ifname_prefix" "$prefix"
+		mac80211_set_ifname "$phy$vif_phy_suffix" "$prefix"
 	}
 
 	append active_ifnames "$ifname"
@@ -690,20 +971,29 @@ mac80211_prepare_vif() {
 	set_default powersave 0
 	json_add_string _ifname "$ifname"
 
-	default_macaddr=
-	if [ -z "$macaddr" ]; then
+	if [ "$mbssid" -gt 0 ] && [ "$mode" == "ap" ]; then
+		[ "$mbssidx" -eq 0 ] && {
+			if [ -z $macaddr ]; then
+				transmitted_bssid="$(mac80211_generate_mac $phy)"
+			else
+				# uci set mac address
+				transmitted_bssid=$macaddr
+			fi
+			macidx="$(($macidx + 1))"
+		}
+		macaddr="$(mac80211_generate_mbssid_mac $phy $transmitted_bssid)"
+		mbssidx="$(($mbssidx + 1))"
+	elif [ -z "$macaddr" ]; then
 		macaddr="$(mac80211_generate_mac $phy)"
 		macidx="$(($macidx + 1))"
-		default_macaddr=1
 	elif [ "$macaddr" = 'random' ]; then
 		macaddr="$(macaddr_random)"
 	fi
 	json_add_string _macaddr "$macaddr"
-	json_add_string _default_macaddr "$default_macaddr"
 	json_select ..
 
 
-	[ "$mode" == "ap" ] && {
+	[ "$mode" == "ap" ] && [ "$mld_primary" != "0" ] && {
 		json_select config
 		wireless_vif_parse_encryption
 		json_select ..
@@ -726,6 +1016,17 @@ mac80211_prepare_vif() {
 				type=interface
 			fi
 
+			local retry=5
+			local ifname_folder="/sys/class/ieee80211/$phy/device/net/$ifname"
+			while [ "$retry" -gt 0 ] && [ "$mld_primary" -eq 0 ] && [ ! -d $ifname_folder ]
+			do
+				echo "$phy:$ifname is not mld primary and does not exist, sleep 1s"
+				retry=$((retry - 1))
+				sleep 1
+			done
+
+			[ "$retry" -eq 0 ] && [ ! -d $ifname_folder ] && retrun
+
 			mac80211_hostapd_setup_bss "$phy" "$ifname" "$macaddr" "$type" || return
 
 			[ -n "$hostapd_ctrl" ] || {
@@ -740,10 +1041,8 @@ mac80211_prepare_vif() {
 
 mac80211_prepare_iw_htmode() {
 	case "$htmode" in
-		HT20|VHT20|HE20|EHT20)
-			iw_htmode=HT20
-		;;
-		HT40*|VHT40|HE40|EHT40)
+		VHT20|HT20|HE20) iw_htmode=HT20;;
+		HT40*|VHT40|VHT160|HE40)
 			case "$band" in
 				2g)
 					case "$htmode" in
@@ -767,11 +1066,8 @@ mac80211_prepare_iw_htmode() {
 			esac
 			[ "$auto_channel" -gt 0 ] && iw_htmode="HT40+"
 		;;
-		VHT80|HE80|EHT80)
-			iw_htmode="80MHz"
-		;;
-		VHT160|HE160|EHT160)
-			iw_htmode="160MHz"
+		VHT80|HE80)
+			iw_htmode="80MHZ"
 		;;
 		NONE|NOHT)
 			iw_htmode="NOHT"
@@ -833,7 +1129,7 @@ mac80211_setup_adhoc() {
 
 	json_add_object "$ifname"
 	json_add_string mode adhoc
-	[ -n "$default_macaddr" ] || json_add_string macaddr "$macaddr"
+	json_add_string macaddr "$macaddr"
 	json_add_string ssid "$ssid"
 	json_add_string freq "$freq"
 	json_add_string htmode "$iw_htmode"
@@ -849,19 +1145,13 @@ mac80211_setup_adhoc() {
 
 mac80211_setup_mesh() {
 	json_get_vars ssid mesh_id mcast_rate
-	json_get_values iface_basic_rate_list basic_rate
 
 	mcval=
 	[ -n "$mcast_rate" ] && wpa_supplicant_add_rate mcval "$mcast_rate"
 	[ -n "$mesh_id" ] && ssid="$mesh_id"
 
-	br_list="$basic_rate_list"
-	if [ -n "$iface_basic_rate_list" ]; then
-		br_list="$iface_basic_rate_list"
-	fi
-
 	brstr=
-	for br in $br_list; do
+	for br in $basic_rate_list; do
 		wpa_supplicant_add_rate brstr "$br"
 	done
 
@@ -870,7 +1160,7 @@ mac80211_setup_mesh() {
 
 	json_add_object "$ifname"
 	json_add_string mode mesh
-	[ -n "$default_macaddr" ] || json_add_string macaddr "$macaddr"
+	json_add_string macaddr "$macaddr"
 	json_add_string ssid "$ssid"
 	json_add_string freq "$freq"
 	json_add_string htmode "$iw_htmode"
@@ -936,7 +1226,8 @@ wpa_supplicant_add_interface() {
 	json_add_string iface "$ifname"
 	json_add_string mode "$mode"
 	json_add_string config "$_config"
-	[ -n "$default_macaddr" ] || json_add_string macaddr "$macaddr"
+	json_add_string macaddr "$macaddr"
+	json_add_string mld_allowed_phy_bitmap "$mld_allowed_phy_bitmap"
 	[ -n "$network_bridge" ] && json_add_string bridge "$network_bridge"
 	[ -n "$wds" ] && json_add_boolean 4addr "$wds"
 	json_add_boolean powersave "$powersave"
@@ -958,7 +1249,6 @@ wpa_supplicant_set_config() {
 	json_add_string phy "$phy"
 	json_add_int radio "$radio"
 	json_add_int num_global_macaddr "$num_global_macaddr"
-	json_add_string macaddr_base "$macaddr_base"
 	json_add_boolean defer 1
 	local data="$(json_dump)"
 
@@ -983,6 +1273,13 @@ hostapd_set_config() {
 	local phy="$1"
 	local radio="$2"
 
+	if [ "$inconsistent_country" -eq 1 ]; then
+		echo "ERROR: Please use the same country for all the radios."
+		wireless_setup_failed HOSTAPD_START_FAILED
+		drv_mac80211_teardown
+		return
+	fi
+
 	[ -n "$hostapd_ctrl" ] || {
 		ubus_call hostapd config_set '{ "phy": "'"$phy"'", "radio": '"$radio"', "config": "", "prev_config": "'"${hostapd_conf_file}.prev"'" }' > /dev/null
 		return 0;
@@ -1005,7 +1302,7 @@ wpa_supplicant_start() {
 
 	[ -n "$wpa_supp_init" ] || return 0
 
-	ubus_call wpa_supplicant config_set '{ "phy": "'"$phy"'", "radio": '"$radio"', "num_global_macaddr": '"$num_global_macaddr"', "macaddr_base": "'"$macaddr_base"'" }' > /dev/null
+	ubus_call wpa_supplicant config_set '{ "phy": "'"$phy"'", "radio": '"$radio"', "num_global_macaddr": '"$num_global_macaddr"' }' > /dev/null
 }
 
 mac80211_setup_supplicant() {
@@ -1032,7 +1329,6 @@ mac80211_setup_vif() {
 	json_select config
 	json_get_var ifname _ifname
 	json_get_var macaddr _macaddr
-	json_get_var default_macaddr _default_macaddr
 	json_get_vars mode wds powersave
 
 	set_default powersave 0
@@ -1067,6 +1363,9 @@ mac80211_setup_vif() {
 
 	json_select ..
 	[ -n "$failed" ] || wireless_add_vif "$name" "$ifname"
+
+	echo "Setup SMP Affinity"
+	/sbin/smp-mt76.sh
 }
 
 get_freq() {
@@ -1114,6 +1413,7 @@ mac80211_reset_config() {
 	ubus_call hostapd config_set '{ "phy": "'"$phy"'", "radio": '"$radio"', "config": "", "prev_config": "'"$hostapd_conf_file"'" }' > /dev/null
 	ubus_call wpa_supplicant config_set '{ "phy": "'"$phy"'", "radio": '"$radio"', "config": [] }' > /dev/null
 	wdev_tool "$phy$phy_suffix" set_config '{}'
+	mv "$hostapd_conf_file" "$hostapd_conf_file.bk"
 }
 
 mac80211_set_suffix() {
@@ -1121,6 +1421,74 @@ mac80211_set_suffix() {
 	phy_suffix="${radio:+:$radio}"
 	vif_phy_suffix="${radio:+.$radio}"
 	set_default radio -1
+}
+
+mac80211_count_ap() {
+	total_num_ap=$(($total_num_ap + 1))
+}
+
+country_consistent_check() {
+	local i
+	inconsistent_country=0
+	country_list="$(cat /etc/config/wireless | grep country | cut -d ' ' -f3 | tr -s "'\n" ' ')"
+	for i in $country_list
+	do
+		ret="$(echo $country_list | awk '{print ($2 == "" || $1 == $2)}')"
+		[ $ret = '0' ] && {
+			inconsistent_country=1
+			return
+		}
+		country_list="$(echo $country_list | sed -r 's/[A-Z]{2}( )*//')"
+	done
+}
+
+set_antenna() {
+	local phy=$1
+	local radio_list="$(uci show wireless | grep wifi-device | cut -d '=' -f 1 | cut -d '.' -f 2)"
+	local radio
+	local radio_idx
+	local is_disabled
+	local antenna_mask
+	local offset
+	local radio_tx_antenna
+	local radio_rx_antenna
+	local wiphy_tx_antenna=0
+	local wiphy_rx_antenna=0
+
+	for radio in $radio_list
+	do
+		is_disabled="$(uci show wireless.${radio} | grep "disabled" | cut -d '=' -f 2 | tr -d "'")"
+		radio_idx="$(uci show wireless.${radio}.radio | cut -d '=' -f 2 | tr -d "'")"
+		radio_tx_antenna="$(uci show wireless.${radio} | grep txantenna | cut -d '=' -f 2 | tr -d "'")"
+		radio_rx_antenna="$(uci show wireless.${radio} | grep rxantenna | cut -d '=' -f 2 | tr -d "'")"
+		antenna_mask="$(iw phy ${phy} info | grep "wiphy radio" -A 21 | grep "Idx $radio_idx" -A 2 | grep "antenna_mask" | cut -d ' ' -f 2 | cut -d 'x' -f 2)"
+		antenna_mask=$((0x$antenna_mask))
+
+		offset=0
+		while [ $(($antenna_mask & 1)) -eq 0 ]
+		do
+			antenna_mask=$(($antenna_mask >> 1))
+			offset=$(($offset + 1))
+		done
+
+		if [ "$is_disabled" -ne "1" ] && [ -n "$radio_tx_antenna" ]; then
+			radio_tx_antenna=$(($radio_tx_antenna & $antenna_mask))
+		else
+			radio_tx_antenna=$antenna_mask
+		fi
+
+		wiphy_tx_antenna=$(($wiphy_tx_antenna+$(($radio_tx_antenna << $offset))))
+
+		if [ "$is_disabled" -ne "1" ] && [ -n "$radio_rx_antenna" ]; then
+			radio_rx_antenna=$(($radio_rx_antenna & $antenna_mask))
+		else
+			radio_rx_antenna=$antenna_mask
+		fi
+
+		wiphy_rx_antenna=$(($wiphy_rx_antenna+$(($radio_rx_antenna << $offset))))
+	done
+
+	iw phy $phy set antenna $wiphy_tx_antenna $wiphy_rx_antenna >/dev/null 2>&1
 }
 
 drv_mac80211_setup() {
@@ -1132,7 +1500,7 @@ drv_mac80211_setup() {
 		rxantenna txantenna \
 		frag rts beacon_int:100 htmode \
 		num_global_macaddr:1 multiple_bssid \
-		ifname_prefix macaddr_base
+		sr_enable sr_enhanced
 	json_get_values basic_rate_list basic_rate
 	json_get_values scan_list scan_list
 	json_select ..
@@ -1150,8 +1518,6 @@ drv_mac80211_setup() {
 		wireless_set_retry 0
 		return 1
 	}
-
-	set_default ifname_prefix "$phy$vif_phy_suffix-"
 
 	local wdev
 	local cwdev
@@ -1171,6 +1537,13 @@ drv_mac80211_setup() {
 
 	macidx=0
 	staidx=0
+	mbssidx=0
+
+	if [ "$phy" = "phy1" ]; then
+		macidx=20;
+	elif [ "$phy" = "phy2" ]; then
+		macidx=40;
+	fi
 
 	[ -n "$chanbw" ] && {
 		for file in /sys/kernel/debug/ieee80211/$phy/ath9k*/chanbw /sys/kernel/debug/ieee80211/$phy/ath5k/bwmode; do
@@ -1188,7 +1561,14 @@ drv_mac80211_setup() {
 	[ "$rxantenna" = "$prev_rxantenna" -a "$txantenna" = "$prev_txantenna" ] || mac80211_reset_config "$phy"
 	wireless_set_data phy="$phy" radio="$radio" txantenna="$txantenna" rxantenna="$rxantenna"
 
-	iw phy "$phy" set antenna $txantenna $rxantenna >/dev/null 2>&1
+	# each phy sleeps different times to prevent for ubus race condition.
+	if [ "$phy" = "phy1" ] || [ "$radio" = "1" ]; then
+		sleep 3;
+	elif [ "$phy" = "phy2" ] || [ "$radio" = "2" ]; then
+		sleep 6;
+	fi
+
+	set_antenna $phy
 	iw phy "$phy" set distance "$distance" >/dev/null 2>&1
 
 	[ -n "$frag" ] && iw phy "$phy" set frag "${frag%%.*}"
@@ -1213,10 +1593,27 @@ drv_mac80211_setup() {
 
 	wpa_supplicant_init_config
 
+	total_num_ap=0
+	max_mbssid=1
+	for_each_interface "ap" mac80211_count_ap
+	total_num_ap=$(($total_num_ap - 1))
+	while [ $total_num_ap -gt 0 ]
+	do
+		total_num_ap=$(($total_num_ap >> 1))
+		max_mbssid=$(($max_mbssid << 1))
+	done
+
 	mac80211_prepare_iw_htmode
 	active_ifnames=
 	for_each_interface "ap sta adhoc mesh monitor" mac80211_prepare_vif
 	for_each_interface "ap sta adhoc mesh monitor" mac80211_setup_vif
+
+	find_colocated_sta "$radio"
+
+	country_consistent_check
+	phy_idx=$(echo "$phy" | sed 's/phy//')
+	[ -n "$sr_enable" ] && echo "$sr_enable" > /sys/kernel/debug/ieee80211/phy0/mt76/band$phy_idx/sr_enable
+	[ -n "$sr_enhanced" ] && echo "$sr_enhanced" > /sys/kernel/debug/ieee80211/phy0/mt76/band$phy_idx/sr_enhanced_enable
 
 	[ -x /usr/sbin/wpa_supplicant ] && wpa_supplicant_set_config "$phy" "$radio"
 	[ -x /usr/sbin/hostapd ] && hostapd_set_config "$phy" "$radio"
@@ -1237,6 +1634,8 @@ drv_mac80211_setup() {
 
 	for_each_interface "ap sta adhoc mesh monitor" mac80211_set_vif_txpower
 	wireless_set_up
+
+	echo /tmp/%e.core > /proc/sys/kernel/core_pattern
 }
 
 _list_phy_interfaces() {

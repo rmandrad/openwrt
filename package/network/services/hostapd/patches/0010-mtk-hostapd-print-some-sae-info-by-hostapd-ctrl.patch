@@ -1,0 +1,112 @@
+From 1bbbee7e56065480936d04f73c6bbcc4e6ae372c Mon Sep 17 00:00:00 2001
+From: Shayne Chen <shayne.chen@mediatek.com>
+Date: Tue, 20 Sep 2022 19:33:45 +0800
+Subject: [PATCH 010/210] mtk: hostapd: print some sae info by hostapd ctrl
+
+root@OpenWrt:~# hostapd_cli -i phy0-ap0 pmksa
+Setup at link 0:
+Index / SPA / PMKID / PMK / expiration (in seconds) / opportunistic
+Setup at link 1:
+Index / SPA / PMKID / PMK / expiration (in seconds) / opportunistic
+0 02:0c:43:b2:01:1c b5706f5f53117e00fa46fcf94c225009 7505eb11319fa94add14d0fd091caadf9be2c642aa7363a96e1efa575e794420 43180 0
+Setup at link 2:
+Index / SPA / PMKID / PMK / expiration (in seconds) / opportunistic
+
+Signed-off-by: Shayne Chen <shayne.chen@mediatek.com>
+---
+ hostapd/ctrl_iface.c      | 14 ++++++++++++++
+ src/ap/ctrl_iface_ap.c    | 22 +++++++++++++++++++++-
+ src/ap/pmksa_cache_auth.c |  5 ++++-
+ 3 files changed, 39 insertions(+), 2 deletions(-)
+
+diff --git a/hostapd/ctrl_iface.c b/hostapd/ctrl_iface.c
+index 3c2d41b0f..d3b206e3a 100644
+--- a/hostapd/ctrl_iface.c
++++ b/hostapd/ctrl_iface.c
+@@ -70,6 +70,7 @@
+ #include "fst/fst_ctrl_iface.h"
+ #include "config_file.h"
+ #include "ctrl_iface.h"
++#include "crypto/dh_groups.h"
+ 
+ 
+ #define HOSTAPD_CLI_DUP_VALUE_MAX_LEN 256
+@@ -1376,6 +1377,19 @@ static int hostapd_ctrl_iface_get(struct hostapd_data *hapd, char *cmd,
+ 		if (os_snprintf_error(buflen, res))
+ 			return -1;
+ 		return res;
++	} else if (os_strcmp(cmd, "sae_group_capability") == 0) {
++#ifdef CONFIG_SAE
++		/* see sae_set_group() */
++		res = os_snprintf(buf, buflen, "%s%s%s%s19 20 21",
++				  dh_groups_get(15) ? "15 ": "",
++				  dh_groups_get(16) ? "16 ": "",
++				  dh_groups_get(17) ? "17 ": "",
++				  dh_groups_get(18) ? "18 ": "");
++
++		if (os_snprintf_error(buflen, res))
++			return -1;
++		return res;
++#endif /* CONFIG_SAE */
+ 	}
+ 
+ 	return -1;
+diff --git a/src/ap/ctrl_iface_ap.c b/src/ap/ctrl_iface_ap.c
+index 0ef6dd337..63a400875 100644
+--- a/src/ap/ctrl_iface_ap.c
++++ b/src/ap/ctrl_iface_ap.c
+@@ -1182,7 +1182,27 @@ int hostapd_ctrl_iface_stop_ap(struct hostapd_data *hapd)
+ int hostapd_ctrl_iface_pmksa_list(struct hostapd_data *hapd, char *buf,
+ 				  size_t len)
+ {
+-	return wpa_auth_pmksa_list(hapd->wpa_auth, buf, len);
++	char *pos = buf;
++	int ret, link_id;
++
++	if (!hapd->conf->mld_ap)
++		return wpa_auth_pmksa_list(hapd->wpa_auth, buf, len);
++
++	for (link_id = 0; link_id < MAX_NUM_MLD_LINKS; link_id++) {
++		struct hostapd_data *h = hostapd_mld_get_link_bss(hapd, link_id);
++
++		if (!h)
++			continue;
++
++		ret = os_snprintf(pos, len - (pos - buf), "Setup at link %u:\n", h->mld_link_id);
++		if (os_snprintf_error(len - (pos - buf), ret))
++			return pos - buf;
++		pos += ret;
++
++		pos += wpa_auth_pmksa_list(h->wpa_auth, pos, len - (pos - buf));
++	}
++
++	return pos - buf;
+ }
+ 
+ 
+diff --git a/src/ap/pmksa_cache_auth.c b/src/ap/pmksa_cache_auth.c
+index 2fce8383d..8a63cb682 100644
+--- a/src/ap/pmksa_cache_auth.c
++++ b/src/ap/pmksa_cache_auth.c
+@@ -658,7 +658,7 @@ int pmksa_cache_auth_list(struct rsn_pmksa_cache *pmksa, char *buf, size_t len)
+ 
+ 	os_get_reltime(&now);
+ 	ret = os_snprintf(pos, buf + len - pos,
+-			  "Index / SPA / PMKID / expiration (in seconds) / opportunistic\n");
++			  "Index / SPA / PMKID / PMK / expiration (in seconds) / opportunistic\n");
+ 	if (os_snprintf_error(buf + len - pos, ret))
+ 		return pos - buf;
+ 	pos += ret;
+@@ -672,6 +672,9 @@ int pmksa_cache_auth_list(struct rsn_pmksa_cache *pmksa, char *buf, size_t len)
+ 		pos += ret;
+ 		pos += wpa_snprintf_hex(pos, buf + len - pos, entry->pmkid,
+ 					PMKID_LEN);
++		*pos++ = ' ';
++		pos += wpa_snprintf_hex(pos, buf + len - pos, entry->pmk,
++					entry->pmk_len);
+ 		ret = os_snprintf(pos, buf + len - pos, " %d %d\n",
+ 				  (int) (entry->expiration - now.sec),
+ 				  entry->opportunistic);
+-- 
+2.45.2
+

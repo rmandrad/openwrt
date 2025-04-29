@@ -1,0 +1,81 @@
+From c234cc63aff5ba854b833c31e1b3a6443db579ad Mon Sep 17 00:00:00 2001
+From: MeiChia Chiu <MeiChia.Chiu@mediatek.com>
+Date: Mon, 29 Apr 2024 10:20:07 +0800
+Subject: [PATCH 055/101] mtk: mac80211: Add support for EMLSR support
+
+Send the EML capability to driver
+Specify the time for eml_capa in advance to avoid the driver setting
+padding delay and transition delay without having obtained the correct
+values.
+
+Signed-off-by: MeiChia Chiu <MeiChia.Chiu@mediatek.com>
+---
+ include/net/cfg80211.h | 1 +
+ include/net/mac80211.h | 1 +
+ net/mac80211/cfg.c     | 3 +++
+ net/wireless/nl80211.c | 4 ++++
+ 4 files changed, 9 insertions(+)
+
+diff --git a/include/net/cfg80211.h b/include/net/cfg80211.h
+index c58df6e8..ec36ec31 100644
+--- a/include/net/cfg80211.h
++++ b/include/net/cfg80211.h
+@@ -1809,6 +1809,7 @@ struct station_parameters {
+ 	u8 supported_oper_classes_len;
+ 	int support_p2p_ps;
+ 	u16 airtime_weight;
++	u16 eml_capa;
+ 	struct link_station_parameters link_sta_params;
+ };
+ 
+diff --git a/include/net/mac80211.h b/include/net/mac80211.h
+index ed7411f1..e636ae9a 100644
+--- a/include/net/mac80211.h
++++ b/include/net/mac80211.h
+@@ -2527,6 +2527,7 @@ struct ieee80211_sta {
+ 	bool mlo;
+ 	bool spp_amsdu;
+ 	u8 max_amsdu_subframes;
++	u16 eml_capa;
+ 
+ 	struct ieee80211_sta_aggregates *cur;
+ 
+diff --git a/net/mac80211/cfg.c b/net/mac80211/cfg.c
+index 6b18a8f3..dd2c3300 100644
+--- a/net/mac80211/cfg.c
++++ b/net/mac80211/cfg.c
+@@ -2072,6 +2072,9 @@ static int sta_apply_parameters(struct ieee80211_local *local,
+ 	if (ret)
+ 		return ret;
+ 
++	if (params->eml_capa)
++		sta->sta.eml_capa = params->eml_capa;
++
+ 	if (params->support_p2p_ps >= 0)
+ 		sta->sta.support_p2p_ps = params->support_p2p_ps;
+ 
+diff --git a/net/wireless/nl80211.c b/net/wireless/nl80211.c
+index 3cec5b4f..932ce29b 100644
+--- a/net/wireless/nl80211.c
++++ b/net/wireless/nl80211.c
+@@ -868,6 +868,7 @@ static const struct nla_policy nl80211_policy[NUM_NL80211_ATTR] = {
+ 	[NL80211_ATTR_BSS_DUMP_INCLUDE_USE_DATA] = { .type = NLA_FLAG },
+ 	[NL80211_ATTR_MLO_TTLM_DLINK] = NLA_POLICY_EXACT_LEN(sizeof(u16) * 8),
+ 	[NL80211_ATTR_MLO_TTLM_ULINK] = NLA_POLICY_EXACT_LEN(sizeof(u16) * 8),
++	[NL80211_ATTR_EML_CAPABILITY] = { .type = NLA_U16 },
+ 	[NL80211_ATTR_ASSOC_SPP_AMSDU] = { .type = NLA_FLAG },
+ 	[NL80211_ATTR_VIF_RADIO_MASK] = { .type = NLA_U32 },
+ 	[NL80211_ATTR_SUPPORTED_SELECTORS] =
+@@ -7452,6 +7453,9 @@ static int nl80211_set_station(struct sk_buff *skb, struct genl_info *info)
+ 		mac_addr = nla_data(info->attrs[NL80211_ATTR_MAC]);
+ 	}
+ 
++	if (info->attrs[NL80211_ATTR_EML_CAPABILITY])
++		params.eml_capa =
++			nla_get_u16(info->attrs[NL80211_ATTR_EML_CAPABILITY]);
+ 
+ 	if (info->attrs[NL80211_ATTR_STA_SUPPORTED_RATES]) {
+ 		params.link_sta_params.supported_rates =
+-- 
+2.45.2
+

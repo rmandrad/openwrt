@@ -1,0 +1,162 @@
+From b27dd439113d98c991cd39336567a60db231d145 Mon Sep 17 00:00:00 2001
+From: StanleyYP Wang <StanleyYP.Wang@mediatek.com>
+Date: Thu, 22 Feb 2024 15:21:49 +0800
+Subject: [PATCH 084/101] mtk: mac80211: add per-link txpower config
+
+Add per-link txpower config & info dump
+
+Signed-off-by: StanleyYP Wang <StanleyYP.Wang@mediatek.com>
+---
+ include/net/cfg80211.h  |  3 ++-
+ net/mac80211/cfg.c      | 11 +++++++++++
+ net/mac80211/link.c     |  3 +++
+ net/wireless/nl80211.c  |  3 ++-
+ net/wireless/rdev-ops.h |  5 +++--
+ net/wireless/trace.h    | 11 +++++++----
+ 6 files changed, 28 insertions(+), 8 deletions(-)
+
+diff --git a/include/net/cfg80211.h b/include/net/cfg80211.h
+index 3cf4fbf9..abb090b6 100644
+--- a/include/net/cfg80211.h
++++ b/include/net/cfg80211.h
+@@ -4872,7 +4872,8 @@ struct cfg80211_ops {
+ 	int	(*set_wiphy_params)(struct wiphy *wiphy, u32 changed);
+ 
+ 	int	(*set_tx_power)(struct wiphy *wiphy, struct wireless_dev *wdev,
+-				enum nl80211_tx_power_setting type, int mbm);
++				unsigned int link_id, enum nl80211_tx_power_setting type,
++				int mbm);
+ 	int	(*get_tx_power)(struct wiphy *wiphy, struct wireless_dev *wdev,
+ 				unsigned int link_id, int *dbm);
+ 
+diff --git a/net/mac80211/cfg.c b/net/mac80211/cfg.c
+index 7dbd1e4b..bdbb25ed 100644
+--- a/net/mac80211/cfg.c
++++ b/net/mac80211/cfg.c
+@@ -3080,10 +3080,13 @@ static int ieee80211_set_wiphy_params(struct wiphy *wiphy, u32 changed)
+ 
+ static int ieee80211_set_tx_power(struct wiphy *wiphy,
+ 				  struct wireless_dev *wdev,
++				  unsigned int link_id,
+ 				  enum nl80211_tx_power_setting type, int mbm)
+ {
+ 	struct ieee80211_local *local = wiphy_priv(wiphy);
+ 	struct ieee80211_sub_if_data *sdata;
++	struct ieee80211_link_data *link;
++	struct ieee80211_bss_conf *link_conf;
+ 	enum nl80211_tx_power_setting txp_type = type;
+ 	bool update_txp_type = false;
+ 	bool has_monitor = false;
+@@ -3109,6 +3112,11 @@ static int ieee80211_set_tx_power(struct wiphy *wiphy,
+ 
+ 	if (wdev) {
+ 		sdata = IEEE80211_WDEV_TO_SUB_IF(wdev);
++		link = sdata_dereference(sdata->link[link_id], sdata);
++		if (!link)
++			return -ENOLINK;
++
++		link_conf = link->conf;
+ 
+ 		if (sdata->vif.type == NL80211_IFTYPE_MONITOR &&
+ 		    !ieee80211_hw_check(&local->hw, NO_VIRTUAL_MONITOR)) {
+@@ -3143,6 +3151,9 @@ static int ieee80211_set_tx_power(struct wiphy *wiphy,
+ 	}
+ 
+ 	local->user_power_level = user_power_level;
++	/*TODO: handle single wiphy */
++	wiphy_info(wiphy, "Setting txpower for the entire band is not supported\n");
++	return -EOPNOTSUPP;
+ 
+ 	list_for_each_entry(sdata, &local->interfaces, list) {
+ 		if (sdata->vif.type == NL80211_IFTYPE_MONITOR &&
+diff --git a/net/mac80211/link.c b/net/mac80211/link.c
+index 897c2f8c..85eae892 100644
+--- a/net/mac80211/link.c
++++ b/net/mac80211/link.c
+@@ -40,6 +40,9 @@ void ieee80211_link_init(struct ieee80211_sub_if_data *sdata,
+ 	link->user_power_level = sdata->local->user_power_level;
+ 	link_conf->txpower = INT_MIN;
+ 
++	link->user_power_level = IEEE80211_UNSET_POWER_LEVEL;
++	link->ap_power_level = IEEE80211_UNSET_POWER_LEVEL;
++
+ 	wiphy_work_init(&link->csa.finalize_work,
+ 			ieee80211_csa_finalize_work);
+ 	wiphy_work_init(&link->color_change_finalize_work,
+diff --git a/net/wireless/nl80211.c b/net/wireless/nl80211.c
+index 1f853f59..b323bc77 100644
+--- a/net/wireless/nl80211.c
++++ b/net/wireless/nl80211.c
+@@ -3772,6 +3772,7 @@ static int nl80211_set_wiphy(struct sk_buff *skb, struct genl_info *info)
+ 		struct wireless_dev *txp_wdev = wdev;
+ 		enum nl80211_tx_power_setting type;
+ 		int idx, mbm = 0;
++		unsigned int link_id = nl80211_link_id(info->attrs);
+ 
+ 		if (!(rdev->wiphy.features & NL80211_FEATURE_VIF_TXPOWER))
+ 			txp_wdev = NULL;
+@@ -3791,7 +3792,7 @@ static int nl80211_set_wiphy(struct sk_buff *skb, struct genl_info *info)
+ 			mbm = nla_get_u32(info->attrs[idx]);
+ 		}
+ 
+-		result = rdev_set_tx_power(rdev, txp_wdev, type, mbm);
++		result = rdev_set_tx_power(rdev, txp_wdev, link_id, type, mbm);
+ 		if (result)
+ 			return result;
+ 	}
+diff --git a/net/wireless/rdev-ops.h b/net/wireless/rdev-ops.h
+index d0cbf078..50c1ac00 100644
+--- a/net/wireless/rdev-ops.h
++++ b/net/wireless/rdev-ops.h
+@@ -590,11 +590,12 @@ rdev_set_wiphy_params(struct cfg80211_registered_device *rdev, u32 changed)
+ 
+ static inline int rdev_set_tx_power(struct cfg80211_registered_device *rdev,
+ 				    struct wireless_dev *wdev,
++				    unsigned int link_id,
+ 				    enum nl80211_tx_power_setting type, int mbm)
+ {
+ 	int ret;
+-	trace_rdev_set_tx_power(&rdev->wiphy, wdev, type, mbm);
+-	ret = rdev->ops->set_tx_power(&rdev->wiphy, wdev, type, mbm);
++	trace_rdev_set_tx_power(&rdev->wiphy, wdev, link_id, type, mbm);
++	ret = rdev->ops->set_tx_power(&rdev->wiphy, wdev, link_id, type, mbm);
+ 	trace_rdev_return_int(&rdev->wiphy, ret);
+ 	return ret;
+ }
+diff --git a/net/wireless/trace.h b/net/wireless/trace.h
+index 584b61e0..67400ab4 100644
+--- a/net/wireless/trace.h
++++ b/net/wireless/trace.h
+@@ -1718,22 +1718,25 @@ DEFINE_EVENT(wiphy_wdev_link_evt, rdev_get_tx_power,
+ 
+ TRACE_EVENT(rdev_set_tx_power,
+ 	TP_PROTO(struct wiphy *wiphy, struct wireless_dev *wdev,
+-		 enum nl80211_tx_power_setting type, int mbm),
+-	TP_ARGS(wiphy, wdev, type, mbm),
++		 unsigned int link_id, enum nl80211_tx_power_setting type,
++		 int mbm),
++	TP_ARGS(wiphy, wdev, link_id, type, mbm),
+ 	TP_STRUCT__entry(
+ 		WIPHY_ENTRY
+ 		WDEV_ENTRY
++		__field(unsigned int, link_id)
+ 		__field(enum nl80211_tx_power_setting, type)
+ 		__field(int, mbm)
+ 	),
+ 	TP_fast_assign(
+ 		WIPHY_ASSIGN;
+ 		WDEV_ASSIGN;
++		__entry->link_id = link_id;
+ 		__entry->type = type;
+ 		__entry->mbm = mbm;
+ 	),
+-	TP_printk(WIPHY_PR_FMT ", " WDEV_PR_FMT ", type: %u, mbm: %d",
+-		  WIPHY_PR_ARG, WDEV_PR_ARG,__entry->type, __entry->mbm)
++	TP_printk(WIPHY_PR_FMT ", " WDEV_PR_FMT ", link_id: %d, type: %u, mbm: %d",
++		  WIPHY_PR_ARG, WDEV_PR_ARG, __entry->link_id, __entry->type, __entry->mbm)
+ );
+ 
+ TRACE_EVENT(rdev_return_int_int,
+-- 
+2.45.2
+

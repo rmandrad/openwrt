@@ -772,7 +772,7 @@ bool sym_is_changeable(struct symbol *sym)
 	return sym->visible > sym->rev_dep.tri;
 }
 
-static unsigned strhash(const char *s)
+unsigned strhash(const char *s)
 {
 	/* fnv32 hash */
 	unsigned hash = 2166136261U;

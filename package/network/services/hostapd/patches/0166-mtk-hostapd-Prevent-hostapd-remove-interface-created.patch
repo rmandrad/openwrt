@@ -1,0 +1,37 @@
+From 5835bfbc39255e96e5005ecd708b92d667cdcd25 Mon Sep 17 00:00:00 2001
+From: Allen Ye <allen.ye@mediatek.com>
+Date: Wed, 22 Jan 2025 18:01:54 +0800
+Subject: [PATCH 166/210] mtk: hostapd: Prevent hostapd remove interface
+ created by iw
+
+Fix legacy cert failed. Sigma assumes there would be a interface represents
+each radio. We have to make sure hostapd will not completely remove the
+interface which isn't created by hostapd by nl80211_remove_iface.
+Set use_existing to 1 to tell hostapd to use interface created by
+iw or ucode and don't remove it when we use ubus call to remove iface.
+
+The change will set the flag bss->added_if when driver init, and the
+flag will stop hostapd to call nl80211_remove_iface in
+wpa_driver_nl80211_if_remove.
+
+Signed-off-by: Allen Ye <allen.ye@mediatek.com>
+---
+ hostapd/main.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/hostapd/main.c b/hostapd/main.c
+index 3650eb421..c73fb3b0f 100644
+--- a/hostapd/main.c
++++ b/hostapd/main.c
+@@ -279,7 +279,7 @@ static int hostapd_driver_init(struct hostapd_iface *iface)
+ 				   &hapd->drv_priv, force_ifname, if_addr,
+ 				   params.num_bridge && params.bridge[0] ?
+ 				   params.bridge[0] : NULL,
+-				   0, hapd->iface->freq, 0)) {
++				   1, hapd->iface->freq, 0)) {
+ 			wpa_printf(MSG_ERROR, "Failed to add BSS (BSSID="
+ 				   MACSTR ")", MAC2STR(hapd->own_addr));
+ 			os_free(params.bridge);
+-- 
+2.45.2
+

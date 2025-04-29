@@ -1,0 +1,49 @@
+From 73df9f59b808c57c26f6c98c7d8e51aea7f7d2db Mon Sep 17 00:00:00 2001
+From: Michael-CY Lee <michael-cy.lee@mediatek.com>
+Date: Tue, 24 Dec 2024 11:43:08 +0800
+Subject: [PATCH 57/92] mtk: mt76: mt7996: add a mt7996_bss_conf array for
+ MBSSID non-TX BSS in mt7996_phy
+
+The array saves the pointers of MBSSID non-TX BSS's mt7996_bss_conf,
+with index being the BSSID index.
+
+It's object is to retrive non-TX BSS's mt7996_bss_conf by it's BSSID
+index.
+
+Signed-off-by: Michael-CY Lee <michael-cy.lee@mediatek.com>
+---
+ mt7996/mt7996.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/mt7996/mt7996.h b/mt7996/mt7996.h
+index b71a9d14..009e6aa1 100644
+--- a/mt7996/mt7996.h
++++ b/mt7996/mt7996.h
+@@ -15,6 +15,7 @@
+ #define MT7996_MAX_RADIOS		3
+ #define MT7996_MAX_INTERFACES		19	/* per-band */
+ #define MT7996_MAX_WMM_SETS		4
++#define MT7996_MAX_MBSSID		16
+ #define MT7996_WTBL_BMC_SIZE		(is_mt7996(&dev->mt76) ? 64 : 32)
+ #define MT7996_WTBL_RESERVED		(mt7996_wtbl_size(dev) - 1)
+ #define MT7996_WTBL_STA			(MT7996_WTBL_RESERVED - \
+@@ -441,6 +442,7 @@ struct mt7996_vif_link {
+ 
+ 	u8 own_mld_id;
+ 	u8 bpcc;
++	u8 mbssid_idx;
+ 
+ 	s64 tsf_offset[IEEE80211_MLD_MAX_NUM_LINKS];
+ };
+@@ -755,6 +757,8 @@ struct mt7996_phy {
+ 	bool thermal_protection_enable:1;
+ 	bool mru_probe_enable:1;
+ #endif
++	/* Index 0 (TxBSS) is not used */
++	struct mt7996_vif_link __rcu *mbssid_conf[MT7996_MAX_MBSSID];
+ };
+ 
+ struct mt7996_dev {
+-- 
+2.45.2
+
