@@ -1,0 +1,11 @@
+--- a/net/core/dev.c
++++ b/net/core/dev.c
+@@ -12053,7 +12053,7 @@ static void __init net_dev_struct_check(
+ #ifdef CONFIG_NET_XGRESS
+ 	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_tx, tcx_egress);
+ #endif
+-	CACHELINE_ASSERT_GROUP_SIZE(struct net_device, net_device_read_tx, 160);
++	CACHELINE_ASSERT_GROUP_SIZE(struct net_device, net_device_read_tx, 170);
+ 
+ 	/* TXRX read-mostly hotpath */
+ 	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_txrx, lstats);
