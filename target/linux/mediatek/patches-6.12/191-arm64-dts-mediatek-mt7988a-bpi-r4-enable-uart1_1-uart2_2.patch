@@ -1,0 +1,53 @@
+From 2b6d2c5b1f7d5a0c5e6a7e9f2f60f5c5f1c1d2c3 Mon Sep 17 00:00:00 2001
+From: Rudy Andram <rmandrad@gmail.com>
+Date: Sat, 18 Jan 2026 12:15:00 +0000
+Subject: [PATCH] arm64: dts: mediatek: mt7988a-bpi-r4: enable uart1_2_lite and
+uart2_3_lite
+
+Issue: UART1/2 pins on the 26-pin header were not muxed/enabled in DTS.
+Solution: add uart1_2_lite/uart2_3_lite pinctrl groups and enable serial1 and
+serial2 with those default pinctrls.
+
+Signed-off-by: Rudy Andram <rmandrad@gmail.com>
+---
+ arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4.dtsi | 32 ++++++++++++++++++++++++++++++++
+ 1 file changed, 32 insertions(+)
+
+--- a/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4.dtsi
++++ b/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4.dtsi
+@@ -630,3 +630,35 @@
+ &xsphy {
+ 	status = "okay";
+ };
++
++&pio {
++	uart1_2_lite_pins: uart1-2-lite-pins {
++		mux {
++			function = "uart";
++			groups = "uart1_2_lite";
++		};
++	};
++
++	uart2_3_lite_pins: uart2-3_lite-pins {
++		mux {
++			function = "uart";
++			groups = "uart2_3_lite";
++		};
++		conf-rx {
++			pins = "JTAG_JTDI";
++			input-enable;
++		};
++	};
++};
++
++&serial1 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&uart1_2_lite_pins>;
++	status = "okay";
++};
++
++&serial2 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&uart2_3_lite_pins>;
++	status = "okay";
++};

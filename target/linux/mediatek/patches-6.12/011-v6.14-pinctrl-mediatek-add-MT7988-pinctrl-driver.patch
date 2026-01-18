@@ -1,12 +1,18 @@
-From 08bec851118226cc8c4397692542b855de2e0d73 Mon Sep 17 00:00:00 2001
-From: Daniel Golle <daniel@makrotopia.org>
-Date: Tue, 17 Dec 2024 09:54:27 +0100
-Subject: [PATCH 2/2] pinctrl: mediatek: add MT7988 pinctrl driver
+From 3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f Mon Sep 17 00:00:00 2001
+From: Rudy Andram <rmandrad@gmail.com>
+Date: Sat, 18 Jan 2026 12:25:00 +0000
+Subject: [PATCH] pinctrl: mt7988: add uart2_3_lite group and fix uart group
+names
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
 
-Add pinctrl driver for the MediaTek MT7988 SoC.
+Issue: uart2_3_lite was missing and the UART group list referenced incorrect
+tops UART names, preventing proper group resolution.
+Solution: add the uart2_3_lite pins/group and fix the group list names to use
+tops_uart0_1/tops_uart1_1, including uart2_3_lite in the UART array.
+
+Signed-off-by: Rudy Andram <rmandrad@gmail.com>
 
 Signed-off-by: Sam Shih <sam.shih@mediatek.com>
 Signed-off-by: Daniel Golle <daniel@makrotopia.org>
@@ -19,8 +25,8 @@ Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
 ---
  drivers/pinctrl/mediatek/Kconfig          |    7 +
  drivers/pinctrl/mediatek/Makefile         |    1 +
- drivers/pinctrl/mediatek/pinctrl-mt7988.c | 1556 +++++++++++++++++++++
- 3 files changed, 1564 insertions(+)
+ drivers/pinctrl/mediatek/pinctrl-mt7988.c | 1562 +++++++++++++++++++++
+ 3 files changed, 1570 insertions(+)
  create mode 100644 drivers/pinctrl/mediatek/pinctrl-mt7988.c
 
 --- a/drivers/pinctrl/mediatek/Kconfig
@@ -51,7 +57,7 @@ Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
  obj-$(CONFIG_PINCTRL_MT8183)		+= pinctrl-mt8183.o
 --- /dev/null
 +++ b/drivers/pinctrl/mediatek/pinctrl-mt7988.c
-@@ -0,0 +1,1556 @@
+@@ -0,0 +1,1562 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * The MT7988 driver based on Linux generic pinctrl binding.
@@ -1106,6 +1112,9 @@ Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
 +static const int mt7988_uart2_3_pins[] = { 58, 59, 60, 61 };
 +static int mt7988_uart2_3_funcs[] = { 3, 3, 3, 3 };
 +
++static const int mt7988_uart2_3_lite_pins[] = { 58, 59 };
++static int mt7988_uart2_3_lite_funcs[] = { 3, 3 };
++
 +static const int mt7988_uart1_2_pins[] = { 80, 81, 82, 83 };
 +static int mt7988_uart1_2_funcs[] = { 1, 1, 1, 1 };
 +
@@ -1331,6 +1340,8 @@ Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
 +	PINCTRL_PIN_GROUP("tops_jtag0_1", mt7988_tops_jtag0_1),
 +	/*  @GPIO(58,59,60,61) uart2_3 */
 +	PINCTRL_PIN_GROUP("uart2_3", mt7988_uart2_3),
++	/*  @GPIO(58,59) uart2_3_lite */
++	PINCTRL_PIN_GROUP("uart2_3_lite", mt7988_uart2_3_lite),
 +	/*  @GPIO(58,59,60,61) uart1_1 */
 +	PINCTRL_PIN_GROUP("uart1_1", mt7988_uart1_1),
 +	/*  @GPIO(58,59,60,61) gbe_led1 */
@@ -1489,12 +1500,13 @@ Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
 +	"net_wo1_uart_txd_0",
 +	"net_wo2_uart_txd_0",
 +	"tops_uart1_0",
-+	"ops_uart0_1",
-+	"ops_uart1_1",
++	"tops_uart0_1",
++	"tops_uart1_1",
 +	"uart0",
 +	"tops_uart0_2",
 +	"uart1_1",
 +	"uart2_3",
++	"uart2_3_lite",
 +	"uart1_2",
 +	"uart1_2_lite",
 +	"tops_uart1_2",

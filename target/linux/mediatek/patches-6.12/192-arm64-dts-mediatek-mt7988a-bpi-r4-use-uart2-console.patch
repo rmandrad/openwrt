@@ -1,0 +1,37 @@
+From 5a2b809c1f2c0b4f2f08a04f1fb8bcb1d8c4f1c2 Mon Sep 17 00:00:00 2001
+From: Rudy Andram <rmandrad@gmail.com>
+Date: Sat, 18 Jan 2026 12:20:00 +0000
+Subject: [PATCH] arm64: dts: mediatek: mt7988a-bpi-r4: move console to UART2
+
+Issue: console was bound to ttyS0 even though the physical console is on
+UART2.
+Solution: update stdout-path/bootargs to ttyS2 and add serial1/serial2
+aliases.
+
+Signed-off-by: Rudy Andram <rmandrad@gmail.com>
+---
+ arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4.dtsi | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+--- a/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4.dtsi
++++ b/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4.dtsi
+@@ -8,8 +8,8 @@
+ 
+ / {
+ 	chosen {
+-		stdout-path = "serial0:115200n8";
+-		bootargs = "console=ttyS0,115200n1 pci=pcie_bus_perf ubi.block=0,fit root=/dev/fit0";
++		stdout-path = "serial2:115200n8";
++		bootargs = "console=ttyS2,115200n1 pci=pcie_bus_perf ubi.block=0,fit root=/dev/fit0";
+ 		rootdisk-spim-nand = <&ubi_rootfs>;
+ 	};
+ 
+@@ -57,6 +57,8 @@
+ 		ethernet1 = &gmac1;
+ 		ethernet2 = &gmac2;
+ 		serial0 = &serial0;
++		serial1 = &serial1;
++		serial2 = &serial2;
+ 		led-boot = &led_green;
+ 		led-failsafe = &led_green;
+ 		led-running = &led_green;

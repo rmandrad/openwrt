@@ -1,3 +1,17 @@
+From 9f1d7a6a2b6c8f74a1b2c2f3c4d5e6f7a8b9c0d1 Mon Sep 17 00:00:00 2001
+From: Rudy Andram <rmandrad@gmail.com>
+Date: Sat, 18 Jan 2026 12:00:00 +0000
+Subject: [PATCH] uboot: bpi-r4: move console to UART2 and add uart2_3_lite pinmux
+
+Issue: U-Boot console was wired to UART0 while the board uses UART2, and the
+uart2_3_lite pinmux was missing. A bad add-file hunk length also caused DTC
+parse errors.
+Solution: switch debug UART base and env console to ttyS2, add uart2_3_lite to
+pinctrl/DTSI, fix the DTSI add-file hunk length, and set bootdelay to allow
+menu input.
+
+Signed-off-by: Rudy Andram <rmandrad@gmail.com>
+
 --- /dev/null
 +++ b/configs/mt7988a_bananapi_bpi-r4-emmc_defconfig
 @@ -0,0 +1,139 @@
@@ -15,7 +29,7 @@
 +CONFIG_TARGET_MT7988=y
 +CONFIG_SYS_LOAD_ADDR=0x50000000
 +CONFIG_PRE_CON_BUF_ADDR=0x4007EF00
-+CONFIG_DEBUG_UART_BASE=0x11000000
++CONFIG_DEBUG_UART_BASE=0x11000200
 +CONFIG_DEBUG_UART_CLOCK=40000000
 +CONFIG_ENV_OFFSET_REDUND=0x440000
 +CONFIG_PCI=y
@@ -157,7 +171,7 @@
 +CONFIG_TARGET_MT7988=y
 +CONFIG_SYS_LOAD_ADDR=0x50000000
 +CONFIG_PRE_CON_BUF_ADDR=0x4007EF00
-+CONFIG_DEBUG_UART_BASE=0x11000000
++CONFIG_DEBUG_UART_BASE=0x11000200
 +CONFIG_DEBUG_UART_CLOCK=40000000
 +CONFIG_ENV_OFFSET_REDUND=0x440000
 +CONFIG_PCI=y
@@ -297,7 +311,7 @@
 +CONFIG_TARGET_MT7988=y
 +CONFIG_SYS_LOAD_ADDR=0x50000000
 +CONFIG_PRE_CON_BUF_ADDR=0x4007EF00
-+CONFIG_DEBUG_UART_BASE=0x11000000
++CONFIG_DEBUG_UART_BASE=0x11000200
 +CONFIG_DEBUG_UART_CLOCK=40000000
 +CONFIG_PCI=y
 +CONFIG_DEBUG_UART=y
@@ -426,17 +440,20 @@
 +CONFIG_HEXDUMP=y
 --- /dev/null
 +++ b/defenvs/bananapi_bpi-r4_sdmmc_env
-@@ -0,0 +1,66 @@
+@@ -0,0 +1,69 @@
 +ipaddr=192.168.1.1
 +serverip=192.168.1.254
 +loadaddr=0x50000000
-+bootargs=console=ttyS0,115200n1 pci=pcie_bus_perf root=/dev/fit0 rootwait
++stdin=serial@11000200
++stdout=serial@11000200
++stderr=serial@11000200
++bootargs=console=ttyS2,115200n1 pci=pcie_bus_perf root=/dev/fit0 rootwait
 +bootcmd=if pstore check ; then run boot_recovery ; else run boot_sdmmc ; fi
 +bootconf=config-mt7988a-bananapi-bpi-r4
 +bootconf_sd=mt7988a-bananapi-bpi-r4-sd
 +bootconf_emmc=mt7988a-bananapi-bpi-r4-emmc
 +bootconf_extra=
-+bootdelay=0
++bootdelay=5
 +bootfile=openwrt-mediatek-filogic-bananapi_bpi-r4-initramfs-recovery.itb
 +bootfile_upg=openwrt-mediatek-filogic-bananapi_bpi-r4-squashfs-sysupgrade.itb
 +bootled_pwr=green:status
@@ -493,17 +510,46 @@
 +_firstboot=setenv _firstboot ; run _switch_to_menu ; run _init_env ; run boot_first
 +_switch_to_menu=setenv _switch_to_menu ; setenv bootdelay 3 ; setenv bootmenu_delay 3 ; setenv bootmenu_0 $bootmenu_0d ; setenv bootmenu_0d ; run _bootmenu_update_title
 +_bootmenu_update_title=setenv _bootmenu_update_title ; setenv bootmenu_title "$bootmenu_title       [33m$ver[0m"
+--- a/drivers/pinctrl/mediatek/pinctrl-mt7988.c
++++ b/drivers/pinctrl/mediatek/pinctrl-mt7988.c
+@@ -993,8 +993,11 @@ static const int mt7988_uart1_1_pins[] = { 58, 59, 60, 61 };
+ static const int mt7988_uart1_1_pins[] = { 58, 59, 60, 61 };
+ static const int mt7988_uart1_1_funcs[] = { 2, 2, 2, 2 };
+ 
+ static const int mt7988_uart2_3_pins[] = { 58, 59, 60, 61 };
+ static const int mt7988_uart2_3_funcs[] = { 3, 3, 3, 3 };
++
++static const int mt7988_uart2_3_lite_pins[] = { 58, 59 };
++static const int mt7988_uart2_3_lite_funcs[] = { 3, 3 };
+ 
+ static const int mt7988_uart1_2_pins[] = { 80, 81, 82, 83 };
+ static const int mt7988_uart1_2_funcs[] = { 1, 1, 1, 1 };
+@@ -1114,4 +1114,5 @@ static const struct group_desc mt7988_groups[] = {
+ 	PINCTRL_PIN_GROUP("jtag", mt7988_jtag),
+ 	PINCTRL_PIN_GROUP("tops_jtag0_1", mt7988_tops_jtag0_1),
+ 	PINCTRL_PIN_GROUP("uart2_3", mt7988_uart2_3),
++	PINCTRL_PIN_GROUP("uart2_3_lite", mt7988_uart2_3_lite),
+ 	PINCTRL_PIN_GROUP("uart1_1", mt7988_uart1_1),
+@@ -1205,4 +1205,4 @@ static const char *const mt7988_uart_groups[] = { "uart2", "tops_uart0_0",
+ 	"tops_uart1_0", "ops_uart0_1", "ops_uart1_1",
+ 	"uart0", "tops_uart0_2", "uart1_1",
+-	"uart2_3", "uart1_2", "tops_uart1_2",
++	"uart2_3", "uart2_3_lite", "uart1_2", "tops_uart1_2",
+ 	"net_wo0_uart_txd_1", "net_wo1_uart_txd_1", "net_wo2_uart_txd_1", };
 --- /dev/null
 +++ b/defenvs/bananapi_bpi-r4_snand_env
-@@ -0,0 +1,67 @@
+@@ -0,0 +1,70 @@
 +ipaddr=192.168.1.1
 +serverip=192.168.1.254
 +loadaddr=0x50000000
-+bootargs=console=ttyS0,115200n1 pci=pcie_bus_perf root=/dev/fit0 rootwait ubi.block=0,fit
++stdin=serial@11000200
++stdout=serial@11000200
++stderr=serial@11000200
++bootargs=console=ttyS2,115200n1 pci=pcie_bus_perf root=/dev/fit0 rootwait ubi.block=0,fit
 +bootconf=config-mt7988a-bananapi-bpi-r4
 +bootconf_extra=mt7988a-bananapi-bpi-r4-emmc
 +bootcmd=if pstore check ; then run boot_recovery ; else run boot_ubi ; fi
-+bootdelay=0
++bootdelay=5
 +bootfile=openwrt-mediatek-filogic-bananapi_bpi-r4-initramfs-recovery.itb
 +bootfile_bl2=openwrt-mediatek-filogic-bananapi_bpi-r4-snand-preloader.bin
 +bootfile_fip=openwrt-mediatek-filogic-bananapi_bpi-r4-snand-bl31-uboot.fip
@@ -565,17 +611,20 @@
 +_bootmenu_update_title=setenv _bootmenu_update_title ; setenv bootmenu_title "$bootmenu_title       [33m$ver[0m"
 --- /dev/null
 +++ b/defenvs/bananapi_bpi-r4_emmc_env
-@@ -0,0 +1,57 @@
+@@ -0,0 +1,60 @@
 +ipaddr=192.168.1.1
 +serverip=192.168.1.254
 +loadaddr=0x50000000
-+bootargs=console=ttyS0,115200n1 pci=pcie_bus_perf root=/dev/fit0 rootwait
++stdin=serial@11000200
++stdout=serial@11000200
++stderr=serial@11000200
++bootargs=console=ttyS2,115200n1 pci=pcie_bus_perf root=/dev/fit0 rootwait
 +bootcmd=if pstore check ; then run boot_recovery ; else run boot_emmc ; fi
 +bootconf=config-mt7988a-bananapi-bpi-r4
 +bootconf_base=config-mt7988a-bananapi-bpi-r4
 +bootconf_emmc=mt7988a-bananapi-bpi-r4-emmc
 +bootconf_extra=
-+bootdelay=0
++bootdelay=5
 +bootfile=openwrt-mediatek-filogic-bananapi_bpi-r4-initramfs-recovery.itb
 +bootfile_bl2=openwrt-mediatek-filogic-bananapi_bpi-r4-emmc-preloader.bin
 +bootfile_fip=openwrt-mediatek-filogic-bananapi_bpi-r4-emmc-bl31-uboot.fip
@@ -625,14 +674,13 @@
 +_bootmenu_update_title=setenv _bootmenu_update_title ; setenv bootmenu_title "$bootmenu_title       [33m$ver[0m"
 --- /dev/null
 +++ b/arch/arm/dts/mt7988a-bananapi-bpi-r4.dtsi
-@@ -0,0 +1,199 @@
+@@ -0,0 +1,223 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Copyright (c) 2022 MediaTek Inc.
 + * Author: Sam Shih <sam.shih@mediatek.com>
 + */
 +
-+/dts-v1/;
 +#include "mt7988.dtsi"
 +#include <dt-bindings/gpio/gpio.h>
 +#include <dt-bindings/input/linux-event-codes.h>
@@ -641,8 +689,15 @@
 +	model = "Bananapi BPI-R4";
 +	compatible = "bananapi,bpi-r4", "mediatek,mt7988";
 +
++	aliases {
++		serial0 = &uart0;
++		serial1 = &uart1;
++		serial2 = &uart2;
++	};
++
 +	chosen {
-+		stdout-path = &uart0;
++		stdout-path = "serial2:115200n8";
++		stdin-path = "serial2:115200n8";
 +	};
 +
 +	memory@40000000 {
@@ -693,7 +748,12 @@
 +	};
 +};
 +
-+&uart0 {
++&uart2 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&uart2_3_pins>;
++	mediatek,force-pins;
++	mediatek,debug-pins;
++	mediatek,force-highspeed;
 +	status = "okay";
 +};
 +
@@ -724,11 +784,24 @@
 +		};
 +	};
 +
++	uart2_3_pins: uart2-3-pins {
++		mux {
++			function = "uart";
++			groups = "uart2_3_lite";
++		};
++		conf-rx {
++			pins = "JTAG_JTDI";
++			bias-pull-up;
++			input-enable;
++			input-schmitt-enable;
++		};
++	};
++
 +	pwm_pins: pwm-pins {
 +		mux {
 +			function = "pwm";
-+			groups = "pwm0", "pwm1", "pwm2", "pwm3", "pwm4",
-+				 "pwm5", "pwm6", "pwm7";
++			groups = "pwm0";
++				  
 +		};
 +	};
 +
@@ -888,7 +961,7 @@
 +CONFIG_TARGET_MT7988=y
 +CONFIG_SYS_LOAD_ADDR=0x50000000
 +CONFIG_PRE_CON_BUF_ADDR=0x4007EF00
-+CONFIG_DEBUG_UART_BASE=0x11000000
++CONFIG_DEBUG_UART_BASE=0x11000200
 +CONFIG_DEBUG_UART_CLOCK=40000000
 +CONFIG_ENV_OFFSET_REDUND=0x440000
 +CONFIG_PCI=y
@@ -1030,7 +1103,7 @@
 +CONFIG_TARGET_MT7988=y
 +CONFIG_SYS_LOAD_ADDR=0x50000000
 +CONFIG_PRE_CON_BUF_ADDR=0x4007EF00
-+CONFIG_DEBUG_UART_BASE=0x11000000
++CONFIG_DEBUG_UART_BASE=0x11000200
 +CONFIG_DEBUG_UART_CLOCK=40000000
 +CONFIG_ENV_OFFSET_REDUND=0x440000
 +CONFIG_PCI=y
@@ -1170,7 +1243,7 @@
 +CONFIG_TARGET_MT7988=y
 +CONFIG_SYS_LOAD_ADDR=0x50000000
 +CONFIG_PRE_CON_BUF_ADDR=0x4007EF00
-+CONFIG_DEBUG_UART_BASE=0x11000000
++CONFIG_DEBUG_UART_BASE=0x11000200
 +CONFIG_DEBUG_UART_CLOCK=40000000
 +CONFIG_PCI=y
 +CONFIG_DEBUG_UART=y
@@ -1299,17 +1372,20 @@
 +CONFIG_HEXDUMP=y
 --- /dev/null
 +++ b/defenvs/bananapi_bpi-r4-poe_emmc_env
-@@ -0,0 +1,57 @@
+@@ -0,0 +1,60 @@
 +ipaddr=192.168.1.1
 +serverip=192.168.1.254
 +loadaddr=0x50000000
-+bootargs=console=ttyS0,115200n1 pci=pcie_bus_perf root=/dev/fit0 rootwait
++stdin=serial@11000200
++stdout=serial@11000200
++stderr=serial@11000200
++bootargs=console=ttyS2,115200n1 pci=pcie_bus_perf root=/dev/fit0 rootwait
 +bootcmd=if pstore check ; then run boot_recovery ; else run boot_emmc ; fi
 +bootconf=config-mt7988a-bananapi-bpi-r4-poe
 +bootconf_base=config-mt7988a-bananapi-bpi-r4-poe
 +bootconf_emmc=mt7988a-bananapi-bpi-r4-emmc
 +bootconf_extra=
-+bootdelay=0
++bootdelay=5
 +bootfile=openwrt-mediatek-filogic-bananapi_bpi-r4-poe-initramfs-recovery.itb
 +bootfile_bl2=openwrt-mediatek-filogic-bananapi_bpi-r4-poe-emmc-preloader.bin
 +bootfile_fip=openwrt-mediatek-filogic-bananapi_bpi-r4-poe-emmc-bl31-uboot.fip
@@ -1359,17 +1435,20 @@
 +_bootmenu_update_title=setenv _bootmenu_update_title ; setenv bootmenu_title "$bootmenu_title       [33m$ver[0m"
 --- /dev/null
 +++ b/defenvs/bananapi_bpi-r4-poe_sdmmc_env
-@@ -0,0 +1,66 @@
+@@ -0,0 +1,69 @@
 +ipaddr=192.168.1.1
 +serverip=192.168.1.254
 +loadaddr=0x50000000
-+bootargs=console=ttyS0,115200n1 pci=pcie_bus_perf root=/dev/fit0 rootwait
++stdin=serial@11000200
++stdout=serial@11000200
++stderr=serial@11000200
++bootargs=console=ttyS2,115200n1 pci=pcie_bus_perf root=/dev/fit0 rootwait
 +bootcmd=if pstore check ; then run boot_recovery ; else run boot_sdmmc ; fi
 +bootconf=config-mt7988a-bananapi-bpi-r4-poe
 +bootconf_sd=mt7988a-bananapi-bpi-r4-sd
 +bootconf_emmc=mt7988a-bananapi-bpi-r4-emmc
 +bootconf_extra=
-+bootdelay=0
++bootdelay=5
 +bootfile=openwrt-mediatek-filogic-bananapi_bpi-r4-poe-initramfs-recovery.itb
 +bootfile_upg=openwrt-mediatek-filogic-bananapi_bpi-r4-poe-squashfs-sysupgrade.itb
 +bootled_pwr=green:status
@@ -1428,15 +1507,18 @@
 +_bootmenu_update_title=setenv _bootmenu_update_title ; setenv bootmenu_title "$bootmenu_title       [33m$ver[0m"
 --- /dev/null
 +++ b/defenvs/bananapi_bpi-r4-poe_snand_env
-@@ -0,0 +1,67 @@
+@@ -0,0 +1,70 @@
 +ipaddr=192.168.1.1
 +serverip=192.168.1.254
 +loadaddr=0x50000000
-+bootargs=console=ttyS0,115200n1 pci=pcie_bus_perf root=/dev/fit0 rootwait ubi.block=0,fit
++stdin=serial@11000200
++stdout=serial@11000200
++stderr=serial@11000200
++bootargs=console=ttyS2,115200n1 pci=pcie_bus_perf root=/dev/fit0 rootwait ubi.block=0,fit
 +bootconf=config-mt7988a-bananapi-bpi-r4-poe
 +bootconf_extra=mt7988a-bananapi-bpi-r4-emmc
 +bootcmd=if pstore check ; then run boot_recovery ; else run boot_ubi ; fi
-+bootdelay=0
++bootdelay=5
 +bootfile=openwrt-mediatek-filogic-bananapi_bpi-r4-poe-initramfs-recovery.itb
 +bootfile_bl2=openwrt-mediatek-filogic-bananapi_bpi-r4-poe-snand-preloader.bin
 +bootfile_fip=openwrt-mediatek-filogic-bananapi_bpi-r4-poe-snand-bl31-uboot.fip

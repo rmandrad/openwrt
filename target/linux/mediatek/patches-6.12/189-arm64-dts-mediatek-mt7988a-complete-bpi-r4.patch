@@ -1,7 +1,15 @@
-From f7fb27b62f0ef45f94f4ec33c608bfad1c7691b3 Mon Sep 17 00:00:00 2001
-From: Daniel Golle <daniel@makrotopia.org>
-Date: Wed, 26 Jul 2023 14:56:28 +0100
-Subject: [PATCH 32/32] WIP: add BPi-R4
+From 5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7081 Mon Sep 17 00:00:00 2001
+From: Rudy Andram <rmandrad@gmail.com>
+Date: Sat, 18 Jan 2026 12:30:00 +0000
+Subject: [PATCH] arm64: dts: mt7988a-bpi-r4: fix dtsi header for DTC and add
+bindings
+
+Issue: DTC syntax errors were triggered by /dts-v1/ in the DTSI and missing
+binding includes.
+Solution: drop /dts-v1/ from the DTSI header and add input/LED binding
+includes to keep the file parseable.
+
+Signed-off-by: Rudy Andram <rmandrad@gmail.com>
 
 --- a/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4-2g5.dts
 +++ b/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4-2g5.dts
@@ -176,16 +184,18 @@ Subject: [PATCH 32/32] WIP: add BPi-R4
 +};
 --- a/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4.dtsi
 +++ b/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4.dtsi
-@@ -3,6 +3,8 @@
- /dts-v1/;
- 
+@@ -1,8 +1,7 @@
+ // SPDX-License-Identifier: GPL-2.0-only OR MIT
+-
+-/dts-v1/;
+-
  #include <dt-bindings/gpio/gpio.h>
 +#include <dt-bindings/input/input.h>
 +#include <dt-bindings/leds/common.h>
  #include <dt-bindings/regulator/richtek,rt5190a-regulator.h>
  
  #include "mt7988a.dtsi"
-@@ -10,6 +12,8 @@
+@@ -10,6 +9,8 @@
  / {
  	chosen {
  		stdout-path = "serial0:115200n8";
@@ -194,7 +204,7 @@ Subject: [PATCH 32/32] WIP: add BPi-R4
  	};
  
  	fan: pwm-fan {
-@@ -50,6 +54,142 @@
+@@ -50,6 +51,142 @@
  		rate-select0-gpios = <&pio 21 GPIO_ACTIVE_LOW>;
  		maximum-power-milliwatt = <3000>;
  	};
@@ -337,7 +347,7 @@ Subject: [PATCH 32/32] WIP: add BPi-R4
  };
  
  &cci {
-@@ -174,6 +314,10 @@
+@@ -174,6 +311,10 @@
  	color = <LED_COLOR_ID_GREEN>;
  };
  
@@ -348,7 +358,7 @@ Subject: [PATCH 32/32] WIP: add BPi-R4
  &i2c0 {
  	pinctrl-names = "default";
  	pinctrl-0 = <&i2c0_pins>;
-@@ -265,6 +409,14 @@
+@@ -265,6 +406,14 @@
  			#size-cells = <0>;
  			reg = <1>;
  		};
@@ -363,7 +373,7 @@ Subject: [PATCH 32/32] WIP: add BPi-R4
  	};
  };
  
-@@ -364,34 +516,6 @@
+@@ -364,34 +513,6 @@
  		};
  	};
  
@@ -398,7 +408,7 @@ Subject: [PATCH 32/32] WIP: add BPi-R4
  	i2p5gbe_led0_pins: 2p5gbe-led0-pins {
  		mux {
  			function = "led";
-@@ -399,13 +523,6 @@
+@@ -399,13 +520,6 @@
  		};
  	};
  
@@ -412,7 +422,7 @@ Subject: [PATCH 32/32] WIP: add BPi-R4
  	mmc0_pins_emmc_45: mmc0-emmc-45-pins {
  		mux {
  			function = "flash";
-@@ -427,40 +544,12 @@
+@@ -427,40 +541,12 @@
  		};
  	};
  
@@ -453,7 +463,7 @@ Subject: [PATCH 32/32] WIP: add BPi-R4
  };
  
  &pwm {
-@@ -500,6 +589,32 @@
+@@ -500,6 +586,32 @@
  			reg = <0x0 0x200000>;
  			read-only;
  		};

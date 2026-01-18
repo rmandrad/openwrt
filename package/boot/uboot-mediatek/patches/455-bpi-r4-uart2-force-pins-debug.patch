@@ -1,0 +1,225 @@
+From 1b2c3d4e5f60718293a4b5c6d7e8f90123456789 Mon Sep 17 00:00:00 2001
+From: Rudy Andram <rmandrad@gmail.com>
+Date: Sat, 18 Jan 2026 12:05:00 +0000
+Subject: [PATCH] uboot: serial_mtk: force UART2 pins and add RX/pinmux debug polling
+
+Issue: U-Boot TX worked but RX was silent, with no visibility into pinmux/DI
+state or LSR transitions.
+Solution: add force-pins/debug-pins handling, force GPIO58/59 to uart2_3_lite,
+set DIR to input, enable IES/SMT, and log LSR/DI/MODE/DIR/HIGHS/SAMPLE_*.
+
+Signed-off-by: Rudy Andram <rmandrad@gmail.com>
+
+--- a/drivers/serial/serial_mtk.c
++++ b/drivers/serial/serial_mtk.c
+@@ -15,6 +15,7 @@
+ #include <errno.h>
+ #include <log.h>
+ #include <serial.h>
++#include <time.h>
+ #include <watchdog.h>
+ #include <asm/global_data.h>
+ #include <asm/io.h>
+@@ -76,6 +77,17 @@
+ 		     UART_FCR_RXSR |	\
+ 		     UART_FCR_TXSR)
+
++#define MT7988_UART2_BASE	0x11000200
++#define MT7988_GPIO_BASE	0x1001f000
++#define MT7988_GPIO_MODE_7	0x370
++#define MT7988_GPIO_DI0		0x200
++#define MT7988_GPIO_DI		0x210
++#define MT7988_GPIO_DI2		0x220
++#define MT7988_GPIO_DIR		0x010
++#define MT7988_IOCFG_TR_BASE	0x11c10000
++#define MT7988_IOCFG_TR_IES	0x40
++#define MT7988_IOCFG_TR_SMT	0xe0
++
+ /* the data is correct if the real baud is within 3%. */
+ #define BAUD_ALLOW_MAX(baud)	((baud) + (baud) * 3 / 100)
+ #define BAUD_ALLOW_MIX(baud)	((baud) - (baud) * 3 / 100)
+@@ -97,6 +109,16 @@
+ 	u32 fixed_clk_rate;
+ 	bool force_highspeed;
+ 	bool upstream_highspeed_logic;
++	fdt_addr_t base;
++	bool force_pins;
++	bool debug_pins;
++	u8 last_lsr;
++	u32 last_gpio_mode;
++	u32 last_di0;
++	u32 last_di1;
++	u32 last_di2;
++	bool last_valid;
++	ulong last_poll_ms;
+ };
+
+ static const unsigned short fraction_l_mapping[] = {
+@@ -210,6 +232,107 @@
+ }
+
+ #if CONFIG_IS_ENABLED(DM_SERIAL)
++static bool mtk_serial_is_uart2(struct mtk_serial_priv *priv)
++{
++	return priv->base == MT7988_UART2_BASE;
++}
++
++static void mtk_serial_force_pins(struct udevice *dev,
++				  struct mtk_serial_priv *priv)
++{
++	u32 val;
++
++	if (!mtk_serial_is_uart2(priv))
++		return;
++
++	val = readl((void *)(uintptr_t)(MT7988_GPIO_BASE + MT7988_GPIO_MODE_7));
++	val &= ~((0xf << 8) | (0xf << 12));
++	val |= (3 << 8) | (3 << 12);
++	writel(val, (void *)(uintptr_t)(MT7988_GPIO_BASE + MT7988_GPIO_MODE_7));
++
++	val = readl((void *)(uintptr_t)(MT7988_GPIO_BASE + MT7988_GPIO_DIR));
++	val &= ~((1U << 26) | (1U << 27));
++	writel(val, (void *)(uintptr_t)(MT7988_GPIO_BASE + MT7988_GPIO_DIR));
++
++	val = readl((void *)(uintptr_t)(MT7988_IOCFG_TR_BASE + MT7988_IOCFG_TR_IES));
++	val |= (1U << 4) | (1U << 5);
++	writel(val, (void *)(uintptr_t)(MT7988_IOCFG_TR_BASE + MT7988_IOCFG_TR_IES));
++
++	val = readl((void *)(uintptr_t)(MT7988_IOCFG_TR_BASE + MT7988_IOCFG_TR_SMT));
++	val |= (1U << 4) | (1U << 5);
++	writel(val, (void *)(uintptr_t)(MT7988_IOCFG_TR_BASE + MT7988_IOCFG_TR_SMT));
++
++	if (priv->debug_pins)
++		dev_info(dev, "uart2 pins forced to uart2_3_lite\n");
++}
++
++static void mtk_serial_debug_poll(struct udevice *dev,
++				  struct mtk_serial_priv *priv)
++{
++	u8 lsr;
++	u32 mode;
++	u32 di0;
++	u32 di1;
++	u32 di2;
++	u32 dir;
++	u32 highspeed;
++	u32 sample_count;
++	u32 sample_point;
++	u32 ratefix;
++	u32 chg0 = 0;
++	u32 chg1 = 0;
++	u32 chg2 = 0;
++	u8 prev_lsr;
++	bool changed;
++
++	if (!mtk_serial_is_uart2(priv))
++		return;
++
++	if (priv->last_poll_ms && get_timer(priv->last_poll_ms) < 100)
++		return;
++	priv->last_poll_ms = get_timer(0);
++
++	lsr = readl(&priv->regs->lsr);
++	mode = readl((void *)(uintptr_t)(MT7988_GPIO_BASE + MT7988_GPIO_MODE_7));
++	di0 = readl((void *)(uintptr_t)(MT7988_GPIO_BASE + MT7988_GPIO_DI0));
++	di1 = readl((void *)(uintptr_t)(MT7988_GPIO_BASE + MT7988_GPIO_DI));
++	di2 = readl((void *)(uintptr_t)(MT7988_GPIO_BASE + MT7988_GPIO_DI2));
++	dir = readl((void *)(uintptr_t)(MT7988_GPIO_BASE + MT7988_GPIO_DIR));
++	highspeed = readl(&priv->regs->highspeed);
++	sample_count = readl(&priv->regs->sample_count);
++	sample_point = readl(&priv->regs->sample_point);
++	ratefix = readl(&priv->regs->ratefix_ad);
++
++	if (priv->last_valid) {
++		chg0 = di0 ^ priv->last_di0;
++		chg1 = di1 ^ priv->last_di1;
++		chg2 = di2 ^ priv->last_di2;
++	}
++
++	changed = !priv->last_valid ||
++		  lsr != priv->last_lsr ||
++		  mode != priv->last_gpio_mode ||
++		  chg0 || chg1 || chg2;
++	if (!changed)
++		return;
++
++	prev_lsr = priv->last_valid ? priv->last_lsr : lsr;
++	dev_info(dev,
++		 "uart2 LSR %#x -> %#x DI58=%u DI59=%u DIchg0=%#x DIchg1=%#x DIchg2=%#x MODE=0x%08x M58=%u M59=%u DIR=0x%08x D58=%u D59=%u HIGHS=%#x SAMPLE_COUNT=%#x SAMPLE_POINT=%#x RATEFIX=%#x\n",
++		 prev_lsr, lsr, (di1 >> 26) & 1, (di1 >> 27) & 1,
++		 chg0, chg1, chg2, mode, (mode >> 8) & 0xf,
++		 (mode >> 12) & 0xf, dir, (dir >> 26) & 1,
++		 (dir >> 27) & 1, highspeed, sample_count,
++		 sample_point, ratefix);
++
++	priv->last_lsr = lsr;
++	priv->last_gpio_mode = mode;
++	priv->last_di0 = di0;
++	priv->last_di1 = di1;
++	priv->last_di2 = di2;
++	priv->last_valid = true;
++}
++
+ static int mtk_serial_setbrg(struct udevice *dev, int baudrate)
+ {
+ 	struct mtk_serial_priv *priv = dev_get_priv(dev);
+@@ -228,6 +347,9 @@
+ {
+ 	struct mtk_serial_priv *priv = dev_get_priv(dev);
+
++	if (priv->debug_pins)
++		mtk_serial_debug_poll(dev, priv);
++
+ 	return _mtk_serial_putc(priv, ch);
+ }
+
+@@ -235,6 +357,9 @@
+ {
+ 	struct mtk_serial_priv *priv = dev_get_priv(dev);
+
++	if (priv->debug_pins)
++		mtk_serial_debug_poll(dev, priv);
++
+ 	return _mtk_serial_getc(priv);
+ }
+
+@@ -242,6 +367,9 @@
+ {
+ 	struct mtk_serial_priv *priv = dev_get_priv(dev);
+
++	if (input && priv->debug_pins)
++		mtk_serial_debug_poll(dev, priv);
++
+ 	return _mtk_serial_pending(priv, input);
+ }
+
+@@ -259,6 +387,11 @@
+ 	if (priv->clk_bus.dev)
+ 		clk_enable(&priv->clk_bus);
+
++	if (priv->force_pins)
++		mtk_serial_force_pins(dev, priv);
++	if (priv->debug_pins)
++		mtk_serial_debug_poll(dev, priv);
++
+ 	return 0;
+ }
+
+@@ -272,6 +405,7 @@
+	if (addr == FDT_ADDR_T_NONE)
+		return -EINVAL;
+
++	priv->base = addr;
+	priv->regs = map_physmem(addr, 0, MAP_NOCACHE);
+
+	err = clk_get_by_index(dev, 0, &priv->clk);
+
+@@ -430,7 +430,9 @@
+ 	clk_get_by_name(dev, "bus", &priv->clk_bus);
+ 
+ 	priv->force_highspeed = dev_read_bool(dev, "mediatek,force-highspeed");
++	priv->force_pins = dev_read_bool(dev, "mediatek,force-pins");
++	priv->debug_pins = dev_read_bool(dev, "mediatek,debug-pins");
+ 	priv->upstream_highspeed_logic =
+ 		device_is_compatible(dev, "mediatek,mt6577-uart");
+ 

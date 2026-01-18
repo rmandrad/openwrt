@@ -1,0 +1,390 @@
+From 0a1b2c3d4e5f60718293a4b5c6d7e8f901234567 Mon Sep 17 00:00:00 2001
+From: Rudy Andram <rmandrad@gmail.com>
+Date: Sat, 18 Jan 2026 12:10:00 +0000
+Subject: [PATCH] serial: 8250_mtk: add debugfs regs dump and RX watchdog logging
+
+Issue: No kernel-side visibility into UART2 pinmux, DI levels, or LSR
+transitions while debugging missing RX.
+Solution: add debugfs regs output and a delayed poll that logs LSR plus GPIO
+DI/MODE/DIR and IOCFG IES/SMT, with optional pinctrl reapply (force_pins).
+
+Signed-off-by: Rudy Andram <rmandrad@gmail.com>
+
+--- a/drivers/tty/serial/8250/8250_mtk.c
++++ b/drivers/tty/serial/8250/8250_mtk.c
+@@ -7,9 +7,11 @@
+  */
+ #include <linux/clk.h>
+ #include <linux/io.h>
++#include <linux/debugfs.h>
+ #include <linux/module.h>
+ #include <linux/of_irq.h>
+ #include <linux/of_platform.h>
++#include <linux/of.h>
+ #include <linux/pinctrl/consumer.h>
+ #include <linux/platform_device.h>
+ #include <linux/pm_runtime.h>
+@@ -17,6 +19,9 @@
+ #include <linux/serial_reg.h>
+ #include <linux/console.h>
+ #include <linux/dma-mapping.h>
++#include <linux/jiffies.h>
++#include <linux/seq_file.h>
++#include <linux/workqueue.h>
+ #include <linux/tty.h>
+ #include <linux/tty_flip.h>
+ 
+@@ -57,6 +62,18 @@
+ #define MTK_UART_XON1		40	/* I/O: Xon character 1 */
+ #define MTK_UART_XOFF1		42	/* I/O: Xoff character 1 */
+ 
++#define MT7988_GPIO_BASE	0x1001f000
++#define MT7988_GPIO_SIZE	0x1000
++#define MT7988_GPIO_MODE_7	0x370
++#define MT7988_GPIO_DI0		0x200
++#define MT7988_GPIO_DI		0x210
++#define MT7988_GPIO_DI2		0x220
++#define MT7988_GPIO_DIR		0x010
++#define MT7988_IOCFG_TR_BASE	0x11c10000
++#define MT7988_IOCFG_TR_SIZE	0x1000
++#define MT7988_IOCFG_TR_IES	0x40
++#define MT7988_IOCFG_TR_SMT	0xe0
++
+ #ifdef CONFIG_SERIAL_8250_DMA
+ enum dma_rx_status {
+ 	DMA_RX_START = 0,
+@@ -75,6 +92,20 @@ struct mtk8250_data {
+ #ifdef CONFIG_SERIAL_8250_DMA
+ 	enum dma_rx_status	rx_status;
+ #endif
++#if IS_ENABLED(CONFIG_DEBUG_FS)
++	struct dentry		*debugfs_dir;
++	void __iomem		*gpio_base;
++	void __iomem		*iocfg_tr_base;
++	struct device		*dev;
++	struct delayed_work	rx_work;
++	bool			rx_watch;
++	bool			force_pins;
++	u8			last_lsr;
++	u32			last_di0;
++	u32			last_di1;
++	u32			last_di2;
++	u32			last_gpio_mode;
++#endif
+ 	int			rx_wakeup_irq;
+ };
+ 
+@@ -426,6 +457,264 @@ mtk8250_set_termios(struct uart_port *po
+ 		tty_termios_encode_baud_rate(termios, baud, baud);
+ }
+ 
++#if IS_ENABLED(CONFIG_DEBUG_FS)
++static struct dentry *mtk8250_debugfs_root;
++
++static int mtk8250_debugfs_show(struct seq_file *s, void *unused)
++{
++	struct uart_8250_port *up = s->private;
++	struct mtk8250_data *data = up->port.private_data;
++	unsigned long flags;
++	u32 val;
++
++	uart_port_lock_irqsave(&up->port, &flags);
++
++	seq_printf(s, "line=%d mapbase=%pa uartclk=%u regshift=%u\n",
++		   data->line, &up->port.mapbase, up->port.uartclk,
++		   up->port.regshift);
++	seq_printf(s, "LSR=%#x IIR=%#x IER=%#x LCR=%#x MCR=%#x MSR=%#x SCR=%#x\n",
++		   serial_in(up, UART_LSR),
++		   serial_in(up, UART_IIR),
++		   serial_in(up, UART_IER),
++		   serial_in(up, UART_LCR),
++		   serial_in(up, UART_MCR),
++		   serial_in(up, UART_MSR),
++		   serial_in(up, UART_SCR));
++	seq_printf(s, "HIGHS=%#x SAMPLE_COUNT=%#x SAMPLE_POINT=%#x RATE_FIX=%#x\n",
++		   serial_in(up, MTK_UART_HIGHS),
++		   serial_in(up, MTK_UART_SAMPLE_COUNT),
++		   serial_in(up, MTK_UART_SAMPLE_POINT),
++		   serial_in(up, MTK_UART_RATE_FIX));
++	seq_printf(s, "DMA_EN=%#x DEBUG0=%#x\n",
++		   serial_in(up, MTK_UART_DMA_EN),
++		   serial_in(up, MTK_UART_DEBUG0));
++
++	uart_port_unlock_irqrestore(&up->port, flags);
++
++	if (data->gpio_base) {
++		val = readl(data->gpio_base + MT7988_GPIO_MODE_7);
++		seq_printf(s, "gpio_mode=0x%08x mode58=%u mode59=%u\n",
++			   val, (val >> 8) & 0xf, (val >> 12) & 0xf);
++		val = readl(data->gpio_base + MT7988_GPIO_DI);
++		seq_printf(s, "gpio_di=0x%08x di58=%u di59=%u\n",
++			   val, (val >> 26) & 1, (val >> 27) & 1);
++		val = readl(data->gpio_base + MT7988_GPIO_DIR);
++		seq_printf(s, "gpio_dir=0x%08x dir58=%u dir59=%u\n",
++			   val, (val >> 26) & 1, (val >> 27) & 1);
++	}
++
++	if (data->iocfg_tr_base) {
++		val = readl(data->iocfg_tr_base + MT7988_IOCFG_TR_IES);
++		seq_printf(s, "iocfg_tr_ies=0x%08x ies58=%u ies59=%u\n",
++			   val, (val >> 4) & 1, (val >> 5) & 1);
++		val = readl(data->iocfg_tr_base + MT7988_IOCFG_TR_SMT);
++		seq_printf(s, "iocfg_tr_smt=0x%08x smt58=%u smt59=%u\n",
++			   val, (val >> 4) & 1, (val >> 5) & 1);
++	}
++
++	return 0;
++}
++
++static void mtk8250_rx_watch_work(struct work_struct *work)
++{
++	struct mtk8250_data *data = container_of(to_delayed_work(work),
++					 struct mtk8250_data, rx_work);
++	struct uart_8250_port *up;
++	unsigned long flags;
++	int ret;
++	u8 lsr;
++	u32 di0 = 0;
++	u32 di1 = 0;
++	u32 di2 = 0;
++	u32 mode = 0;
++	u32 chg0 = 0;
++	u32 chg1 = 0;
++	u32 chg2 = 0;
++	u32 chg_mode = 0;
++	bool di_valid = false;
++	bool mode_valid = false;
++
++	if (!data->rx_watch)
++		return;
++
++	if (data->force_pins && data->dev) {
++		ret = pinctrl_pm_select_default_state(data->dev);
++		if (ret)
++			dev_warn_ratelimited(data->dev,
++					     "pinctrl default state failed: %d\n",
++					     ret);
++	}
++
++	up = serial8250_get_port(data->line);
++	if (!up)
++		goto resched;
++
++	uart_port_lock_irqsave(&up->port, &flags);
++	lsr = serial_in(up, UART_LSR);
++	uart_port_unlock_irqrestore(&up->port, flags);
++
++	if (data->gpio_base) {
++		mode = readl(data->gpio_base + MT7988_GPIO_MODE_7);
++		di0 = readl(data->gpio_base + MT7988_GPIO_DI0);
++		di1 = readl(data->gpio_base + MT7988_GPIO_DI);
++		di2 = readl(data->gpio_base + MT7988_GPIO_DI2);
++		chg0 = di0 ^ data->last_di0;
++		chg1 = di1 ^ data->last_di1;
++		chg2 = di2 ^ data->last_di2;
++		chg_mode = mode ^ data->last_gpio_mode;
++		di_valid = true;
++		mode_valid = true;
++	}
++
++	if (lsr != data->last_lsr ||
++	    (di_valid && (chg0 || chg1 || chg2)) ||
++	    (mode_valid && chg_mode)) {
++		dev_info(up->port.dev,
++			"uart%d LSR %#x -> %#x DI58=%u DI59=%u MODE=0x%08x M58=%u M59=%u DIchg0=%#x DIchg1=%#x DIchg2=%#x\n",
++			 data->line, data->last_lsr, lsr,
++			 (di1 >> 26) & 0x1, (di1 >> 27) & 0x1,
++			 mode, (mode >> 8) & 0xf, (mode >> 12) & 0xf,
++			 chg0, chg1, chg2);
++		data->last_lsr = lsr;
++		if (di_valid) {
++			data->last_di0 = di0;
++			data->last_di1 = di1;
++			data->last_di2 = di2;
++		}
++		if (mode_valid)
++			data->last_gpio_mode = mode;
++	}
++
++resched:
++	schedule_delayed_work(&data->rx_work, msecs_to_jiffies(100));
++}
++
++static int mtk8250_rx_watch_get(void *arg, u64 *val)
++{
++	struct mtk8250_data *data = arg;
++
++	*val = data->rx_watch;
++	return 0;
++}
++
++static int mtk8250_rx_watch_set(void *arg, u64 val)
++{
++	struct mtk8250_data *data = arg;
++	struct uart_8250_port *up;
++	unsigned long flags;
++	u8 lsr;
++	u32 di0 = 0;
++	u32 di1 = 0;
++	u32 di2 = 0;
++	u32 mode = 0;
++
++	if (val && !data->rx_watch) {
++		data->rx_watch = true;
++		up = serial8250_get_port(data->line);
++		if (up) {
++			uart_port_lock_irqsave(&up->port, &flags);
++			lsr = serial_in(up, UART_LSR);
++			uart_port_unlock_irqrestore(&up->port, flags);
++			data->last_lsr = lsr;
++		}
++		if (data->gpio_base) {
++			mode = readl(data->gpio_base + MT7988_GPIO_MODE_7);
++			di0 = readl(data->gpio_base + MT7988_GPIO_DI0);
++			di1 = readl(data->gpio_base + MT7988_GPIO_DI);
++			di2 = readl(data->gpio_base + MT7988_GPIO_DI2);
++			data->last_di0 = di0;
++			data->last_di1 = di1;
++			data->last_di2 = di2;
++			data->last_gpio_mode = mode;
++		}
++		schedule_delayed_work(&data->rx_work, 0);
++	} else if (!val && data->rx_watch) {
++		data->rx_watch = false;
++		cancel_delayed_work_sync(&data->rx_work);
++	}
++
++	return 0;
++}
++
++static int mtk8250_force_pins_get(void *arg, u64 *val)
++{
++	struct mtk8250_data *data = arg;
++
++	*val = data->force_pins;
++	return 0;
++}
++
++static int mtk8250_force_pins_set(void *arg, u64 val)
++{
++	struct mtk8250_data *data = arg;
++	int ret = 0;
++
++	data->force_pins = !!val;
++	if (data->force_pins && data->dev) {
++		ret = pinctrl_pm_select_default_state(data->dev);
++		if (ret)
++			dev_warn(data->dev,
++				 "pinctrl default state failed: %d\n",
++				 ret);
++	}
++
++	return 0;
++}
++
++DEFINE_SIMPLE_ATTRIBUTE(mtk8250_force_pins_fops, mtk8250_force_pins_get,
++			  mtk8250_force_pins_set, "%llu\n");
++
++DEFINE_SIMPLE_ATTRIBUTE(mtk8250_rx_watch_fops, mtk8250_rx_watch_get,
++			  mtk8250_rx_watch_set, "%llu\n");
++
++static int mtk8250_debugfs_open(struct inode *inode, struct file *file)
++{
++	return single_open(file, mtk8250_debugfs_show, inode->i_private);
++}
++
++static const struct file_operations mtk8250_debugfs_fops = {
++	.open = mtk8250_debugfs_open,
++	.read = seq_read,
++	.llseek = seq_lseek,
++	.release = single_release,
++};
++
++static void mtk8250_debugfs_init(struct platform_device *pdev,
++				 struct mtk8250_data *data)
++{
++	struct uart_8250_port *up;
++
++	if (!mtk8250_debugfs_root)
++		mtk8250_debugfs_root = debugfs_create_dir("mtk8250", NULL);
++	if (IS_ERR_OR_NULL(mtk8250_debugfs_root))
++		return;
++
++	data->debugfs_dir = debugfs_create_dir(dev_name(&pdev->dev),
++					      mtk8250_debugfs_root);
++	if (IS_ERR_OR_NULL(data->debugfs_dir))
++		return;
++
++	up = serial8250_get_port(data->line);
++	if (!up)
++		return;
++
++	debugfs_create_file("regs", 0400, data->debugfs_dir, up,
++			    &mtk8250_debugfs_fops);
++	debugfs_create_file("force_pins", 0600, data->debugfs_dir, data,
++			    &mtk8250_force_pins_fops);
++	debugfs_create_file("rx_watch", 0600, data->debugfs_dir, data,
++			    &mtk8250_rx_watch_fops);
++}
++
++static void mtk8250_debugfs_exit(struct mtk8250_data *data)
++{
++	debugfs_remove_recursive(data->debugfs_dir);
++	cancel_delayed_work_sync(&data->rx_work);
++	data->rx_watch = false;
++	data->debugfs_dir = NULL;
++}
++#endif
++
+ static int __maybe_unused mtk8250_runtime_suspend(struct device *dev)
+ {
+ 	struct mtk8250_data *data = dev_get_drvdata(dev);
+@@ -543,6 +832,17 @@ static int mtk8250_probe(struct platform
+ 
+ 	data->clk_count = 0;
+ 
++#if IS_ENABLED(CONFIG_DEBUG_FS)
++	if (of_device_is_compatible(pdev->dev.of_node, "mediatek,mt7988-uart")) {
++		data->dev = &pdev->dev;
++		data->gpio_base = devm_ioremap(&pdev->dev, MT7988_GPIO_BASE,
++					       MT7988_GPIO_SIZE);
++		data->iocfg_tr_base = devm_ioremap(&pdev->dev,
++						   MT7988_IOCFG_TR_BASE,
++						   MT7988_IOCFG_TR_SIZE);
++	}
++#endif
++
+ 	if (pdev->dev.of_node) {
+ 		err = mtk8250_probe_of(pdev, &uart.port, data);
+ 		if (err)
+@@ -579,11 +879,19 @@ static int mtk8250_probe(struct platform
+ 	if (data->line < 0)
+ 		return data->line;
+ 
++#if IS_ENABLED(CONFIG_DEBUG_FS)
++	INIT_DELAYED_WORK(&data->rx_work, mtk8250_rx_watch_work);
++#endif
++
+ 	data->rx_wakeup_irq = platform_get_irq_optional(pdev, 1);
+ 
+ 	pm_runtime_set_active(&pdev->dev);
+ 	pm_runtime_enable(&pdev->dev);
+ 
++#if IS_ENABLED(CONFIG_DEBUG_FS)
++	mtk8250_debugfs_init(pdev, data);
++#endif
++
+ 	return 0;
+ }
+ 
+@@ -591,6 +899,10 @@ static void mtk8250_remove(struct platfo
+ {
+ 	struct mtk8250_data *data = platform_get_drvdata(pdev);
+ 
++#if IS_ENABLED(CONFIG_DEBUG_FS)
++	mtk8250_debugfs_exit(data);
++#endif
++
+ 	pm_runtime_get_sync(&pdev->dev);
+ 
+ 	serial8250_unregister_port(data->line);
