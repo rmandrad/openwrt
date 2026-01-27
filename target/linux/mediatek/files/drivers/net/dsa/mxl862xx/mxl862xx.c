@@ -15,15 +15,19 @@
 #include <linux/module.h>
 #include <linux/netdevice.h>
 #include <linux/of_device.h>
+#include <linux/of_mdio.h>
 #include <linux/phy.h>
 #include <net/dsa.h>
 #include <linux/dsa/8021q.h>
 #include <linux/stddef.h>
+#include <linux/version.h>
+#include <linux/gpio/consumer.h>
 
 #include "mxl862xx.h"
 #include "mxl862xx-api.h"
 #include "mxl862xx-cmd.h"
 #include "mxl862xx-host.h"
+#include "mxl862xx-firmware.h"
 
 
 #define MXL862XX_API_WRITE(dev, cmd, data) \
@@ -41,7 +45,7 @@
 #define MXL862XX_FDMA_PCTRLP(p) (0xA80 + ((p) * 0x6))
 #define MXL862XX_FDMA_PCTRL_EN BIT(0) /* FDMA Port Enable */
 
-#define MAX_VLAN_ENTRIES (1024 - 160)
+#define MAX_VLAN_ENTRIES (1024)
 #define IDX_INVAL (-1)
 
 #define INGRESS_FINAL_RULES 5
@@ -55,74 +59,62 @@
  */
 #define MAX_RULES_RECYCLED MAX_VLANS
 
-struct mxl862xx_mibs {
+struct mxl862xx_mib_desc {
 	unsigned int size;
 	unsigned int offset;
 	const char *name;
 };
 
-#define MIB_DESC(_name, _element)						\
+#define MIB_DESC(_size, _name, _element)						\
 {										\
+	.size = _size,								\
 	.name = _name,								\
-	.offset = offsetof(struct mxl862xx_debug_rmon_port_cnt, _element)	\
+	.offset = offsetof(struct mxl862xx_rmon_port_cnt, _element)	\
 }
 
-static const struct mxl862xx_mibs mxl862xx_mibs_rx[] = {
-	MIB_DESC("RxGoodPkts", rx_good_pkts),
-	MIB_DESC("RxUnicastPkts", rx_unicast_pkts),
-	MIB_DESC("RxBroadcastPkts", rx_broadcast_pkts),
-	MIB_DESC("RxMulticastPkts", rx_multicast_pkts),
-	MIB_DESC("RxFCSErrorPkts", rx_fcserror_pkts),
-	MIB_DESC("RxUnderSizeGoodPkts", rx_under_size_good_pkts),
-	MIB_DESC("RxOversizeGoodPkts", rx_oversize_error_pkts),
-	MIB_DESC("RxUnderSizeErrorPkts", rx_under_size_error_pkts),
-	MIB_DESC("RxOversizeErrorPkts", rx_oversize_error_pkts),
-	MIB_DESC("RxFilteredPkts", rx_filtered_pkts),
-	MIB_DESC("Rx64BytePkts", rx64byte_pkts),
-	MIB_DESC("Rx127BytePkts", rx127byte_pkts),
-	MIB_DESC("Rx255BytePkts", rx255byte_pkts),
-	MIB_DESC("Rx511BytePkts", rx511byte_pkts),
-	MIB_DESC("Rx1023BytePkts", rx1023byte_pkts),
-	MIB_DESC("RxMaxBytePkts", rx_max_byte_pkts),
-	MIB_DESC("RxDroppedPkts", rx_dropped_pkts),
-	MIB_DESC("RxExtendedVlanDiscardPkts", rx_extended_vlan_discard_pkts),
-	MIB_DESC("MtuExceedDiscardPkts", mtu_exceed_discard_pkts),
-	MIB_DESC("RxGoodBytes", rx_good_bytes),
-	MIB_DESC("RxBadBytes", rx_bad_bytes),
-	MIB_DESC("RxUnicastPktsYellowRed", rx_unicast_pkts_yellow_red),
-	MIB_DESC("RxBroadcastPktsYellowRed", rx_broadcast_pkts_yellow_red),
-	MIB_DESC("RxMulticastPktsYellowRed", rx_multicast_pkts_yellow_red),
-	MIB_DESC("RxGoodPktsYellowRed", rx_good_pkts_yellow_red),
-	MIB_DESC("RxGoodBytesYellowRed", rx_good_bytes_yellow_red),
-	MIB_DESC("RxGoodPausePkts", rx_good_pause_pkts),
-	MIB_DESC("RxAlignErrorPkts", rx_align_error_pkts),
-};
-
-static const struct mxl862xx_mibs mxl862xx_mibs_tx[] = {
-	MIB_DESC("TxGoodPkts", tx_good_pkts),
-	MIB_DESC("TxUnicastPkts", tx_unicast_pkts),
-	MIB_DESC("TxBroadcastPkts", tx_broadcast_pkts),
-	MIB_DESC("TxMulticastPkts", tx_multicast_pkts),
-	MIB_DESC("Tx64BytePkts", tx64byte_pkts),
-	MIB_DESC("Tx127BytePkts", tx127byte_pkts),
-	MIB_DESC("Tx255BytePkts", tx255byte_pkts),
-	MIB_DESC("Tx511BytePkts", tx511byte_pkts),
-	MIB_DESC("Tx1023BytePkts", tx1023byte_pkts),
-	MIB_DESC("TxMaxBytePkts", tx_max_byte_pkts),
-	MIB_DESC("TxDroppedPkts", tx_dropped_pkts),
-	MIB_DESC("TxAcmDroppedPkts", tx_acm_dropped_pkts),
-	MIB_DESC("TxGoodBytes", tx_good_bytes),
-	MIB_DESC("TxUnicastPktsYellowRed", tx_unicast_pkts_yellow_red),
-	MIB_DESC("TxBroadcastPktsYellowRed", tx_broadcast_pkts_yellow_red),
-	MIB_DESC("TxMulticastPktsYellowRed", tx_multicast_pkts_yellow_red),
-	MIB_DESC("TxGoodPktsYellowRed", tx_good_pkts_yellow_red),
-	MIB_DESC("TxGoodBytesYellowRed", tx_good_bytes_yellow_red),
-	MIB_DESC("TxSingleCollCount", tx_single_coll_count),
-	MIB_DESC("TxMultCollCount", tx_mult_coll_count),
-	MIB_DESC("TxLateCollCount", tx_late_coll_count),
-	MIB_DESC("TxExcessCollCount", tx_excess_coll_count),
-	MIB_DESC("TxCollCount", tx_coll_count),
-	MIB_DESC("TxPauseCount", tx_pause_count),
+static const struct mxl862xx_mib_desc mxl862xx_mib[] = {
+	MIB_DESC(1, "TxGoodPkts", tx_good_pkts),
+	MIB_DESC(1, "TxUnicastPkts", tx_unicast_pkts),
+	MIB_DESC(1, "TxBroadcastPkts", tx_broadcast_pkts),
+	MIB_DESC(1, "TxMulticastPkts", tx_multicast_pkts),
+	MIB_DESC(1, "Tx64BytePkts", tx64byte_pkts),
+	MIB_DESC(1, "Tx127BytePkts", tx127byte_pkts),
+	MIB_DESC(1, "Tx255BytePkts", tx255byte_pkts),
+	MIB_DESC(1, "Tx511BytePkts", tx511byte_pkts),
+	MIB_DESC(1, "Tx1023BytePkts", tx1023byte_pkts),
+	MIB_DESC(1, "TxMaxBytePkts", tx_max_byte_pkts),
+	MIB_DESC(1, "TxDroppedPkts", tx_dropped_pkts),
+	MIB_DESC(1, "TxAcmDroppedPkts", tx_acm_dropped_pkts),
+	MIB_DESC(2, "TxGoodBytes", tx_good_bytes),
+	MIB_DESC(1, "TxSingleCollCount", tx_single_coll_count),
+	MIB_DESC(1, "TxMultCollCount", tx_mult_coll_count),
+	MIB_DESC(1, "TxLateCollCount", tx_late_coll_count),
+	MIB_DESC(1, "TxExcessCollCount", tx_excess_coll_count),
+	MIB_DESC(1, "TxCollCount", tx_coll_count),
+	MIB_DESC(1, "TxPauseCount", tx_pause_count),
+	MIB_DESC(1, "RxGoodPkts", rx_good_pkts),
+	MIB_DESC(1, "RxUnicastPkts", rx_unicast_pkts),
+	MIB_DESC(1, "RxBroadcastPkts", rx_broadcast_pkts),
+	MIB_DESC(1, "RxMulticastPkts", rx_multicast_pkts),
+	MIB_DESC(1, "RxFCSErrorPkts", rx_fcserror_pkts),
+	MIB_DESC(1, "RxUnderSizeGoodPkts", rx_under_size_good_pkts),
+	MIB_DESC(1, "RxOversizeGoodPkts", rx_oversize_error_pkts),
+	MIB_DESC(1, "RxUnderSizeErrorPkts", rx_under_size_error_pkts),
+	MIB_DESC(1, "RxOversizeErrorPkts", rx_oversize_error_pkts),
+	MIB_DESC(1, "RxFilteredPkts", rx_filtered_pkts),
+	MIB_DESC(1, "Rx64BytePkts", rx64byte_pkts),
+	MIB_DESC(1, "Rx127BytePkts", rx127byte_pkts),
+	MIB_DESC(1, "Rx255BytePkts", rx255byte_pkts),
+	MIB_DESC(1, "Rx511BytePkts", rx511byte_pkts),
+	MIB_DESC(1, "Rx1023BytePkts", rx1023byte_pkts),
+	MIB_DESC(1, "RxMaxBytePkts", rx_max_byte_pkts),
+	MIB_DESC(1, "RxDroppedPkts", rx_dropped_pkts),
+	MIB_DESC(1, "RxExtendedVlanDiscardPkts", rx_extended_vlan_discard_pkts),
+	MIB_DESC(1, "MtuExceedDiscardPkts", mtu_exceed_discard_pkts),
+	MIB_DESC(2, "RxGoodBytes", rx_good_bytes),
+	MIB_DESC(2, "RxBadBytes", rx_bad_bytes),
+	MIB_DESC(1, "RxGoodPausePkts", rx_good_pause_pkts),
+	MIB_DESC(1, "RxAlignErrorPkts", rx_align_error_pkts),
 };
 
 static int mxl862xx_phy_read_mmd(struct mxl862xx_priv *priv, int port, int devadd, int reg)
@@ -156,7 +148,7 @@ static int mxl862xx_phy_write_mmd(struct mxl862xx_priv *priv, int port,
 
 	ret = MXL862XX_API_WRITE(priv, INT_GPHY_WRITE, param);
 	if (ret)
-		pr_debug("mxl862xx: failed to write mmd on port %d\n", port);
+		pr_err("mxl862xx: failed to write mmd on port %d\n", port);
 
 	return ret;
 }
@@ -170,18 +162,6 @@ static int mxl862xx_phy_write(struct dsa_switch *ds, int port, int reg,
 			      u16 data)
 {
 	return mxl862xx_phy_write_mmd(ds->priv, port, 0, reg, data);
-}
-
-static int mxl862xx_mmd_write(struct dsa_switch *ds, int reg, u16 data)
-{
-	struct mxl862xx_priv *priv = ds->priv;
-	int ret;
-
-	mutex_lock_nested(&priv->bus->mdio_lock, MDIO_MUTEX_NESTED);
-	ret = mxl862xx_write(priv, reg, data);
-	mutex_unlock(&priv->bus->mdio_lock);
-
-	return ret;
 }
 
 static int mxl862xx_update_bridge_conf_port(struct dsa_switch *ds, u8 port,
@@ -266,7 +246,8 @@ static int mxl862xx_update_bridge_conf_port(struct dsa_switch *ds, u8 port,
 		br_port_cfg.mask |=
 			MXL862XX_BRIDGE_PORT_CONFIG_MASK_BRIDGE_PORT_MAP |
 			MXL862XX_BRIDGE_PORT_CONFIG_MASK_BRIDGE_ID |
-			MXL862XX_BRIDGE_PORT_CONFIG_MASK_MC_SRC_MAC_LEARNING;
+			MXL862XX_BRIDGE_PORT_CONFIG_MASK_MC_SRC_MAC_LEARNING |
+			MXL862XX_BRIDGE_PORT_CONFIG_MASK_VLAN_BASED_MAC_LEARNING;
 
 		/* Skip the port itself in it's own portmap */
 		br_port_cfg.bridge_port_map[0] =
@@ -274,12 +255,15 @@ static int mxl862xx_update_bridge_conf_port(struct dsa_switch *ds, u8 port,
 
 		if (action) {
 			br_port_cfg.src_mac_learning_disable = !bridge;
+			br_port_cfg.vlan_src_mac_vid_enable = br_port_cfg.vlan_dst_mac_vid_enable =
+				(vlan_sp_tag) ? false : (bridge != NULL);
 			br_port_cfg.bridge_id = bridge_id;
 		} else {
 			/* When port is removed from the bridge, assign it back to the default
 			 * bridge 0
 			 */
 			br_port_cfg.src_mac_learning_disable = true;
+			br_port_cfg.vlan_src_mac_vid_enable = br_port_cfg.vlan_dst_mac_vid_enable = false;
 			/* Cleanup the port own map leaving only the CPU port mapping. */
 			if (i == port) {
 				br_port_cfg.bridge_port_map[0] = BIT(DSA_MXL_PORT(cpu_port));
@@ -2257,7 +2241,7 @@ static int mxl862xx_port_vlan_add(struct dsa_switch *ds, int port,
 			/* vlan_filtering disabled */
 			/* skiping this configuration for vlan_sp_tag/cpu port as it requires special rules defined above */
 			if (!priv->port_info[port].vlan.filtering) {
-				dev_info(ds->dev,
+				dev_dbg(ds->dev,
 					"%s: port:%d setting VLAN:%d with vlan_filtering disabled\n",
 					__func__, port, vid);
 				ret = prepare_vlan_ingress_filters_off_sp_tag(ds, port, vid);
@@ -2412,8 +2396,9 @@ static int mxl862xx_port_vlan_add(struct dsa_switch *ds, int port,
 	/* Update bridge port */
 	br_port_cfg.bridge_port_id = DSA_MXL_PORT(port);
 	br_port_cfg.mask |= MXL862XX_BRIDGE_PORT_CONFIG_MASK_EGRESS_VLAN |
-			     MXL862XX_BRIDGE_PORT_CONFIG_MASK_INGRESS_VLAN |
-				  MXL862XX_BRIDGE_PORT_CONFIG_MASK_MC_SRC_MAC_LEARNING;
+			    MXL862XX_BRIDGE_PORT_CONFIG_MASK_INGRESS_VLAN |
+				MXL862XX_BRIDGE_PORT_CONFIG_MASK_MC_SRC_MAC_LEARNING |
+				MXL862XX_BRIDGE_PORT_CONFIG_MASK_VLAN_BASED_MAC_LEARNING;
 	br_port_cfg.egress_extended_vlan_enable = true;
 	br_port_cfg.egress_extended_vlan_block_id =
 		priv->port_info[port].vlan.egress_vlan_block_info.block_id;
@@ -2422,8 +2407,9 @@ static int mxl862xx_port_vlan_add(struct dsa_switch *ds, int port,
 		priv->port_info[port].vlan.ingress_vlan_block_info.block_id;
 
 	/* Disable MAC learning for standalone ports. */
-	br_port_cfg.src_mac_learning_disable =
-				(standalone_port) ? true : false;
+	br_port_cfg.src_mac_learning_disable = (standalone_port) ? true : false;
+	br_port_cfg.vlan_src_mac_vid_enable = br_port_cfg.vlan_dst_mac_vid_enable =
+		(vlan_sp_tag) ? false : !standalone_port;
 
 	ret = MXL862XX_API_WRITE(priv, MXL862XX_BRIDGEPORT_CONFIGSET, br_port_cfg);
 	if (ret) {
@@ -2514,7 +2500,7 @@ static int mxl862xx_port_vlan_del(struct dsa_switch *ds, int port,
 static_rules_cleanup:
 		/* If this is the last vlan entry or no entries left,
 		 * remove static entries (placed at the end of the block) */
-		if (last_vlan && block_id) {
+		if (last_vlan && block_id != 0xffff) {
 			for (entry_idx = block_info->final_filters_idx; entry_idx < block_info->filters_max ; entry_idx++) {
 				ret = deactivate_vlan_filter_entry(ds, block_id, entry_idx);
 				if (ret)
@@ -2666,12 +2652,18 @@ static int mxl862xx_find_bridge_id(struct dsa_switch *ds, struct net_device *bri
 static int mxl862xx_mac_learning(struct dsa_switch *ds, int port, bool enable)
 {
 	struct mxl862xx_bridge_port_config param = {
-		.mask = MXL862XX_BRIDGE_PORT_CONFIG_MASK_MC_SRC_MAC_LEARNING,
+		.mask = MXL862XX_BRIDGE_PORT_CONFIG_MASK_MC_SRC_MAC_LEARNING |
+				MXL862XX_BRIDGE_PORT_CONFIG_MASK_VLAN_BASED_MAC_LEARNING,
 		.bridge_port_id = DSA_MXL_PORT(port),
 		.src_mac_learning_disable = !enable,
 	};
 	int ret;
+	struct mxl862xx_priv *priv = ds->priv;
+	u8 cpu_port = priv->cpu_port;
+	bool vlan_sp_tag = (priv->port_info[cpu_port].tag_protocol == DSA_TAG_PROTO_MXL862_8021Q);
 
+	param.vlan_src_mac_vid_enable = param.vlan_dst_mac_vid_enable =
+		(vlan_sp_tag) ? false : enable;
 	ret = MXL862XX_API_WRITE(ds->priv, MXL862XX_BRIDGEPORT_CONFIGSET, param);
 	if (ret)
 		dev_err(ds->dev, "failed to %s MAC learning on port %d\n",
@@ -2738,6 +2730,10 @@ static void mxl862xx_set_vlan_filter_limits(struct dsa_switch *ds)
 		vlan->ingress_vlan_block_info.filters_max - 1;
 	vlan->egress_vlan_block_info.final_filters_idx =
 		vlan->egress_vlan_block_info.filters_max - 1;
+
+	/* block_id uninitialized */
+	vlan->ingress_vlan_block_info.block_id = 0xffff;
+	vlan->egress_vlan_block_info.block_id = 0xffff;
 
 	/* Set limits and indexes required for processing VLAN rules for user ports */
 	for (i = 0; i < priv->hw_info->max_ports; i++) {
@@ -2952,7 +2948,11 @@ static int mxl862xx_setup_mdio(struct dsa_switch *ds)
 		return -ENOMEM;
 	bus->priv = ds->priv;
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 7, 0))
+	ds->slave_mii_bus = bus;
+#else
 	ds->user_mii_bus = bus;
+#endif
 	bus->name = KBUILD_MODNAME "-mii";
 	snprintf(bus->id, MII_BUS_ID_SIZE, KBUILD_MODNAME "-%d", idx++);
 	bus->read_c45 = mxl862xx_phy_read_c45_mii_bus;
@@ -2966,7 +2966,20 @@ static int mxl862xx_setup_mdio(struct dsa_switch *ds)
 	if (priv->hw_info->ext_ports <= 2)
 		 bus->phy_mask |= 0xff00;
 
+#if IS_ENABLED(CONFIG_OF_MDIO)
+	struct device_node *mdio_np;
+
+	mdio_np = of_get_child_by_name(dev->of_node, "mdio");
+	if (!mdio_np) {
+		dev_err(dev, "no MDIO bus node\n");
+		of_node_put(mdio_np);
+		return -ENODEV;
+	}
+	ret = devm_of_mdiobus_register(dev, bus, mdio_np);
+	of_node_put(mdio_np);
+#else
 	ret = devm_mdiobus_register(dev, bus);
+#endif
 	if (ret)
 		dev_err(dev, "failed to register MDIO bus: %d\n", ret);
 
@@ -3087,6 +3100,37 @@ static void mxl862xx_setup_pcs(struct mxl862xx_priv *priv, struct mxl862xx_pcs *
 	pcs->port = port;
 }
 
+#define MXL862XX_READY_TIMEOUT_MS	10000
+#define MXL862XX_READY_POLL_MS		100
+
+static int mxl862xx_wait_ready(struct mxl862xx_priv *priv)
+{
+	struct mxl862xx_sys_fw_image_version ver = {};
+	struct mxl862xx_cfg cfg = {};
+	unsigned long start = jiffies;
+	unsigned long timeout = start + msecs_to_jiffies(MXL862XX_READY_TIMEOUT_MS);
+	int ret;
+
+	do {
+		ret = MXL862XX_API_READ(priv, SYS_MISC_FW_VERSION, ver);
+		if (ret == 0 && (ver.iv_major || ver.iv_minor)) {
+			ret = MXL862XX_API_READ(priv, MXL862XX_COMMON_CFGGET, cfg);
+			if (ret == 0) {
+				dev_info(priv->dev, "switch ready after %u ms, firmware %u.%u.%u (build %u)\n",
+					 jiffies_to_msecs(jiffies - start),
+					 ver.iv_major, ver.iv_minor,
+					 le16_to_cpu(ver.iv_revision),
+					 le32_to_cpu(ver.iv_build_num));
+				return 0;
+			}
+		}
+		msleep(MXL862XX_READY_POLL_MS);
+	} while (time_before(jiffies, timeout));
+
+	dev_err(priv->dev, "switch not responding after reset\n");
+	return -ETIMEDOUT;
+}
+
 static int mxl862xx_setup(struct dsa_switch *ds)
 {
 	struct mxl862xx_priv *priv = ds->priv;
@@ -3096,6 +3140,18 @@ static int mxl862xx_setup(struct dsa_switch *ds)
 	struct mxl862xx_bridge_port_config br_port_cfg = {
 		.mask = MXL862XX_BRIDGE_PORT_CONFIG_MASK_BRIDGE_PORT_MAP,
 	};
+
+	gpiod_set_value_cansleep(priv->reset, 1);
+	usleep_range(5000, 5100);
+	gpiod_set_value_cansleep(priv->reset, 0);
+
+	ret = mxl862xx_wait_ready(priv);
+	if (ret)
+		return ret;
+
+	ret = mxl862xx_firmware_load(priv);
+	if (ret)
+		dev_warn(ds->dev, "firmware load failed: %d, continuing\n", ret);
 
 	priv->user_pnum = 0;
 	for (j = 0; j < ds->num_ports; j++) {
@@ -3116,19 +3172,6 @@ static int mxl862xx_setup(struct dsa_switch *ds)
 		dev_err(ds->dev, "failed to setup the mdio bus\n");
 		return ret;
 	}
-
-	/* trigger software reset */
-	ret = mxl862xx_mmd_write(ds, 1, 0);
-	if (ret) {
-		dev_err(ds->dev, "failed to reset switch\n");
-		return ret;
-	}
-	ret = mxl862xx_mmd_write(ds, 0, 0x9907);
-	if (ret) {
-		dev_err(ds->dev, "failed to reset switch\n");
-		return ret;
-	}
-	usleep_range(4000000, 6000000);
 
 	priv->port_info[priv->cpu_port].tag_protocol = mxl862_parse_tag_proto(ds, priv->cpu_port);
 
@@ -3292,7 +3335,7 @@ static void mxl862xx_phylink_mac_config(struct phylink_config *config, unsigned 
 
 		ret = MXL862XX_API_WRITE(dp->ds->priv, SYS_MISC_SFP_SET, ser_intf);
 		if (ret)
-			dev_err(dp->ds->dev, "failed to set intf on port %d (hw:%d,ser_port_id:%d) to %d (ret:%d)\n", dp->index,hw_port,ser_intf.port_id,ser_intf.speed,ret);
+			dev_err(dp->ds->dev, "failed to set intf on port %d\n", dp->index);
 	} else {
 		/* Internal phy */
 		if (state->interface != PHY_INTERFACE_MODE_INTERNAL) {
@@ -3349,29 +3392,27 @@ static void mxl862xx_phylink_mac_link_up(struct phylink_config *config,
 static void mxl862xx_get_ethtool_stats(struct dsa_switch *ds, int port,
 				       uint64_t *data)
 {
-	struct mxl862xx_debug_rmon_port_cnt param = {
+	struct mxl862xx_rmon_port_cnt param = {
+		.port_type = MXL862XX_CTP_PORT,
 		.port_id = DSA_MXL_PORT(port),
-		.port_type = MXL862XX_RMON_CTP_PORT_RX,
 	};
-	u8 *mibs = (void *)&param;
 	int ret, i;
 
-	ret = MXL862XX_API_READ(ds->priv, MXL862XX_DEBUG_RMON_PORT_GET, param);
+	ret = MXL862XX_API_READ(ds->priv, MXL862XX_RMON_PORT_GET, param);
 	if (ret) {
-		dev_err(ds->dev, "failed to read RX stats on port %d\n", port);
+		dev_err(ds->dev, "failed to read RMON stats on port %d\n", port);
 		return;
 	}
-	for (i = 0; i < ARRAY_SIZE(mxl862xx_mibs_rx); i++)
-		*data++ = (u32)mibs[mxl862xx_mibs_rx[i].offset];
 
-	param.port_type = MXL862XX_RMON_CTP_PORT_RX;
-	ret = MXL862XX_API_READ(ds->priv, MXL862XX_DEBUG_RMON_PORT_GET, param);
-	if (ret) {
-		dev_err(ds->dev, "failed to read RX stats on port %d\n", port);
-		return;
+	for (i = 0; i < ARRAY_SIZE(mxl862xx_mib); i++) {
+		const struct mxl862xx_mib_desc *mib = &mxl862xx_mib[i];
+		void *field = (u8 *)&param + mib->offset;
+
+		if (mib->size == 1)
+			*data++ = le32_to_cpu(*(__le32 *)field);
+		else
+			*data++ = le64_to_cpu(*(__le64 *)field);
 	}
-	for (i = 0; i < ARRAY_SIZE(mxl862xx_mibs_tx); i++)
-		*data++ = (u32)mibs[mxl862xx_mibs_tx[i].offset];
 }
 
 static void mxl862xx_get_strings(struct dsa_switch *ds, int port,
@@ -3382,11 +3423,8 @@ static void mxl862xx_get_strings(struct dsa_switch *ds, int port,
 	if (stringset != ETH_SS_STATS)
 		return;
 
-	for (i = 0; i < ARRAY_SIZE(mxl862xx_mibs_rx); i++)
-		ethtool_puts(&data, mxl862xx_mibs_rx[i].name);
-
-	for (i = 0; i < ARRAY_SIZE(mxl862xx_mibs_tx); i++)
-		ethtool_puts(&data, mxl862xx_mibs_tx[i].name);
+	for (i = 0; i < ARRAY_SIZE(mxl862xx_mib); i++)
+		ethtool_puts(&data, mxl862xx_mib[i].name);
 }
 
 static int mxl862xx_get_sset_count(struct dsa_switch *ds, int port, int sset)
@@ -3394,7 +3432,7 @@ static int mxl862xx_get_sset_count(struct dsa_switch *ds, int port, int sset)
 	if (sset != ETH_SS_STATS)
 		return 0;
 
-	return ARRAY_SIZE(mxl862xx_mibs_rx) + ARRAY_SIZE(mxl862xx_mibs_tx);
+	return ARRAY_SIZE(mxl862xx_mib);
 }
 
 static int mxl862xx_port_mirror_add(struct dsa_switch *ds, int port,
@@ -3735,6 +3773,12 @@ static int mxl862xx_probe(struct mdio_device *mdiodev)
 	ds->assisted_learning_on_cpu_port = true;
 
 	dev_set_drvdata(dev, ds);
+
+	priv->reset = devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_LOW);
+	if (IS_ERR(priv->reset)) {
+		dev_err(dev, "Couldn't get our reset line\n");
+		return PTR_ERR(priv->reset);
+	}
 
 	ret = dsa_register_switch(ds);
 	if (ret) {

@@ -92,6 +92,7 @@ struct mxl862xx_priv {
 	struct mii_bus *bus;
 	struct device *dev;
 	int sw_addr;
+	struct gpio_desc *reset;
 	const struct mxl862xx_hw_info *hw_info;
 	struct mxl862xx_port_info port_info[MAX_PORTS];
 	u16 bridge_portmap[MAX_BRIDGES];

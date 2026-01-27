@@ -765,13 +765,29 @@ enum mxl862xx_rmon_port_type {
 };
 
 /**
- * struct mxl862xx_debug_rmon_port_cnt - Port Counters
- * @port_id: Ethernet Port number
- * @port_type: See &enum mxl862xx_rmon_port_type
- * @rx_extended_vlan_discard_pkts: 
- * @mtu_exceed_discard_pkts: 
- * @tx_under_size_good_pkts: 
- * @tx_oversize_good_pkts: 
+ * struct mxl862xx_rmon_port_cnt - RMON Counters for physical port
+ * @port_type: Port Type. This gives information which type of port to get RMON.
+ *             port_id should be based on this field.
+ *             This is new in GSWIP-3.1. For GSWIP-2.1/2.2/3.0, this field is always
+ *             ZERO (GSW_LOGICAL_PORT).
+ * @port_id: Ethernet Port number (zero-based counting). The valid range is hardware
+ *           dependent. An error code is delivered if the selected port is not
+ *           available. This parameter specifies for which MAC port the RMON
+ *           counter is read. It has to be set by the application before
+ *           calling GSW_RMON_Port_Get.
+ * @sub_if_id_group: Sub interface ID group. The valid range is hardware/protocol dependent.
+ *                   This field is valid when ePortType is GSW_CTP_PORT.
+ *                   Sub interface ID group is defined for each of GSW_LogicalPortMode_t.
+ *                   For both GSW_LOGICAL_PORT_8BIT_WLAN and GSW_LOGICAL_PORT_9BIT_WLAN,
+ *                   this field is VAP. For GSW_LOGICAL_PORT_GPON, this field is GEM index.
+ *                   For GSW_LOGICAL_PORT_EPON, this field is stream index.
+ *                   For GSW_LOGICAL_PORT_GINT, this field is LLID.
+ *                   For others, this field is 0.
+ * @pce_bypass: Separate set of CTP Tx counters when PCE is bypassed. GSWIP-3.1 only.
+ * @rx_extended_vlan_discard_pkts: Discarded at Extended VLAN Operation Packet Count. GSWIP-3.1 only.
+ * @mtu_exceed_discard_pkts: Discarded MTU Exceeded Packet Count. GSWIP-3.1 only.
+ * @tx_under_size_good_pkts: Tx Undersize (<64) Packet Count. GSWIP-3.1 only.
+ * @tx_oversize_good_pkts: Tx Oversize (>1518) Packet Count. GSWIP-3.1 only.
  * @rx_good_pkts: Receive Packet Count (only packets that are accepted and not discarded).
  * @rx_unicast_pkts: Receive Unicast Packet Count.
  * @rx_broadcast_pkts: Receive Broadcast Packet Count.
@@ -812,20 +828,12 @@ enum mxl862xx_rmon_port_type {
  * @rx_good_bytes: Receive Good Byte Count (64 bit).
  * @rx_bad_bytes: Receive Bad Byte Count (64 bit).
  * @tx_good_bytes: Transmit Good Byte Count (64 bit).
- * @rx_unicast_pkts_yellow_red: Receive Unicast Packet Count for Yellow & Red packet.
- * @rx_broadcast_pkts_yellow_red: Receive Broadcast Packet Count for Yellow & Red packet.
- * @rx_multicast_pkts_yellow_red: Receive Multicast Packet Count for Yellow & Red packet.
- * @rx_good_bytes_yellow_red: Receive Good Byte Count (64 bit) for Yellow & Red packet.
- * @rx_good_pkts_yellow_red: Receive Packet Count for Yellow & Red packet.
- * @tx_unicast_pkts_yellow_red: Transmit Unicast Packet Count for Yellow & Red packet.
- * @tx_broadcast_pkts_yellow_red: Transmit Broadcast Packet Count for Yellow & Red packet.
- * @tx_multicast_pkts_yellow_red: Transmit Multicast Packet Count for Yellow & Red packet.
- * @tx_good_bytes_yellow_red: Transmit Good Byte Count (64 bit) for Yellow & Red packet.
- * @tx_good_pkts_yellow_red: Transmit Packet Count for Yellow & Red packet.
  */
-struct mxl862xx_debug_rmon_port_cnt {
+struct mxl862xx_rmon_port_cnt {
+	enum mxl862xx_port_type port_type;
 	__le16 port_id;
-	enum mxl862xx_rmon_port_type port_type;
+	__le16 sub_if_id_group;
+	u8 pce_bypass;
 	__le32 rx_extended_vlan_discard_pkts;
 	__le32 mtu_exceed_discard_pkts;
 	__le32 tx_under_size_good_pkts;
@@ -870,16 +878,6 @@ struct mxl862xx_debug_rmon_port_cnt {
 	__le64 rx_good_bytes;
 	__le64 rx_bad_bytes;
 	__le64 tx_good_bytes;
-	__le32 rx_unicast_pkts_yellow_red;
-	__le32 rx_broadcast_pkts_yellow_red;
-	__le32 rx_multicast_pkts_yellow_red;
-	__le64 rx_good_bytes_yellow_red;
-	__le32 rx_good_pkts_yellow_red;
-	__le32 tx_unicast_pkts_yellow_red;
-	__le32 tx_broadcast_pkts_yellow_red;
-	__le32 tx_multicast_pkts_yellow_red;
-	__le64 tx_good_bytes_yellow_red;
-	__le32 tx_good_pkts_yellow_red;
 } __packed;
 
 /**

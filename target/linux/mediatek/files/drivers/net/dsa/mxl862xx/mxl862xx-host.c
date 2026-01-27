@@ -14,7 +14,7 @@
 #define CTRL_BUSY_MASK BIT(15)
 #define CTRL_CMD_MASK (BIT(15) - 1)
 
-#define MAX_BUSY_LOOP 1000 /* roughly 10ms */
+#define MAX_BUSY_LOOP 10000 /* roughly 100ms */
 
 #define MXL862XX_MMD_DEV 30
 #define MXL862XX_MMD_REG_CTRL 0
@@ -100,7 +100,7 @@ error:
 	return res;
 }
 
-static int mxl862xx_read(struct mxl862xx_priv *dev, u32 addr)
+int mxl862xx_read(struct mxl862xx_priv *dev, u32 addr)
 {
 	if (dev->c22_extended)
 		return __mxl862xx_c22_ext_mmd_read(dev, dev->bus, dev->sw_addr, MXL862XX_MMD_DEV, addr);
@@ -276,4 +276,29 @@ int mxl862xx_api_wrap(struct mxl862xx_priv *priv, u16 cmd, void *_data,
 out:
 	mutex_unlock(&priv->bus->mdio_lock);
 	return ret;
+}
+
+#define SMDIO_ADDR_REG	0x1F
+#define SMDIO_DATA_REG	0x00
+
+int mxl862xx_smdio_read(struct mxl862xx_priv *dev, u16 addr)
+{
+	int ret;
+
+	ret = __mdiobus_write(dev->bus, dev->sw_addr, SMDIO_ADDR_REG, addr);
+	if (ret < 0)
+		return ret;
+
+	return __mdiobus_read(dev->bus, dev->sw_addr, SMDIO_DATA_REG);
+}
+
+int mxl862xx_smdio_write(struct mxl862xx_priv *dev, u16 addr, u16 data)
+{
+	int ret;
+
+	ret = __mdiobus_write(dev->bus, dev->sw_addr, SMDIO_ADDR_REG, addr);
+	if (ret < 0)
+		return ret;
+
+	return __mdiobus_write(dev->bus, dev->sw_addr, SMDIO_DATA_REG, data);
 }
