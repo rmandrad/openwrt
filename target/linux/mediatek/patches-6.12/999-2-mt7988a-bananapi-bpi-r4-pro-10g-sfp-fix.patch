@@ -1,0 +1,24 @@
+--- a/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4-pro.dtsi
++++ b/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4-pro.dtsi
+@@ -207,8 +207,8 @@
+ };
+ 
+ &gmac2 {
+-	phy-mode = "10gbase-r";
+-	phy-connection-type = "10gbase-r";
++	phy-mode = "10gbase-r";
++	phy-connection-type = "10gbase-r";
+ 	status = "okay";
+ 	fixed-link {
+ 		speed = <10000>;
+--- a/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4-pro-8x.dts
++++ b/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4-pro-8x.dts
+@@ -123,7 +123,7 @@
+ 			compatible = "mxl862xx,ds-mux";
+ 			reg = <12>;
+ 			chan-sel-gpios = <&pio 54 GPIO_ACTIVE_HIGH>;
+-			mod-def0-gpios = <&pio 4 GPIO_ACTIVE_LOW>;
++			mod-def0-gpios = <&pio 4 GPIO_ACTIVE_LOW>;
+ 			sfp-present-channel = <0>;
+ 			#address-cells = <1>;
+ 			#size-cells = <0>;

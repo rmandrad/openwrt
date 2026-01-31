@@ -1,0 +1,250 @@
+--- a/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4-pro.dtsi
++++ b/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4-pro.dtsi
+@@ -16,6 +16,8 @@
+ / {
+ 	aliases {
+ 		ethernet0 = &gmac0;
++		ethernet1 = &gmac1;
++		ethernet2 = &gmac2;
+ 		i2c0 = &i2c0;
+ 		i2c1 = &i2c1;
+ 		i2c2 = &i2c2;
+@@ -28,6 +30,8 @@
+ 
+ 	chosen {
+ 		stdout-path = &serial0;
++		bootargs = "console=ttyS0,115200n1 \
++			    earlycon=uart8250,mmio32,0x11000000";
+ 	};
+ 
+ 	fan: pwm-fan {
+@@ -196,6 +200,12 @@
+ 	status = "okay";
+ };
+ 
++&gmac1 {
++	phy-mode = "10gbase-r";
++	phy-connection-type = "10gbase-r";
++	status = "okay";
++};
++
+ &gmac2 {
+ 	phy-mode = "10gbase-r";
+ 	phy-connection-type = "10gbase-r";
+@@ -335,12 +345,17 @@
+ 				#gpio-cells = <2>;
+ 			};
+ 
+-			rtc@51 {
++			ina226: adc@40 {
++				compatible = "ti,ina226";
++				reg = <0x40>;
++			};
++
++			pcf8563: rtc@51 {
+ 				compatible = "nxp,pcf8563";
+ 				reg = <0x51>;
+ 			};
+ 
+-			eeprom@57 {
++			p24c02: eeprom@57 {
+ 				compatible = "atmel,24c02";
+ 				reg = <0x57>;
+ 				address-width = <8>;
+@@ -365,6 +380,14 @@
+ 			reg = <3>;
+ 			#address-cells = <1>;
+ 			#size-cells = <0>;
++
++			wifi_eeprom: eeprom@51 {
++				compatible = "atmel,24c02";
++				reg = <0x51>;
++				address-width = <8>;
++				pagesize = <8>;
++				size = <256>;
++			};
+ 		};
+ 	};
+ };
+@@ -453,6 +476,10 @@
+ 	};
+ };
+ 
++&mmc0 {
++	max-frequency = <48000000>;
++};
++
+ /* mPCIe SIM2 (11300000) */
+ &pcie0 {
+ 	status = "okay";
+@@ -565,6 +592,18 @@
+ 	status = "okay";
+ };
+ 
++&serial1 {
++	status = "okay";
++	//pinctrl-names = "default";
++	//pinctrl-0 = <&uart1_2_lite_pins>;
++};
++
++&serial2 {
++	status = "okay";
++	//pinctrl-names = "default";
++	//pinctrl-0 = <&uart2_3_pins>;
++};
++
+ &spi0 {
+ 	pinctrl-0 = <&spi0_flash_pins>;
+ 	pinctrl-names = "default";
+--- a/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4-pro-8x.dts
++++ b/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4-pro-8x.dts
+@@ -14,3 +14,149 @@
+ 		     "bananapi,bpi-r4-pro",
+ 		     "mediatek,mt7988a";
+ };
++
++&eth {
++	mux: mux-bus {
++		#address-cells = <1>;
++		#size-cells = <0>;
++		mux1: ethernet-mux@1 {
++			compatible = "mediatek,eth-mux";
++			reg = <1>; //map to gmac1
++			chan-sel-gpios = <&pio 3 GPIO_ACTIVE_HIGH>;
++			mod-def0-gpios = <&pio 1 GPIO_ACTIVE_LOW>; //also moddef0 of sfp2
++			sfp-present-channel = <1>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			channel_10: channel@0 {
++				reg = <0>;
++				phy-mode = "10gbase-r";
++				phy-connection-type = "10gbase-r";
++				phy-handle = <&phy28>;
++			};
++
++			channel_11: channel@1 {
++				reg = <1>;
++				phy-mode = "10gbase-r";
++				phy-connection-type = "10gbase-r";
++				managed = "in-band-status";
++				sfp = <&sfp2>;
++			};
++		};
++	};
++};
++
++&gmac1 {
++	phy-mode = "usxgmii";
++	phy-connection-type = "usxgmii";
++	phy-handle = <&phy28>;
++	status = "okay";
++};
++
++&mdio_bus {
++	/* external Airoha AN8831X connected to MXL switch */
++
++	phy24: ethernet-phy@24 {
++		reg = <24>;
++		compatible = "ethernet-phy-ieee802.3-c45";
++		reset-gpios = <&pio 83 GPIO_ACTIVE_LOW>; //change 5
++		reset-assert-us = <200000>;
++		reset-deassert-us = <350000>;
++		firmware-name = "aeonsemi/as21x1x_fw.bin";
++
++		leds {
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			phy24_led0: led@0 {
++				reg = <0>;
++				linux,default-trigger = "netdev";
++				active-high;
++				status = "okay";
++			};
++
++			phy24_led1: led@1 {
++				reg = <1>;
++				linux,default-trigger = "netdev";
++				active-high;
++				status = "okay";
++			};
++		};
++	};
++
++	/* external Airoha AN8831X connected to eth-mux on gmac1 */
++	phy28: ethernet-phy@28 {
++		reg = <28>;
++		compatible = "ethernet-phy-ieee802.3-c45";
++		reset-gpios = <&pio 82 GPIO_ACTIVE_LOW>;
++		reset-assert-us = <200000>;
++		reset-deassert-us = <350000>;
++		firmware-name = "aeonsemi/as21x1x_fw.bin";
++
++		leds {
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			phy28_led0: led@2 {
++				reg = <0>;
++				linux,default-trigger = "netdev";
++				active-high;
++				status = "okay";
++			};
++
++			phy28_led1: led@3 {
++				reg = <1>;
++				linux,default-trigger = "netdev";
++				active-high;
++				status = "okay";
++			};
++		};
++	};
++};
++
++&switch16 {
++	ds_mux: ds-mux-bus {
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		ds_mux0: ds-mux@0 {
++			compatible = "mxl862xx,ds-mux";
++			reg = <12>;
++			chan-sel-gpios = <&pio 54 GPIO_ACTIVE_HIGH>;
++			mod-def0-gpios = <&pio 4 GPIO_ACTIVE_LOW>;
++			sfp-present-channel = <0>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			ds_channel_0: channel@0 {
++				reg = <0>;
++				phy-mode = "usxgmii";
++				phy-connection-type = "usxgmii";
++				managed = "in-band-status";
++				sfp = <&sfp1>;
++			};
++
++			ds_channel_1: channel@1 {
++				reg = <1>;
++				phy-mode = "10gbase-r";
++				phy-connection-type = "10gbase-r";
++				phy-handle = <&phy24>;
++			};
++		};
++	};
++	ports {
++		port6: port@6 {
++			reg = <12>;
++			label = "lan4";
++			phy-mode = "usxgmii";
++			phy-handle = <&phy24>;
++			status = "okay";
++
++			fixed-link {
++				speed = <10000>;
++				full-duplex;
++			};
++		};
++
++	};
++};

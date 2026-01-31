@@ -99,8 +99,9 @@ mediatek_setup_interfaces()
 		ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4" "wan sfp-wan"
 		;;
 	bananapi,bpi-r4-pro-8x)
-		ucidef_set_interfaces_lan_wan "" "mgmt"
-		#ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4 lan5 lan6 sfp-lan" "wan sfp-wan"
+		#ucidef_set_interfaces_lan_wan "" "mgmt"
+		ucidef_set_interfaces_lan_wan "lan0 lan1 lan2 lan3 lan4 sfp-lan" "wan sfp-wan"
+		# mtk_sdk ucidef_set_interfaces_lan_wan "mxl_lan0 mxl_lan1 mxl_lan2 mxl_lan3 mxl_lan5 lan0 lan1 lan2 lan3" eth1
 		;;
 	comfast,cf-e393ax)
 		ucidef_set_interfaces_lan_wan "lan1" eth1

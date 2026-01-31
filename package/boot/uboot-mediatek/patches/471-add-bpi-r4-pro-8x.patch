@@ -148,7 +148,7 @@
 +CONFIG_HEXDUMP=y
 --- /dev/null
 +++ b/configs/mt7988a_bananapi_bpi-r4-pro-8x-sdmmc_defconfig
-@@ -0,0 +1,145 @@
+@@ -0,0 +1,147 @@
 +CONFIG_ARM=y
 +CONFIG_SYS_HAS_NONCACHED_MEMORY=y
 +CONFIG_POSITION_INDEPENDENT=y
@@ -167,6 +167,8 @@
 +CONFIG_DEBUG_UART_CLOCK=40000000
 +CONFIG_ENV_OFFSET_REDUND=0x440000
 +CONFIG_PCI=y
++CONFIG_CMD_MEMSIZE=y
++CONFIG_CMD_MEMINFO=y
 +CONFIG_DEBUG_UART=y
 +CONFIG_AHCI=y
 +CONFIG_FIT=y
@@ -680,7 +682,7 @@
 +&mmc0 {
 +	pinctrl-names = "default";
 +	pinctrl-0 = <&mmc1_pins_default>;
-+	max-frequency = <48000000>;
++	max-frequency = <52000000>;
 +	bus-width = <4>;
 +	cap-sd-highspeed;
 +	vmmc-supply = <&reg_3p3v>;

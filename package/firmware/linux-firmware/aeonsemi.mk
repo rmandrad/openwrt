@@ -3,7 +3,7 @@ define Package/aeonsemi-as21xxx-firmware/install
 	$(INSTALL_DIR) $(1)/lib/firmware/aeonsemi
 	$(CP) \
 		$(PKG_BUILD_DIR)/aeonsemi/as21x1x_fw.bin \
-		$(1)/lib/firmware
+		$(1)/lib/firmware/aeonsemi
 endef
 
 $(eval $(call BuildPackage,aeonsemi-as21xxx-firmware))
