@@ -1,0 +1,18 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Codex <codex@openai.com>
+Date: Wed, 15 Jan 2025 07:05:00 +0000
+Subject: [PATCH] pinctrl: mt7988: fix tops uart group names
+
+Use the correct "tops_uart0_1" and "tops_uart1_1" group names in the
+UART function group list.
+
+Signed-off-by: Codex <codex@openai.com>
+---
+ drivers/pinctrl/mediatek/pinctrl-mt7988.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/drivers/pinctrl/mediatek/pinctrl-mt7988.c
++++ b/drivers/pinctrl/mediatek/pinctrl-mt7988.c
+@@ -1209,1 +1209,1 @@ static const char *const mt7988_uart_groups[] = { "uart2", "tops_uart0_0",
+-	"tops_uart1_0", "ops_uart0_1", "ops_uart1_1",
++	"tops_uart1_0", "tops_uart0_1", "tops_uart1_1",

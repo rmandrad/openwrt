@@ -1,0 +1,93 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Codex <codex@openai.com>
+Date: Thu, 16 Jan 2025 06:45:00 +0000
+Subject: [PATCH] mt7988: init UART2 pinmux early for TF-A console
+
+Add an early pinmux hook so UART2 pins are configured before the
+console is registered in BL2, and keep UART2 pinmux in the default
+pinmux setup to avoid later overrides.
+
+Signed-off-by: Codex <codex@openai.com>
+---
+ plat/mediatek/apsoc_common/bl2/bl2_plat_setup.c | 11 +++++++++++
+ plat/mediatek/mt7988/bl2/bl2_plat_init.c        |  5 +++++
+ plat/mediatek/mt7988/drivers/gpio/mt7988_gpio.c |  7 +++++++
+ plat/mediatek/mt7988/drivers/gpio/mt7988_gpio.h |  1 +
+ 4 files changed, 24 insertions(+)
+
+--- a/plat/mediatek/apsoc_common/bl2/bl2_plat_setup.c
++++ b/plat/mediatek/apsoc_common/bl2/bl2_plat_setup.c
+@@ -30,5 +30,7 @@
+ #ifdef MTK_PLAT_KEY
+ #include <mtk_plat_key.h>
+ #endif
++
++#pragma weak plat_early_pinmux_init
+ 
+ struct plat_io_policy {
+@@ -425,11 +425,16 @@ void plat_flush_next_bl_params(void)
+ #endif
+ }
+ 
++void plat_early_pinmux_init(void)
++{
++}
++
+ void bl2_el3_early_platform_setup(u_register_t arg0, u_register_t arg1,
+ 				  u_register_t arg2, u_register_t arg3)
+ {
+ 	static console_t console;
+ 
++	plat_early_pinmux_init();
+ 	console_hsuart_register(UART_BASE, UART_CLOCK, UART_BAUDRATE,
+ 			        true, &console);
+ }
+--- a/plat/mediatek/mt7988/bl2/bl2_plat_init.c
++++ b/plat/mediatek/mt7988/bl2/bl2_plat_init.c
+@@ -172,6 +172,11 @@ static void mtk_eip197_init(void)
+ #endif
+ }
+ 
++void plat_early_pinmux_init(void)
++{
++	mt7988_uart2_pinmux_init();
++}
++
+ void bl2_el3_plat_arch_setup(void)
+ {
+ 	plat_mt_cpuxgpt_init();
+--- a/plat/mediatek/mt7988/drivers/gpio/mt7988_gpio.c
++++ b/plat/mediatek/mt7988/drivers/gpio/mt7988_gpio.c
+@@ -398,6 +398,12 @@ void mtk_pin_init(void)
+ {
+ 	gpio_init(&mtgpio_ops);
+ }
+ 
++void mt7988_uart2_pinmux_init(void)
++{
++	mt_set_pinmux_mode(58, GPIO_MODE_03);
++	mt_set_pinmux_mode(59, GPIO_MODE_03);
++}
++
+ void mt7988_set_default_pinmux(void)
+ {
+ #ifdef ENABLE_JTAG
+@@ -417,6 +417,8 @@ void mt7988_set_default_pinmux(void)
+ 	mt_set_pinmux_mode(61, GPIO_MODE_00);
+ 	mt_set_pinmux_mode(62, GPIO_MODE_00);
+ #endif
++	mt7988_uart2_pinmux_init();
++
+ 	/* PMIC */
+ 	mt_set_pinmux_mode(15, GPIO_MODE_00);
+ 	mt_set_pinmux_mode(16, GPIO_MODE_00);
+--- a/plat/mediatek/mt7988/drivers/gpio/mt7988_gpio.h
++++ b/plat/mediatek/mt7988/drivers/gpio/mt7988_gpio.h
+@@ -419,6 +419,7 @@ const struct mt_pin_info mt7988_pin_infos[] = {
+ };
+ 
+ void mtk_pin_init(void);
++void mt7988_uart2_pinmux_init(void);
+ void mt7988_set_default_pinmux(void);
+ void mt_set_gpio_dir(int gpio, int direction);
+ int mt_get_gpio_dir(int gpio);

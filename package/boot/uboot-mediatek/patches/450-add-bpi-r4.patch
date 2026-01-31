@@ -14,7 +14,7 @@ Signed-off-by: Rudy Andram <rmandrad@gmail.com>
 
 --- /dev/null
 +++ b/configs/mt7988a_bananapi_bpi-r4-emmc_defconfig
-@@ -0,0 +1,139 @@
+@@ -0,0 +1,140 @@
 +CONFIG_ARM=y
 +CONFIG_SYS_HAS_NONCACHED_MEMORY=y
 +CONFIG_POSITION_INDEPENDENT=y
@@ -31,6 +31,7 @@ Signed-off-by: Rudy Andram <rmandrad@gmail.com>
 +CONFIG_PRE_CON_BUF_ADDR=0x4007EF00
 +CONFIG_DEBUG_UART_BASE=0x11000200
 +CONFIG_DEBUG_UART_CLOCK=40000000
++CONFIG_DEBUG_UART_ANNOUNCE=y
 +CONFIG_ENV_OFFSET_REDUND=0x440000
 +CONFIG_PCI=y
 +CONFIG_DEBUG_UART=y
@@ -156,7 +157,7 @@ Signed-off-by: Rudy Andram <rmandrad@gmail.com>
 +CONFIG_HEXDUMP=y
 --- /dev/null
 +++ b/configs/mt7988a_bananapi_bpi-r4-sdmmc_defconfig
-@@ -0,0 +1,139 @@
+@@ -0,0 +1,140 @@
 +CONFIG_ARM=y
 +CONFIG_SYS_HAS_NONCACHED_MEMORY=y
 +CONFIG_POSITION_INDEPENDENT=y
@@ -173,6 +174,7 @@ Signed-off-by: Rudy Andram <rmandrad@gmail.com>
 +CONFIG_PRE_CON_BUF_ADDR=0x4007EF00
 +CONFIG_DEBUG_UART_BASE=0x11000200
 +CONFIG_DEBUG_UART_CLOCK=40000000
++CONFIG_DEBUG_UART_ANNOUNCE=y
 +CONFIG_ENV_OFFSET_REDUND=0x440000
 +CONFIG_PCI=y
 +CONFIG_DEBUG_UART=y
@@ -185,7 +187,7 @@ Signed-off-by: Rudy Andram <rmandrad@gmail.com>
 +CONFIG_DEFAULT_FDT_FILE="mediatek/mt7988a-bpi-r4-sd.dtb"
 +CONFIG_SYS_CBSIZE=512
 +CONFIG_SYS_PBSIZE=1049
-+CONFIG_LOGLEVEL=7
++CONFIG_LOGLEVEL=8
 +CONFIG_PRE_CONSOLE_BUFFER=y
 +CONFIG_LOG=y
 +# CONFIG_BOARD_INIT is not set
@@ -674,7 +676,7 @@ Signed-off-by: Rudy Andram <rmandrad@gmail.com>
 +_bootmenu_update_title=setenv _bootmenu_update_title ; setenv bootmenu_title "$bootmenu_title       [33m$ver[0m"
 --- /dev/null
 +++ b/arch/arm/dts/mt7988a-bananapi-bpi-r4.dtsi
-@@ -0,0 +1,223 @@
+@@ -0,0 +1,215 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Copyright (c) 2022 MediaTek Inc.
@@ -751,9 +753,7 @@ Signed-off-by: Rudy Andram <rmandrad@gmail.com>
 +&uart2 {
 +	pinctrl-names = "default";
 +	pinctrl-0 = <&uart2_3_pins>;
-+	mediatek,force-pins;
 +	mediatek,debug-pins;
-+	mediatek,force-highspeed;
 +	status = "okay";
 +};
 +
@@ -788,12 +788,6 @@ Signed-off-by: Rudy Andram <rmandrad@gmail.com>
 +		mux {
 +			function = "uart";
 +			groups = "uart2_3_lite";
-+		};
-+		conf-rx {
-+			pins = "JTAG_JTDI";
-+			bias-pull-up;
-+			input-enable;
-+			input-schmitt-enable;
 +		};
 +	};
 +

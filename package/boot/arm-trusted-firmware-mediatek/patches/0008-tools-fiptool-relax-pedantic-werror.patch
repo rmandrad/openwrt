@@ -1,0 +1,24 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Codex <codex@openai.com>
+Date: Wed, 15 Jan 2025 06:20:00 +0000
+Subject: [PATCH] tools: fiptool: relax pedantic Werror for host headers
+
+OpenWrt's host include wrappers use #include_next, which triggers
+-Wpedantic and becomes a hard error with -Werror. Keep pedantic checks,
+but allow them to stay as warnings so host builds don't fail.
+
+Signed-off-by: Codex <codex@openai.com>
+---
+ tools/fiptool/Makefile | 1 +
+ 1 file changed, 1 insertion(+)
+
+--- a/tools/fiptool/Makefile
++++ b/tools/fiptool/Makefile
+@@ -17,6 +17,7 @@ STATIC ?= 0
+ 
+ override CPPFLAGS += -D_GNU_SOURCE -D_XOPEN_SOURCE=700
+ HOSTCCFLAGS := -Wall -Werror -pedantic -std=c99
++HOSTCCFLAGS += -Wno-error=pedantic
+ ifeq (${DEBUG},1)
+   HOSTCCFLAGS += -g -O0 -DDEBUG
+ else
