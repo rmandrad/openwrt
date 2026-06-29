@@ -1,0 +1,117 @@
+ath11k-add-kernel-6_12
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+diff --git a/drivers/net/wireless/ath/ath11k/core.c b/drivers/net/wireless/ath/ath11k/core.c
+index 82cf039..cb44163 100644
+--- a/drivers/net/wireless/ath/ath11k/core.c
++++ b/drivers/net/wireless/ath/ath11k/core.c
+@@ -2917,13 +2917,13 @@ err_sc_free:
+ }
+ EXPORT_SYMBOL(ath11k_core_alloc);
+ 
+-int ath11k_init(void)
++static int ath11k_init(void)
+ {
+ 	return ath11k_debugfs_create();
+ }
+ module_init(ath11k_init);
+ 
+-void ath11k_exit(void)
++static void ath11k_exit(void)
+ {
+ 	ath11k_debugfs_destroy();
+ }
+diff --git a/drivers/net/wireless/ath/ath11k/dp_rx.c b/drivers/net/wireless/ath/ath11k/dp_rx.c
+index 8afe6d3..cd01fbf 100644
+--- a/drivers/net/wireless/ath/ath11k/dp_rx.c
++++ b/drivers/net/wireless/ath/ath11k/dp_rx.c
+@@ -1732,7 +1732,7 @@ struct htt_ppdu_stats_info *ath11k_dp_htt_get_ppdu_desc(struct ath11k *ar,
+ 	return ppdu_info;
+ }
+ 
+-void ath11k_copy_to_delay_stats(struct ath11k_peer *peer,
++static void ath11k_copy_to_delay_stats(struct ath11k_peer *peer,
+ 				  struct htt_ppdu_user_stats* usr_stats)
+ {
+ 	peer->ppdu_stats_delayba.reserved0 = usr_stats->rate.reserved0;
+@@ -1747,7 +1747,7 @@ void ath11k_copy_to_delay_stats(struct ath11k_peer *peer,
+ 	peer->delayba_flag = true;
+ }
+ 
+-void ath11k_copy_to_bar(struct ath11k_peer *peer,
++static void ath11k_copy_to_bar(struct ath11k_peer *peer,
+ 			struct htt_ppdu_user_stats* usr_stats)
+ {
+ 	usr_stats->rate.reserved0 = peer->ppdu_stats_delayba.reserved0;
+diff --git a/drivers/net/wireless/ath/ath11k/mac.c b/drivers/net/wireless/ath/ath11k/mac.c
+index 6c4a0cc..7d154ef 100644
+--- a/drivers/net/wireless/ath/ath11k/mac.c
++++ b/drivers/net/wireless/ath/ath11k/mac.c
+@@ -719,7 +719,7 @@ u8 ath11k_mac_get_target_pdev_id(struct ath11k *ar)
+ 		return ar->ab->target_pdev_ids[0].pdev_id;
+ }
+ 
+-struct ath11k_vif *ath11k_mac_get_ap_arvif_by_addr(struct ath11k_base *ab,
++static struct ath11k_vif *ath11k_mac_get_ap_arvif_by_addr(struct ath11k_base *ab,
+ 						   const u8 *addr)
+ {
+ 	int i;
+diff --git a/drivers/net/wireless/ath/ath11k/nss.c b/drivers/net/wireless/ath/ath11k/nss.c
+index 6a0f6b6..cde9519 100644
+--- a/drivers/net/wireless/ath/ath11k/nss.c
++++ b/drivers/net/wireless/ath/ath11k/nss.c
+@@ -307,7 +307,7 @@ static void ath11k_nss_peer_mem_free(struct ath11k_base *ab, u32 peer_id)
+ 
+ /*-----------------------------Events/Callbacks------------------------------*/
+ 
+-void ath11k_nss_wifili_event_receive(void *context, struct nss_wifili_msg *msg)
++static void ath11k_nss_wifili_event_receive(void *context, struct nss_wifili_msg *msg)
+ {
+ 	u32 msg_type = msg->cm.type;
+ 	enum nss_cmn_response response = msg->cm.response;
+@@ -412,7 +412,7 @@ void ath11k_nss_wifili_event_receive(void *context, struct nss_wifili_msg *msg)
+ 	}
+ }
+ 
+-void ath11k_nss_process_mic_error(struct ath11k_base *ab, struct sk_buff *skb)
++static void ath11k_nss_process_mic_error(struct ath11k_base *ab, struct sk_buff *skb)
+ {
+ 	struct ath11k_vif *arvif;
+ 	struct ath11k *ar;
+@@ -517,7 +517,7 @@ static inline void ath11k_nss_wifili_ext_callback_wrapper(struct net_device *net
+ 	ath11k_nss_wifili_ext_callback_fn(ab, skb, napi);
+ }
+ 
+-void ath11k_nss_vdev_cfg_cb(void *app_data, struct nss_cmn_msg *msg)
++static void ath11k_nss_vdev_cfg_cb(void *app_data, struct nss_cmn_msg *msg)
+ {
+ 	struct ath11k_vif *arvif = (struct ath11k_vif *)app_data;
+ 
+@@ -3131,7 +3131,7 @@ void ath11k_nss_peer_stats_enable(struct ath11k *ar)
+ 			     ATH11K_NSS_STATS_ENABLE);
+ }
+ 
+-int ath11k_nss_pdev_init(struct ath11k_base *ab, int radio_id)
++static int ath11k_nss_pdev_init(struct ath11k_base *ab, int radio_id)
+ {
+ 	struct ath11k *ar = ab->pdevs[radio_id].ar;
+ 	struct nss_wifili_pdev_init_msg *pdevmsg;
+@@ -3265,7 +3265,7 @@ dealloc:
+ /* TODO : Check if start, reset and stop messages can be done using single function as
+  * body is similar, having it now for clarity */
+ 
+-int ath11k_nss_start(struct ath11k_base *ab)
++static int ath11k_nss_start(struct ath11k_base *ab)
+ {
+ 	struct nss_wifili_msg *wlmsg = NULL;
+ 	nss_wifili_msg_callback_t msg_cb;
+@@ -3430,7 +3430,7 @@ free:
+ 	return ret;
+ }
+ 
+-int ath11k_nss_pdev_deinit(struct ath11k_base *ab, int radio_id)
++static int ath11k_nss_pdev_deinit(struct ath11k_base *ab, int radio_id)
+ {
+ 	struct ath11k *ar = ab->pdevs[radio_id].ar;
+ 	struct nss_wifili_pdev_deinit_msg *deinit;
