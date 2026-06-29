@@ -1,0 +1,39 @@
+From: Julius Bairaktaris <julius@bairaktaris.de>
+Subject: wifi: ath11k: do not warn about HTT event 48
+
+The NSS offload firmware periodically sends HTT T2H message type 48
+(0x30) on every radio start; the driver has no consumer for it and
+logged "htt event 48 not handled" at warning level on each occurrence.
+Give the type a name and drop it quietly.
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+diff --git a/drivers/net/wireless/ath/ath11k/dp.h b/drivers/net/wireless/ath/ath11k/dp.h
+index c504ae5..3ed1c07 100644
+--- a/drivers/net/wireless/ath/ath11k/dp.h
++++ b/drivers/net/wireless/ath/ath11k/dp.h
+@@ -1099,6 +1099,7 @@ enum htt_t2h_msg_type {
+ 	HTT_T2H_MSG_TYPE_PPDU_STATS_IND = 0x1d,
+ 	HTT_T2H_MSG_TYPE_EXT_STATS_CONF = 0x1c,
+ 	HTT_T2H_MSG_TYPE_BKPRESSURE_EVENT_IND = 0x24,
++	HTT_T2H_MSG_TYPE_NSS_PERIODIC_STATS = 0x30,
+ };
+ 
+ #define HTT_TARGET_VERSION_MAJOR 3
+diff --git a/drivers/net/wireless/ath/ath11k/dp_rx.c b/drivers/net/wireless/ath/ath11k/dp_rx.c
+index 8d2e3cc..716d698 100644
+--- a/drivers/net/wireless/ath/ath11k/dp_rx.c
++++ b/drivers/net/wireless/ath/ath11k/dp_rx.c
+@@ -2021,6 +2021,12 @@ void ath11k_dp_htt_htc_t2h_msg_handler(struct ath11k_base *ab,
+ 	case HTT_T2H_MSG_TYPE_BKPRESSURE_EVENT_IND:
+ 		ath11k_htt_backpressure_event_handler(ab, skb);
+ 		break;
++	case HTT_T2H_MSG_TYPE_NSS_PERIODIC_STATS:
++		/*
++		 * Periodic indication from the NSS offload firmware; this
++		 * driver has nothing to feed it into, drop it quietly.
++		 */
++		break;
+ 	default:
+ 		ath11k_warn(ab, "htt event %d not handled\n", type);
+ 		break;

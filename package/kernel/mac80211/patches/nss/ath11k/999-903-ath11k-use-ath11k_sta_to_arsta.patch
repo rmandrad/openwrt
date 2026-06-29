@@ -1,0 +1,53 @@
+ath11k-use-ath11k_sta_to_arsta
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+diff --git a/drivers/net/wireless/ath/ath11k/debugfs_sta.c b/drivers/net/wireless/ath/ath11k/debugfs_sta.c
+index c30c89e..31a2f44 100644
+--- a/drivers/net/wireless/ath/ath11k/debugfs_sta.c
++++ b/drivers/net/wireless/ath/ath11k/debugfs_sta.c
+@@ -1063,7 +1063,7 @@ static ssize_t ath11k_dbg_sta_reset_rx_stats(struct file *file,
+ 					     size_t count, loff_t *ppos)
+ {
+ 	struct ieee80211_sta *sta = file->private_data;
+-	struct ath11k_sta *arsta = (struct ath11k_sta *)sta->drv_priv;
++	struct ath11k_sta *arsta = ath11k_sta_to_arsta(sta);
+ 	struct ath11k *ar = arsta->arvif->ar;
+ 	int ret, reset;
+ 
+diff --git a/drivers/net/wireless/ath/ath11k/dp_rx.c b/drivers/net/wireless/ath/ath11k/dp_rx.c
+index 7f225a3..7a4609f 100644
+--- a/drivers/net/wireless/ath/ath11k/dp_rx.c
++++ b/drivers/net/wireless/ath/ath11k/dp_rx.c
+@@ -2834,8 +2834,7 @@ static void ath11k_dp_rx_h_mpdu(struct ath11k *ar,
+ 				msdu->protocol = eth_type_trans(msdu, msdu->dev);
+ 				napi_gro_receive(rxcb->napi, msdu);
+ 				if (peer->sta)
+-					arsta =
+-					(struct ath11k_sta *)peer->sta->drv_priv;
++					arsta = ath11k_sta_to_arsta(peer->sta);
+ 				return;
+ 			}
+ 		}
+@@ -6096,7 +6095,7 @@ int ath11k_dp_rx_process_mon_status(struct ath11k_base *ab, int mac_id,
+ 
+ 		if ((ppdu_info->fc_valid) &&
+ 		    (ppdu_info->ast_index != HAL_AST_IDX_INVALID)) {
+-			arsta = (struct ath11k_sta *)peer->sta->drv_priv;
++			arsta = ath11k_sta_to_arsta(peer->sta);
+ 			ath11k_dp_rx_update_peer_stats(arsta, ppdu_info);
+ 			if (ar->ab->nss.enabled)
+ 				ath11k_nss_update_sta_rxrate(ppdu_info, peer, NULL);
+diff --git a/drivers/net/wireless/ath/ath11k/mac.c b/drivers/net/wireless/ath/ath11k/mac.c
+index c00ec87..6c4a0cc 100644
+--- a/drivers/net/wireless/ath/ath11k/mac.c
++++ b/drivers/net/wireless/ath/ath11k/mac.c
+@@ -4488,7 +4488,7 @@ static int ath11k_mac_op_set_key(struct ieee80211_hw *hw, enum set_key_cmd cmd,
+ 	mutex_lock(&ar->conf_mutex);
+ 	if (sta) {
+ 		peer_addr = sta->addr;
+-		arsta = (struct ath11k_sta *)sta->drv_priv;
++		arsta = ath11k_sta_to_arsta(sta);
+ 	} else if (arvif->vdev_type == WMI_VDEV_TYPE_STA) {
+ 		peer_addr = vif->bss_conf.bssid;
+ 	} else {
