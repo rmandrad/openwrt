@@ -1,0 +1,75 @@
+From: Julius Bairaktaris <julius@bairaktaris.de>
+Subject: [PATCH] ath11k: nss: quiesce wifili offload at SERVER_EXIT before WCSS reset
+
+A Wi-Fi firmware assert drives the ahb SSR path through
+ath11k_core_pre_reconfigure_recovery(), which stops the mac80211 queues and
+drains host TX but leaves the NSS wifili firmware armed and still driving the
+WCSS HAL SRNG pointer registers. Those registers are held in reset while the Q6
+reboots, so the NSS core takes an external abort and coredumps - and because
+wifili and the wired data path share NSS core0, the coredump brings the whole
+box down and the recovery re-arm re-trips it into a reboot loop.
+
+Send the wifili STOP message at SERVER_EXIT, before the WCSS reset lands, so the
+NSS firmware ceases touching the reset register space. The full teardown in
+ath11k_core_reconfigure_on_crash() still runs its stop/deinit/reset and ignores
+this stop's return, so no dynamic-interface node leaks and the offload re-arms
+cleanly once the Q6 is back.
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+diff --git a/drivers/net/wireless/ath/ath11k/core.c b/drivers/net/wireless/ath/ath11k/core.c
+index cb44163..0986110 100644
+--- a/drivers/net/wireless/ath/ath11k/core.c
++++ b/drivers/net/wireless/ath/ath11k/core.c
+@@ -2535,6 +2535,8 @@ void ath11k_core_pre_reconfigure_recovery(struct ath11k_base *ab)
+ 
+ 	wake_up(&ab->wmi_ab.tx_credits_wq);
+ 
++	ath11k_nss_pre_reconfigure(ab);
++
+ 	reinit_completion(&ab->driver_recovery);
+ }
+ 
+diff --git a/drivers/net/wireless/ath/ath11k/nss.c b/drivers/net/wireless/ath/ath11k/nss.c
+index 2c85d61..0f2b1db 100644
+--- a/drivers/net/wireless/ath/ath11k/nss.c
++++ b/drivers/net/wireless/ath/ath11k/nss.c
+@@ -3544,6 +3544,14 @@ int ath11k_nss_teardown(struct ath11k_base *ab)
+ 	return 0;
+ }
+ 
++int ath11k_nss_pre_reconfigure(struct ath11k_base *ab)
++{
++	if (!ab->nss.enabled)
++		return 0;
++
++	return ath11k_nss_stop(ab);
++}
++
+ int ath11k_nss_setup(struct ath11k_base *ab)
+ {
+ 	int i;
+diff --git a/drivers/net/wireless/ath/ath11k/nss.h b/drivers/net/wireless/ath/ath11k/nss.h
+index e6fb9c9..3e3c5d0 100644
+--- a/drivers/net/wireless/ath/ath11k/nss.h
++++ b/drivers/net/wireless/ath/ath11k/nss.h
+@@ -285,6 +285,7 @@ void ath11k_nss_update_sta_rxrate(struct hal_rx_mon_ppdu_info *ppdu_info,
+ 				  struct hal_rx_user_status *user_stats);
+ int ath11k_nss_setup(struct ath11k_base *ab);
+ int ath11k_nss_teardown(struct ath11k_base *ab);
++int ath11k_nss_pre_reconfigure(struct ath11k_base *ab);
+ void ath11k_nss_ext_rx_stats(struct ath11k_base *ab, struct htt_rx_ring_tlv_filter *tlv_filter);
+ #else
+ static inline int ath11k_nss_tx(struct ath11k_vif *arvif, struct sk_buff *skb)
+@@ -452,6 +453,11 @@ static inline int ath11k_nss_teardown(struct ath11k_base *ab)
+ 	return 0;
+ }
+ 
++static inline int ath11k_nss_pre_reconfigure(struct ath11k_base *ab)
++{
++	return 0;
++}
++
+ static inline void ath11k_nss_ext_rx_stats(struct ath11k_base *ab,
+ 					   struct htt_rx_ring_tlv_filter *tlv_filter)
+ {
