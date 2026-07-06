@@ -1,0 +1,44 @@
+From: Julius Bairaktaris <julius@bairaktaris.de>
+Subject: [PATCH] ath11k: skip monitor status reap until the ring is initialized
+
+During firmware recovery the extended interrupt groups are re-enabled
+before the monitor status refill ring has been set up again. Servicing
+the ring in that window passes an uninitialized srng (hp_addr == NULL)
+to ath11k_hal_srng_access_begin() and panics in interrupt context -
+observed deterministically on IPQ8074 with NSS offload: every firmware
+fatal (hif_ce.c assertion -> Q6 SSR) turned into a host kernel panic
+about one second into the recovery, from the napi thread:
+
+  ath11k_hal_srng_access_begin+0xc
+  ath11k_dp_rx_process_mon_status+0x15c
+  ath11k_dp_service_srng+0xb8
+  ath11k_ahb_ext_grp_napi_poll+0x34
+
+Because the panic fires in the recovery path, it converts every
+recoverable firmware crash into a reboot. Check the srng's initialized
+flag (set by ath11k_hal_srng_setup, the same flag the HAL debug dump
+path already gates on) and skip the reap until the ring is live again.
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+diff --git a/drivers/net/wireless/ath/ath11k/dp_rx.c b/drivers/net/wireless/ath/ath11k/dp_rx.c
+index cd01fbf..85e3ecd 100644
+--- a/drivers/net/wireless/ath/ath11k/dp_rx.c
++++ b/drivers/net/wireless/ath/ath11k/dp_rx.c
+@@ -3754,6 +3754,16 @@ static int ath11k_dp_rx_reap_mon_status_ring(struct ath11k_base *ab, int mac_id,
+ 
+ 	srng = &ab->hal.srng_list[rx_ring->refill_buf_ring.ring_id];
+ 
++	/*
++	 * During firmware recovery the extended interrupt groups are
++	 * re-enabled before the monitor status ring is set up again;
++	 * servicing it in that window dereferences an uninitialized srng
++	 * (hp_addr == NULL) and panics in interrupt context. Skip until
++	 * the ring is live again.
++	 */
++	if (!srng->initialized)
++		return 0;
++
+ 	spin_lock_bh(&srng->lock);
+ 
+ 	ath11k_hal_srng_access_begin(ab, srng);

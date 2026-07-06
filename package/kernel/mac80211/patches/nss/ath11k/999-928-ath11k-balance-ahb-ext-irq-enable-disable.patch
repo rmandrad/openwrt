@@ -1,0 +1,47 @@
+From: Julius Bairaktaris <julius@bairaktaris.de>
+Subject: [PATCH] ath11k: balance the AHB extended IRQ enable/disable pair
+
+The firmware-crash recovery flow (QMI server exit ->
+ath11k_core_pre_reconfigure_recovery -> restart) never disables the
+extended DP interrupts, but ath11k_core_qmi_firmware_ready()
+unconditionally re-enables them, so every crash recovery on the AHB bus
+trips the depth check once per DP interrupt line - observed on IPQ8074
+as a storm of 13 warnings per recovery pass:
+
+  Unbalanced enable for IRQ 59
+  WARNING: CPU: 2 PID: 11359 at kernel/irq/manage.c:774 __enable_irq
+    ath11k_ahb_ext_irq_enable
+    ath11k_core_qmi_firmware_ready
+    ath11k_core_restart
+
+Make the AHB ext_irq_enable/ext_irq_disable ops idempotent with the
+ATH11K_FLAG_EXT_IRQ_ENABLED dev flag that the PCI(C) bus code already
+maintains for the same purpose, so the pair stays balanced no matter
+which recovery flow invokes it.
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+diff --git a/drivers/net/wireless/ath/ath11k/ahb.c b/drivers/net/wireless/ath/ath11k/ahb.c
+index dce2158..2bc2986 100644
+--- a/drivers/net/wireless/ath/ath11k/ahb.c
++++ b/drivers/net/wireless/ath/ath11k/ahb.c
+@@ -390,6 +390,9 @@ static void ath11k_ahb_ext_irq_enable(struct ath11k_base *ab)
+ {
+ 	int i;
+ 
++	if (test_and_set_bit(ATH11K_FLAG_EXT_IRQ_ENABLED, &ab->dev_flags))
++		return;
++
+ 	for (i = 0; i < ATH11K_EXT_IRQ_GRP_NUM_MAX; i++) {
+ 		struct ath11k_ext_irq_grp *irq_grp = &ab->ext_irq_grp[i];
+ 
+@@ -404,6 +407,9 @@ static void ath11k_ahb_ext_irq_enable(struct ath11k_base *ab)
+ 
+ static void ath11k_ahb_ext_irq_disable(struct ath11k_base *ab)
+ {
++	if (!test_and_clear_bit(ATH11K_FLAG_EXT_IRQ_ENABLED, &ab->dev_flags))
++		return;
++
+ 	__ath11k_ahb_ext_irq_disable(ab);
+ 	ath11k_ahb_sync_ext_irqs(ab);
+ }
