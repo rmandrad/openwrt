@@ -75,8 +75,15 @@ apply_nss_config() {
 
   config_load pbuf
   config_get_bool auto_scale opt auto_scale 0
-  config_get n2h_queue_limit_core0 opt n2h_queue_limit_core0 256
-  config_get n2h_queue_limit_core1 opt n2h_queue_limit_core1 256
+  # The firmware's default N2H delivery queue of 256 packets overflows on
+  # line-rate bursts to host-terminated flows (measured: 9-35% UDP loss at
+  # ~1.4 Gbit/s into the router's own IP, all accounted as
+  # n2h_rx_queue[0]_drops). 2048 is the maximum the medium memory profile's
+  # pbuf pools support (the firmware clamps larger values) and absorbs those
+  # bursts; the transient buffer custody this allows (~8MB at 4KB per
+  # payload) is affordable since the payloads moved to kmalloc backing.
+  config_get n2h_queue_limit_core0 opt n2h_queue_limit_core0 2048
+  config_get n2h_queue_limit_core1 opt n2h_queue_limit_core1 2048
 
   sysctl -w dev.nss.clock.auto_scale="$auto_scale" > /dev/null 2>&1
 
