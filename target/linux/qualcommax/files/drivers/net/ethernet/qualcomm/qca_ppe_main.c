@@ -982,6 +982,8 @@ static void qca_ppe_mac_link_down(struct phylink_config *config,
 	struct qca_ppe_priv *priv = ds_to_priv(dp->ds);
 	int port = dp->index;
 
+	ppe_port_bridge_txmac_set(priv, port, false);
+
 	switch (interface) {
 	case PHY_INTERFACE_MODE_SGMII:
 	case PHY_INTERFACE_MODE_QSGMII:
@@ -1124,6 +1126,8 @@ static void qca_ppe_mac_link_up(struct phylink_config *config,
 	default:
 		return;
 	}
+
+	ppe_port_bridge_txmac_set(priv, port, true);
 }
 
 static const struct phylink_mac_ops qca_ppe_phylink_mac_ops = {
