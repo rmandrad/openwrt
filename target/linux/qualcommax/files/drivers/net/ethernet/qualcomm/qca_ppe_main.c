@@ -982,6 +982,18 @@ static void qca_ppe_mac_link_down(struct phylink_config *config,
 	struct qca_ppe_priv *priv = ds_to_priv(dp->ds);
 	int port = dp->index;
 
+	/*
+	 * Stop the switch fabric feeding this port before the MAC is torn
+	 * down, and turn it back on only after the MAC is up again (end of
+	 * qca_ppe_mac_link_up()). Left enabled across a flap, the fabric
+	 * dequeues into a MAC that is still being re-clocked and latches the
+	 * port's queue-manager egress scheduler in a state that never drains:
+	 * the link comes back at full speed and the host keeps queueing, but
+	 * nothing leaves the wire until reboot. The vendor ssdk driver does
+	 * the same on every link change; both halves are required.
+	 */
+	ppe_port_bridge_txmac_set(priv, port, false);
+
 	switch (interface) {
 	case PHY_INTERFACE_MODE_SGMII:
 	case PHY_INTERFACE_MODE_QSGMII:
@@ -1124,6 +1136,12 @@ static void qca_ppe_mac_link_up(struct phylink_config *config,
 	default:
 		return;
 	}
+
+	/*
+	 * Fabric TX-MAC comes back on only now that the MAC is up - see the
+	 * matching disable in qca_ppe_mac_link_down().
+	 */
+	ppe_port_bridge_txmac_set(priv, port, true);
 }
 
 static const struct phylink_mac_ops qca_ppe_phylink_mac_ops = {
