@@ -39,6 +39,7 @@ struct qca_edma_dp_owner {
 
 #if IS_REACHABLE(CONFIG_QCOM_EDMA)
 bool qca_edma_netdev_is_conduit(const struct net_device *netdev);
+int qca_edma_fw_baseline_restore(struct net_device *conduit);
 int qca_edma_port_dp_claim(struct net_device *conduit, unsigned int port,
 			   const struct qca_edma_dp_owner *owner, void *ctx);
 int qca_edma_port_dp_release(struct net_device *conduit, unsigned int port);
@@ -50,6 +51,11 @@ void qca_edma_port_transition_end(struct net_device *conduit,
 static inline bool qca_edma_netdev_is_conduit(const struct net_device *netdev)
 {
 	return false;
+}
+
+static inline int qca_edma_fw_baseline_restore(struct net_device *conduit)
+{
+	return -ENODEV;
 }
 
 static inline int qca_edma_port_dp_claim(struct net_device *conduit,
