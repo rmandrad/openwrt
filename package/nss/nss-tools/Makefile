@@ -88,6 +88,8 @@ define Package/nss-tools/install
 	$(INSTALL_BIN) ./files/edma-dump $(1)/usr/sbin/edma-dump
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/nss.init $(1)/etc/init.d/nss
+	$(INSTALL_BIN) ./files/nss-recovery $(1)/usr/sbin/nss-recovery
+	$(INSTALL_BIN) ./files/nss-recovery.init $(1)/etc/init.d/nss-recovery
 	$(INSTALL_DIR) $(1)/etc/hotplug.d/net
 	$(INSTALL_DATA) ./files/nss-rps.hotplug $(1)/etc/hotplug.d/net/30-nss-rps
 	$(INSTALL_DIR) $(1)/lib/nss
