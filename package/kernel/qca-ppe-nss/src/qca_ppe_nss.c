@@ -883,12 +883,16 @@ static int ppe_nss_status_show(struct seq_file *m, void *v)
 		struct ppe_nss_port *port = &ppe_nss_ports[i];
 
 		seq_printf(m,
-			   "if_num %d: netdev=%s armed=%d overridden=%d started=%d fw_vsi=%d tx_redirect_pkts=%lld tx_busy=%lld rx_fw_pkts=%lld\n",
+			   "if_num %d: netdev=%s armed=%d overridden=%d started=%d injectable=%d fw_vsi=%d tx_redirect_pkts=%lld tx_busy=%lld rx_fw_pkts=%lld\n",
 			   i,
 			   port->netdev ? netdev_name(port->netdev) : "-",
 			   port->state >= PPE_NSS_PORT_ARMED,
 			   port->state >= PPE_NSS_PORT_OVERRIDDEN,
-			   port->state == PPE_NSS_PORT_STARTED, port->fw_vsi,
+			   port->state == PPE_NSS_PORT_STARTED,
+			   port->state == PPE_NSS_PORT_STARTED &&
+			   qca_edma_port_dp_injectable(port->conduit,
+						      port->if_num),
+			   port->fw_vsi,
 			   (long long)atomic64_read(&port->tx_redirect_pkts),
 			   (long long)atomic64_read(&port->tx_busy),
 			   (long long)atomic64_read(&port->rx_fw_pkts));

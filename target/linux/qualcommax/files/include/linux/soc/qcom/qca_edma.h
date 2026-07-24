@@ -47,6 +47,7 @@ void qca_edma_port_transition_begin(struct net_device *conduit,
 				    unsigned int port);
 void qca_edma_port_transition_end(struct net_device *conduit,
 				  unsigned int port);
+bool qca_edma_port_dp_injectable(struct net_device *conduit, unsigned int port);
 #else
 static inline bool qca_edma_netdev_is_conduit(const struct net_device *netdev)
 {
@@ -80,6 +81,12 @@ static inline void qca_edma_port_transition_begin(struct net_device *conduit,
 static inline void qca_edma_port_transition_end(struct net_device *conduit,
 						unsigned int port)
 {
+}
+
+static inline bool qca_edma_port_dp_injectable(struct net_device *conduit,
+					       unsigned int port)
+{
+	return false;
 }
 #endif
 

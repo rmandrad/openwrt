@@ -110,6 +110,18 @@ for p in $(uci -q get "sqm.${sqm_sec}.igs_upload"); do
 	fi
 done
 
+# An NSS tree forwards nothing until one leaf is marked as its default
+# destination. A root left without one is the shape a failed or interrupted
+# shaper build leaves behind, and it is invisible everywhere else: the link
+# stays up, the carrier stays set, tc still lists a shaper. Name it, because
+# from the outside it looks exactly like a dead port or a dead line.
+sqm_dropping=""
+for d in $sqm_dev "ifb@${sqm_dev}" $(uci -q get "sqm.${sqm_sec}.igs_upload" | sed 's/[^ ]*/ifb-&/g'); do
+	[ -n "$d" ] || continue
+	tc qdisc show dev "$d" 2>/dev/null | head -n1 | grep -q '^qdisc nsstbl' || continue
+	tc qdisc show dev "$d" 2>/dev/null | grep -q set_default || sqm_dropping="$sqm_dropping $d"
+done
+
 state=host
 if [ "$fw_mask" != "0x0" ]; then
 	if [ "$heartbeat" -gt 0 ]; then
@@ -169,22 +181,44 @@ fi
 # the client stays unreachable is not putting frames on the wire.
 if [ "$L2" = 1 ]; then
 	edp=/sys/kernel/debug/qca-nss-drv/stats/edma/ports
+	# VSI table base (HPPE, SoC-wide on IPQ807x): PPE 0x3a000000 + L2 block
+	# 0x060000 + VSI_TBL 0x1800, 0x10 per VSI. Word0 holds the member and
+	# unknown-unicast/multicast/broadcast flood bitmaps: an emptied word0 on a
+	# started port means the firmware dropped the port out of its own flood
+	# masks, which silently black-holes host BUM egress (PADI/ARP/ND).
+	vsi_bmp() { [ -n "$1" ] && [ "$1" -ge 0 ] 2>/dev/null &&
+		devmem $((0x3a061800 + $1 * 0x10)) 32 2>/dev/null; }
 	echo "NSS L2 per-port datapath:"
-	printf "  %-6s %-4s %-4s %-4s %13s %12s %12s %12s\n" port ifn car vsi "host->fw" "fw->host" "wire->fw" "fw->wire"
-	for pn in 2 3 4 5; do
+	printf "  %-6s %-4s %-4s %-4s %-4s %-11s %12s %9s %12s %12s %12s\n" \
+	       port ifn car inj vsi vsi_bmp "host->fw" "hostbusy" "fw->host" "wire->fw" "fw->wire"
+	# Port set comes from the live glue table, never a hardcoded range: the
+	# WAN is port 2 on one board and port 6 on the next.
+	for pn in $(awk '/^if_num/ && !/netdev=-/ {sub(/:/,"",$2); print $2}' \
+		    "$GLUE/status" 2>/dev/null); do
 		line=$(grep "if_num $pn:" "$GLUE/status" 2>/dev/null)
 		nd=$(echo "$line" | sed -n 's/.*netdev=\([^ ]*\).*/\1/p')
 		[ -z "$nd" ] || [ "$nd" = "-" ] && continue
 		vsi=$(echo "$line" | sed -n 's/.*fw_vsi=\([^ ]*\).*/\1/p')
+		inj=$(echo "$line" | sed -n 's/.*injectable=\([^ ]*\).*/\1/p')
 		txr=$(echo "$line" | sed -n 's/.*tx_redirect_pkts=\([^ ]*\).*/\1/p')
+		tbz=$(echo "$line" | sed -n 's/.*tx_busy=\([^ ]*\).*/\1/p')
 		rxf=$(echo "$line" | sed -n 's/.*rx_fw_pkts=\([^ ]*\).*/\1/p')
 		car=$(cat "/sys/class/net/$nd/carrier" 2>/dev/null)
 		etx=$(cat "$edp/$pn"/* 2>/dev/null | awk '/tx_pkts/{print $3}')
 		erx=$(cat "$edp/$pn"/* 2>/dev/null | awk '/rx_pkts/{print $3}')
-		printf "  %-6s %-4s %-4s %-4s %13s %12s %12s %12s\n" "$nd" "$pn" "${car:-?}" "${vsi:-?}" "${txr:-?}" "${rxf:-?}" "${etx:-?}" "${erx:-?}"
+		printf "  %-6s %-4s %-4s %-4s %-4s %-11s %12s %9s %12s %12s %12s\n" \
+		       "$nd" "$pn" "${car:-?}" "${inj:-?}" "${vsi:-?}" \
+		       "$(vsi_bmp "$vsi")" "${txr:-?}" "${tbz:-?}" "${rxf:-?}" \
+		       "${etx:-?}" "${erx:-?}"
 	done
 	echo "  host->fw=glue tx_redirect  fw->host=glue rx_fw  wire->fw=edma ingress  fw->wire=edma egress"
 	echo "  link-up + host->fw climbing + client unreachable => egress stall (see /root/auto-recovery)"
+	echo "  A wedged WAN on a carrier-up port reads as one of:"
+	echo "    inj=0            host TX is dropped before the firmware - the port never got its"
+	echo "                     injection grant back after a transition"
+	echo "    hostbusy rising  the firmware stopped draining the host->fw ring"
+	echo "    host->fw rising  frames reach the firmware and die past it (fabric/egress side);"
+	echo "                     an emptied vsi_bmp there means the flood masks were lost"
 	exit 0
 fi
 
@@ -229,6 +263,7 @@ esac
 if [ "$sqm_active" = 1 ]; then
 	igs_human=$(echo "$igs_ports" | sed 's/\([a-z0-9]*\):1/\1/g; s/\([a-z0-9]*\):0/\1(MISSING)/g')
 	echo "  SQM:         nsstbl shaper on $sqm_dev, upload IGS:${igs_human:- none}"
+	[ -n "$sqm_dropping" ] && echo "  SHAPER FAULT: no default leaf below the NSS root on:$sqm_dropping - those devices are dropping every packet they are given (link stays up)"
 	if [ "$fl_active" = 1 ]; then
 		echo "  fast lane:   egress ${fl_egress:-0} pkts / ingress ${fl_ingress:-0} pkts, ${qos_rules} marking rules active"
 	fi

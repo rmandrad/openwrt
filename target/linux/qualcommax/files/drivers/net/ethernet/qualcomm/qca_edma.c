@@ -1294,6 +1294,20 @@ void qca_edma_port_transition_end(struct net_device *conduit,
 }
 EXPORT_SYMBOL_GPL(qca_edma_port_transition_end);
 
+bool qca_edma_port_dp_injectable(struct net_device *conduit, unsigned int port)
+{
+	struct edma_priv *priv;
+
+	if (!qca_edma_netdev_is_conduit(conduit) ||
+	    port > QCA_EDMA_DP_MAX_PORT)
+		return false;
+
+	priv = netdev_priv(conduit);
+
+	return READ_ONCE(priv->dp_injectable[port]);
+}
+EXPORT_SYMBOL_GPL(qca_edma_port_dp_injectable);
+
 static int edma_irq_init(struct edma_priv *priv)
 {
 	struct platform_device *pdev = priv->pdev;
