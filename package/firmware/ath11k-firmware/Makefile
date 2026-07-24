@@ -58,6 +58,11 @@ $(Package/ath11k-firmware-default)
   TITLE:=IPQ6018 ath11k firmware
 endef
 
+define Package/ath11k-firmware-ipq8074
+$(Package/ath11k-firmware-default)
+  TITLE:=IPQ8074 ath11k firmware
+endef
+
 define Build/Clean
 	$(call Build/Clean/Default,)
 
@@ -93,5 +98,13 @@ define Package/ath11k-firmware-ipq6018/install
 		$(1)/lib/firmware/IPQ6018/
 endef
 
+define Package/ath11k-firmware-ipq8074/install
+	$(INSTALL_DIR) $(1)/lib/firmware/IPQ8074
+	$(INSTALL_DATA) \
+		./files/IPQ8074/q6_fw.* ./files/IPQ8074/m3_fw.* ./files/IPQ8074/*.bin \
+		$(1)/lib/firmware/IPQ8074/
+endef
+
 $(eval $(call BuildPackage,ath11k-firmware-ipq5018-qcn6122))
 $(eval $(call BuildPackage,ath11k-firmware-ipq6018))
+$(eval $(call BuildPackage,ath11k-firmware-ipq8074))
