@@ -1194,17 +1194,32 @@ static void qca_ppe_mac_link_up(struct phylink_config *config,
 	}
 
 	/*
-	 * Fabric TX-MAC comes back on only now that the MAC is up - see the
-	 * matching disable in qca_ppe_mac_link_down().
-	 */
-	ppe_port_bridge_txmac_set(priv, port, true);
-
-	/*
-	 * The transition mac_config opened must close on every exit path:
-	 * while it is open the conduit drops all host TX for the port, so
-	 * returning early leaves a link-up port unable to transmit.
+	 * Both of these have to happen on every exit path, and for the same
+	 * reason: each one is half of a pair whose other half already ran
+	 * unconditionally, so an early return does not decline to act - it
+	 * leaves the port switched off.
+	 *
+	 * qca_ppe_mac_link_down() gates the fabric off before it so much as
+	 * looks at the interface, and its own switch returns for a mode it
+	 * does not handle. Re-enabling only after the modes this function
+	 * handles therefore makes the disable unconditional and the enable
+	 * conditional. A port that takes an early exit here keeps its carrier,
+	 * keeps receiving, and transmits nothing at all: the host and the
+	 * firmware both go on handing it frames, the firmware's egress counter
+	 * goes on counting them as sent, and the MAC puts none of them on the
+	 * wire - with no error reported anywhere, because a gated fabric
+	 * discards silently. Nothing re-enables it on a later carrier event
+	 * either, so the port stays dark across any number of cable flaps;
+	 * only an administrative down/up gets it back, via port_enable().
+	 *
+	 * The gate exists to keep the fabric from dequeuing into a MAC that is
+	 * still being re-clocked, so what it protects is a window - and the
+	 * window is over once this function returns, whichever way it returns.
+	 * Same for the transition: while it is open the conduit drops all host
+	 * TX for the port.
 	 */
 out:
+	ppe_port_bridge_txmac_set(priv, port, true);
 	qca_edma_port_transition_end(ppe_port_conduit(dp), port);
 }
 
