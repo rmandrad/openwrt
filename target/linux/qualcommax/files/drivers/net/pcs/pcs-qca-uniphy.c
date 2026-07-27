@@ -355,16 +355,38 @@ static void qca_uniphy_pcs_get_state_usxgmii(struct qca_uniphy *uniphy,
 	unsigned int val;
 	int ret;
 
-	ret = regmap_read(uniphy->regmap, XPCS_MII_AN_INTR_STS, &val);
+	/*
+	 * The USXGMII code word carries a link bit, but an AQR113C behind this
+	 * XPCS never asserts it. Autonegotiation completes, the code word
+	 * tracks the copper rate as the media renegotiates and reports full
+	 * duplex, and the link bit stays clear the whole time. Gating on it
+	 * leaves the port without carrier, so link_up() never runs, the port
+	 * MAC is never enabled and the XPCS keeps its 10G reset default.
+	 *
+	 * Take the link from the 10GBASE-R receiver instead, the way the
+	 * 10GBASE-R path does. It answers the only question a PCS can answer
+	 * on its own, whether the system interface is up. With a PHY attached
+	 * phylink ANDs this with the PHY link and takes the interface and the
+	 * media side speed from the PHY, so copper still decides whether the
+	 * port comes up. The code word remains the speed source for a link
+	 * with no PHY, where nothing else can supply it.
+	 */
+	ret = regmap_read(uniphy->regmap, XPCS_KR_STS1, &val);
 	if (ret) {
 		state->link = 0;
 		return;
 	}
 
-	state->link = !!(val & XPCS_USXG_AN_LINK_STS);
+	state->link = !!(val & XPCS_KR_STS1_PLU);
 
 	if (!state->link)
 		return;
+
+	ret = regmap_read(uniphy->regmap, XPCS_MII_AN_INTR_STS, &val);
+	if (ret) {
+		state->link = 0;
+		return;
+	}
 
 	switch (FIELD_GET(XPCS_USXG_AN_SPEED_MASK, val)) {
 	case XPCS_USXG_AN_SPEED_10000:
@@ -622,9 +644,18 @@ static int qca_uniphy_pcs_config_usxgmii(struct phylink_pcs *pcs,
 	if (ret)
 		return ret;
 
+	/*
+	 * Only run USXGMII autonegotiation when phylink asked for in-band
+	 * signalling. Otherwise phylink has called phy_config_inband() with
+	 * LINK_INBAND_DISABLE, the PHY has stopped sending code words, and the
+	 * XPCS would wait for words that never arrive: the SerDes trains and
+	 * the receiver reaches block lock, but the datapath never opens.
+	 */
 	return regmap_update_bits(uniphy->regmap, XPCS_MII_CTRL,
 				  XPCS_MII_AN_EN,
-				  interface == PHY_INTERFACE_MODE_USXGMII ? XPCS_MII_AN_EN : 0);
+				  (interface == PHY_INTERFACE_MODE_USXGMII &&
+				   neg_mode == PHYLINK_PCS_NEG_INBAND_ENABLED) ?
+				  XPCS_MII_AN_EN : 0);
 }
 
 static int qca_uniphy_pcs_config(struct phylink_pcs *pcs,
