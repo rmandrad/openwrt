@@ -1559,6 +1559,26 @@ int qca_ppe_port_fw_vsi_get(struct net_device *netdev)
 EXPORT_SYMBOL_GPL(qca_ppe_port_fw_vsi_get);
 
 /*
+ * Re-enable a port's queues at an ownership boundary, for the data-plane glue
+ * to call when the port changes hands. qca-ppe is the single writer of PPE
+ * tables, so the glue asks for this rather than reaching into the registers.
+ */
+int qca_ppe_port_queues_enable(struct net_device *netdev)
+{
+	struct qca_ppe_priv *priv;
+	int port;
+
+	priv = qca_ppe_user_port_resolve(netdev, &port);
+	if (!priv)
+		return -ENODEV;
+
+	ppe_port_queues_enable(priv, port);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(qca_ppe_port_queues_enable);
+
+/*
  * qca_ppe_port_fw_vsi_refresh - re-assert a private VSI's table entry
  * @netdev: DSA user netdev whose private VSI was assigned to the fw
  *

@@ -324,6 +324,16 @@ static int ppe_nss_port_start(struct ppe_nss_port *port)
 		goto err_vsi;
 	}
 
+	/*
+	 * Hand the port over with its queues serviceable. The enqueue and
+	 * dequeue disables are the fabric's flush protocol and survive every
+	 * link and data-plane transition, so a queue left disabled by a flush
+	 * is otherwise cleared only by a reboot. This is the last moment
+	 * before the firmware takes the port, so nothing else owns them here.
+	 */
+	if (qca_ppe_port_queues_enable(netdev))
+		netdev_warn(netdev, "qca-ppe-nss: queue enable failed\n");
+
 	if (port->dp_ops->open(port->dpc, 0, 0, 0)) {
 		netdev_warn(netdev, "qca-ppe-nss: fw open failed\n");
 		goto err_vsi;
@@ -386,6 +396,14 @@ static void ppe_nss_port_unwind(struct ppe_nss_port *port,
 			netdev_info(port->netdev, "qca-ppe-nss: port %d back on host data plane\n",
 				    port->if_num);
 		}
+
+		/*
+		 * Outside the fw_alive guard: the rmmod path hands the port
+		 * back to the host without the firmware answering, and that
+		 * host path needs serviceable queues just as much.
+		 */
+		if (qca_ppe_port_queues_enable(port->netdev))
+			netdev_warn(port->netdev, "qca-ppe-nss: queue enable failed\n");
 
 		port->fw_vsi = -1;
 		port->state = PPE_NSS_PORT_OVERRIDDEN;

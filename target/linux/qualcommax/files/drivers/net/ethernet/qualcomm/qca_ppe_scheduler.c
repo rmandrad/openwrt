@@ -782,6 +782,51 @@ const struct bm_tdm_data hppe_bm_tdm_data = {
 	.num = ARRAY_SIZE(hppe_bm_tdm),
 };
 
+/*
+ * Clear the enqueue and dequeue disables on every queue that belongs to a
+ * port, unicast and multicast alike.
+ *
+ * A queue whose dequeue is disabled is never serviced: it fills to its
+ * admission ceiling, the port's MAC stops transmitting entirely, and every
+ * further frame the host hands over is counted as an arrival and discarded.
+ * Measured on an IPQ8074 by setting the bit on one queue - the port went
+ * silent with its carrier up, its MAC MIB frozen at zero, and it kept its
+ * queued packets across a link down/up, which no configuration register
+ * reports and which a reboot is otherwise the only way out of.
+ *
+ * The queue range comes from the port's own scheduler geometry rather than a
+ * fixed range, so this follows whatever layout the SoC's table describes.
+ */
+void ppe_port_queues_enable(struct qca_ppe_priv *priv, int port)
+{
+	int i, q;
+
+	for (i = 0; i < ARRAY_SIZE(port_l0); i++) {
+		const struct port_l0_params *p = &port_l0[i];
+		u16 bases[] = { p->ucast_base, p->mcast_base };
+		u8 counts[] = { p->ucast_count, p->mcast_count };
+		int k;
+
+		if (p->port != port)
+			continue;
+
+		for (k = 0; k < 2; k++) {
+			for (q = bases[k]; q < bases[k] + counts[k]; q++) {
+				regmap_clear_bits(priv->regmap,
+						  PPE_TM_DEQ_DIS(q),
+						  PPE_TM_DEQ_DISABLE);
+				regmap_clear_bits(priv->regmap,
+						  PPE_QM_ENQ_OPR(q),
+						  PPE_QM_ENQ_DISABLE);
+				regmap_clear_bits(priv->regmap,
+						  PPE_QM_DEQ_OPR(q),
+						  PPE_QM_DEQ_DISABLE);
+			}
+		}
+		return;
+	}
+}
+
 void ppe_scheduler_init(struct qca_ppe_priv *priv)
 {
 	ppe_tdm_init(priv);

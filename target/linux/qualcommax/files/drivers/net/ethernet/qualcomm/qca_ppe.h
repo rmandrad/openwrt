@@ -375,6 +375,27 @@
 #define PPE_QM_UCAST_HASH_MAP(i)	(PPE_QM_BASE + 0x30000 + (i) * 0x10)
 #define   PPE_QM_HASH_CLASS		GENMASK(3, 0)
 
+/*
+ * Per-queue enqueue and dequeue enables. The hardware exposes three, named
+ * here as qca-ssdk names them: DEQ_DIS_TBL is 0x30000 on the traffic-manager
+ * base, OQ_ENQ_OPR_TBL and OQ_DEQ_OPR_TBL are 0x5c000 and 0x64000 on the
+ * queue-manager base. A set bit stops the queue being serviced.
+ *
+ * They form the hardware's queue-flush protocol: a flush requires the queue to
+ * be disabled first, and whoever ran the flush is responsible for enabling it
+ * again (qca-ssdk's adpt_hppe_queue_flush() has two error exits that return
+ * with the queue still disabled). A queue left disabled reports nothing: no
+ * configuration register records it, the port's MAC is simply never handed a
+ * frame again, and the port's counters go on counting the arrivals it then
+ * discards.
+ */
+#define PPE_TM_DEQ_DIS(q)		(PPE_TM_BASE + 0x30000 + (q) * 0x10)
+#define   PPE_TM_DEQ_DISABLE		BIT(0)
+#define PPE_QM_ENQ_OPR(q)		(PPE_QM_BASE + 0x5c000 + (q) * 0x10)
+#define   PPE_QM_ENQ_DISABLE		BIT(0)
+#define PPE_QM_DEQ_OPR(q)		(PPE_QM_BASE + 0x64000 + (q) * 0x10)
+#define   PPE_QM_DEQ_DISABLE		BIT(0)
+
 #define PPE_QM_UCAST_PRI_MAP(i)	(PPE_QM_BASE + 0x42000 + (i) * 0x10)
 #define   PPE_QM_PRI_CLASS		GENMASK(3, 0)
 
@@ -546,6 +567,7 @@ static inline struct qca_ppe_priv *ds_to_priv(struct dsa_switch *ds)
 }
 
 void ppe_scheduler_init(struct qca_ppe_priv *priv);
+void ppe_port_queues_enable(struct qca_ppe_priv *priv, int port);
 
 struct qca_ppe_priv *qca_ppe_user_port_resolve(struct net_device *netdev,
 					       int *port);

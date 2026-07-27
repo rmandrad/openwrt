@@ -17,6 +17,14 @@ int qca_ppe_port_fw_vsi_get(struct net_device *netdev);
 int qca_ppe_port_fw_vsi_refresh(struct net_device *netdev);
 
 /*
+ * Clears the per-queue enqueue and dequeue disables on a port's queues. Called
+ * at the moments a port changes hands, when nothing legitimately owns its
+ * queues, so that a queue left disabled by a flush is repaired rather than
+ * needing a reboot.
+ */
+int qca_ppe_port_queues_enable(struct net_device *netdev);
+
+/*
  * Bridge offload helpers for the NSS bridge manager. qca-ppe owns the shared
  * per-bridge VSI (allocated when DSA ports join the Linux bridge); the bridge
  * manager reuses it for the firmware bridge interface and asks qca-ppe to
