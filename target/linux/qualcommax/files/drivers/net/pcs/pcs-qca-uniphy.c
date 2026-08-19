@@ -822,10 +822,9 @@ static void qca_uniphy_pcs_disable(struct phylink_pcs *pcs)
 	struct qca_uniphy_pcs *upcs = to_qca_uniphy_pcs(pcs);
 	struct qca_uniphy *uniphy = upcs->uniphy;
 
-	if (uniphy->data->uniphy_type == UNIPHY_IPQ5018) {
-		clk_disable(uniphy->clks[port_rx_clk_idx(upcs)].clk);
-		clk_disable(uniphy->clks[port_tx_clk_idx(upcs)].clk);
-	}
+	if (uniphy->data->uniphy_type == UNIPHY_IPQ5018)
+		clk_bulk_disable(QCA_UNIPHY_PORT_CLKS,
+				 &uniphy->clks[port_rx_clk_idx(upcs)]);
 }
 
 static int qca_uniphy_pcs_enable(struct phylink_pcs *pcs)
@@ -834,22 +833,16 @@ static int qca_uniphy_pcs_enable(struct phylink_pcs *pcs)
 	struct qca_uniphy *uniphy = upcs->uniphy;
 	int ret;
 
-	if (uniphy->data->uniphy_type == UNIPHY_IPQ5018) {
-		ret = clk_enable(uniphy->clks[port_rx_clk_idx(upcs)].clk);
-		if (ret) {
-			dev_err(uniphy->dev, "Failed to enable RX clock for channel %d\n",
-				upcs->channel);
-			return ret;
-		}
-		ret = clk_enable(uniphy->clks[port_tx_clk_idx(upcs)].clk);
-		if (ret) {
-			dev_err(uniphy->dev, "Failed to enable TX clock for channel %d\n",
-				upcs->channel);
-			return ret;
-		}
-	}
+	if (uniphy->data->uniphy_type != UNIPHY_IPQ5018)
+		return 0;
 
-	return 0;
+	ret = clk_bulk_enable(QCA_UNIPHY_PORT_CLKS,
+			      &uniphy->clks[port_rx_clk_idx(upcs)]);
+	if (ret)
+		dev_err(uniphy->dev, "Failed to enable clocks for channel %d\n",
+			upcs->channel);
+
+	return ret;
 }
 
 static void qca_uniphy_pcs_an_restart(struct phylink_pcs *pcs) { }

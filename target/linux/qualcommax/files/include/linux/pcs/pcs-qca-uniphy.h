@@ -146,5 +146,7 @@ struct qca_uniphy {
 
 #define port_rx_clk_idx(upcs)	((upcs)->channel * 2) + 2
 #define port_tx_clk_idx(upcs)	(((upcs)->channel * 2) + 1) + 2
+/* The pair is adjacent, so the bulk ops can take it from the rx index */
+#define QCA_UNIPHY_PORT_CLKS	2
 
 #endif
